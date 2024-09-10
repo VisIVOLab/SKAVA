@@ -1,18 +1,24 @@
 /* SKAVA Project Custom Styles */
 
-/* Apply the gradient to the background */
+/* Body and general typography */
 body {
     font-family: 'Lato', sans-serif;
     color: #2c3e50;
-    background: linear-gradient(90deg, rgba(63,221,232,1) 0%, rgba(73,79,224,1) 100%);
-    background-attachment: fixed;
+    background-color: #f4f6f9; /* Light background for clean look */
+    line-height: 1.6;
 }
 
 /* Header */
 header {
-    background-color: #3fDde8; /* Lighter gradient color */
-    padding: 10px;
+    background-color: #494fe0; /* Darker logo color */
+    padding: 15px;
     text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    color: white;
+    font-size: 2.5em;
 }
 
 header a {
@@ -22,38 +28,49 @@ header a {
 }
 
 header a:hover {
-    color: #f39c12;
+    color: #3fdde8; /* Lighter logo color */
 }
 
 /* Navigation */
 nav {
-    display: flex;
-    justify-content: center;
+    background-color: #3fdde8; /* Lighter logo color */
     padding: 10px;
-    background-color: #494fe0; /* Darker gradient color */
+    text-align: center;
+    border-bottom: 1px solid #ddd;
 }
 
 nav a {
     color: white;
-    padding: 0 15px;
+    margin: 0 15px;
     font-weight: bold;
+    text-transform: uppercase;
 }
 
 nav a:hover {
-    color: #3fDde8; /* Lighter gradient color */
+    color: #494fe0; /* Darker logo color */
+}
+
+/* Main content */
+main {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
 }
 
 /* Footer */
 footer {
-    background-color: #494fe0; /* Darker gradient color */
+    background-color: #494fe0; /* Darker logo color */
     color: white;
     text-align: center;
-    padding: 10px 0;
+    padding: 15px 0;
     margin-top: 30px;
 }
 
 footer a {
-    color: #3fDde8; /* Lighter gradient */
+    color: #3fdde8;
     text-decoration: none;
 }
 
@@ -63,7 +80,7 @@ footer a:hover {
 
 /* Buttons */
 .btn {
-    background-color: #3fDde8; /* Lighter gradient */
+    background-color: #3fdde8; /* Lighter logo color */
     color: white;
     padding: 10px 20px;
     text-align: center;
@@ -71,8 +88,9 @@ footer a:hover {
     border-radius: 5px;
     text-decoration: none;
     font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .btn:hover {
-    background-color: #494fe0; /* Darker gradient */
+    background-color: #494fe0; /* Darker logo color */
 }
