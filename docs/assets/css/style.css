@@ -1,0 +1,77 @@
+/* SKAVA Project Custom Styles */
+
+/* Body and general typography */
+body {
+    font-family: 'Lato', sans-serif;
+    color: #2c3e50;
+    background-color: #f8f9fa;
+}
+
+/* Header */
+header {
+    background-color: #34495e;
+    padding: 10px;
+    text-align: center;
+}
+
+header a {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+header a:hover {
+    color: #f39c12;
+}
+
+/* Navigation */
+nav {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+    background-color: #2c3e50;
+}
+
+nav a {
+    color: white;
+    padding: 0 15px;
+    font-weight: bold;
+}
+
+nav a:hover {
+    color: #f39c12;
+}
+
+/* Footer */
+footer {
+    background-color: #34495e;
+    color: white;
+    text-align: center;
+    padding: 10px 0;
+    margin-top: 30px;
+}
+
+footer a {
+    color: #f39c12;
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* Buttons */
+.btn {
+    background-color: #f39c12;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    display: inline-block;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.btn:hover {
+    background-color: #e67e22;
+}
