@@ -1,7 +1,7 @@
 title: SKAVA Project Website
 description: >
   The SKA Visual Analytics (SKAVA) Project
-theme: jekyll-theme-cayman
+theme: minima
 baseurl: "/SKAVA"
 url: "https://fvitello.github.io"
 markdown: kramdown
