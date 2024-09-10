@@ -1,15 +1,16 @@
 /* SKAVA Project Custom Styles */
 
-/* Body and general typography */
+/* Apply the gradient to the background */
 body {
     font-family: 'Lato', sans-serif;
     color: #2c3e50;
-    background-color: #f8f9fa;
+    background: linear-gradient(90deg, rgba(63,221,232,1) 0%, rgba(73,79,224,1) 100%);
+    background-attachment: fixed;
 }
 
 /* Header */
 header {
-    background-color: #34495e;
+    background-color: #3fDde8; /* Lighter gradient color */
     padding: 10px;
     text-align: center;
 }
@@ -29,7 +30,7 @@ nav {
     display: flex;
     justify-content: center;
     padding: 10px;
-    background-color: #2c3e50;
+    background-color: #494fe0; /* Darker gradient color */
 }
 
 nav a {
@@ -39,12 +40,12 @@ nav a {
 }
 
 nav a:hover {
-    color: #f39c12;
+    color: #3fDde8; /* Lighter gradient color */
 }
 
 /* Footer */
 footer {
-    background-color: #34495e;
+    background-color: #494fe0; /* Darker gradient color */
     color: white;
     text-align: center;
     padding: 10px 0;
@@ -52,7 +53,7 @@ footer {
 }
 
 footer a {
-    color: #f39c12;
+    color: #3fDde8; /* Lighter gradient */
     text-decoration: none;
 }
 
@@ -62,7 +63,7 @@ footer a:hover {
 
 /* Buttons */
 .btn {
-    background-color: #f39c12;
+    background-color: #3fDde8; /* Lighter gradient */
     color: white;
     padding: 10px 20px;
     text-align: center;
@@ -73,5 +74,5 @@ footer a:hover {
 }
 
 .btn:hover {
-    background-color: #e67e22;
+    background-color: #494fe0; /* Darker gradient */
 }
