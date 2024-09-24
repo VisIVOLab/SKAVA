@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ page.title }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
       <div class="logo">
         <img src="/assets/images/logo_skava.png" alt="SKAVA Logo">
       </div>
-      <ul>
+      <ul class="menu">
         <li><a href="/">Home</a></li>
         <li><a href="{{ '/SKAVA/documentation/' | relative_url }}">Documentation</a></li>
         <li><a href="{{ '/SKAVA/about/' | relative_url }}">About</a></li>
@@ -22,11 +23,6 @@
   </header>
 
   <main>
-    <section class="hero">
-      <h1>SKAVA Project</h1>
-      <p>Unlocking the Universe with Advanced Visual Analytics</p>
-    </section>
-
     <section class="content">
       {{ content }}
     </section>

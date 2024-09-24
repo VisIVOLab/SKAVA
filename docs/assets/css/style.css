@@ -1,76 +1,64 @@
-/* General styles */
+/* Use Titillium Web font for the entire website */
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Titillium Web', sans-serif;
     margin: 0;
-    background-color: #0e3b5c;
-    color: white;
+    padding: 0;
+    color: #fff;
   }
   
-  header {
-    background-color: #082336;
-    padding: 1rem;
+  /* Navbar styles */
+  .navbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-  }
-  
-  .navbar {
-    display: flex;
-    align-items: center;
+    background-color: #082336;
+    padding: 15px;
   }
   
   .logo img {
     height: 50px;
-    margin-right: 20px;
+    width: auto;
   }
   
-  .navbar ul {
+  .menu {
     list-style-type: none;
-    display: flex;
-    justify-content: center;
+    margin: 0;
     padding: 0;
+    display: flex;
+    gap: 20px;
   }
   
-  .navbar ul li {
-    margin: 0 15px;
+  .menu li {
+    display: inline;
   }
   
-  .navbar ul li a {
+  .menu a {
     color: white;
     text-decoration: none;
-    font-weight: bold;
+    font-weight: 600;
   }
   
-  .navbar ul li a:hover {
+  .menu a:hover {
     text-decoration: underline;
   }
   
-  /* Hero section */
-  .hero {
-    text-align: center;
-    padding: 50px 0;
-    background-color: #082336;
-  }
-  
-  .hero h1 {
-    font-size: 3em;
-    margin-bottom: 20px;
-  }
-  
-  .hero p {
-    font-size: 1.2em;
-  }
-  
-  /* Content section */
-  .content {
+  /* Main content */
+  main {
+    background-color: #0e3b5c;
     padding: 20px;
-    text-align: center;
+  }
+  
+  .content {
+    max-width: 1200px;
+    margin: 0 auto;
   }
   
   /* Footer */
   footer {
-    background-color: #082336;
-    padding: 20px;
     text-align: center;
+    background-color: #082336;
+    padding: 10px;
+    font-size: 14px;
+    color: #fff;
   }
   
