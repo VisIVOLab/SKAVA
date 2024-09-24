@@ -3,29 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ page.title }} - SKAVA Project</title>
-  <link rel="stylesheet" href="/assets/css/style.css">
+  <title>{{ page.title }}</title>
+  <link rel="stylesheet" href="{{ '/SKAVA/assets/css/style.css' | relative_url }}">
 </head>
 <body>
+  <header>
+    <nav class="navbar">
+      <div class="logo">
+        <img src="{{ '/SKAVA/assets/images/logo_skava.png' | relative_url }}" alt="SKAVA Logo">
+      </div>
+      <ul>
+        <li><a href="{{ '/SKAVA/' | relative_url }}">Home</a></li>
+        <li><a href="{{ '/SKAVA/documentation/' | relative_url }}">Documentation</a></li>
+        <li><a href="{{ '/SKAVA/about/' | relative_url }}">About</a></li>
+        <li><a href="{{ '/SKAVA/contact/' | relative_url }}">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
 
-<header>
-  <h1><a href="/">SKAVA Project</a></h1>
-</header>
+  <main>
+    <section class="hero">
+      <h1>SKAVA Project</h1>
+      <p>Unlocking the Universe with Advanced Visual Analytics</p>
+    </section>
 
-<nav>
-  <a href="/">Home</a>
-  <a href="/documentation.md">Documentation</a>
-  <a href="/deliverables.md">Deliverables</a>
-  <a href="/news.md">News</a>
-</nav>
+    <section class="content">
+      {{ content }}
+    </section>
+  </main>
 
-<main>
-  {{ content }}
-</main>
-
-<footer>
-  <p>&copy; 2024 SKAVA Project. Powered by <a href="https://jekyllrb.com/">Jekyll</a> on GitHub Pages.</p>
-</footer>
-
+  <footer>
+    <p>&copy; 2024 SKAVA Project</p>
+  </footer>
 </body>
 </html>
