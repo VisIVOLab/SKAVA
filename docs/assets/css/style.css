@@ -38,8 +38,7 @@ body {
   /* Banner Styling */
   .banner {
     width: 100%;
-    height: 400px; /* Adjust based on how tall you want the banner */
-    background-color: #0e3b5c; /* Background color to match the image */
+    background-color: #1d4367; /* Background color to match the image */
     display: flex;
     justify-content: center;
     align-items: center;
