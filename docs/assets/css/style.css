@@ -54,6 +54,7 @@ body {
   /* Content Section */
   .content {
     max-width: 1200px;
+    width: 80%;
     margin: 0 auto;
     padding: 75px 0;
     position: relative;
