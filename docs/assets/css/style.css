@@ -53,8 +53,20 @@ body {
   
   /* Content Section */
   .content {
-    padding: 20px;
     max-width: 1200px;
+    margin: 0 auto;
+    padding: 75px 0;
+    position: relative;
+  }
+
+  .content h3:after
+  {
+    background: #f20061;
+    content: "";
+    display: block;
+    width: 30px;
+    height: 5px;
+    margin-top: 30px;
   }
   
   /* Footer Styling */
