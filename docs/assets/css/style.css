@@ -39,10 +39,17 @@ body {
   .banner {
     width: 100%;
     height: 400px; /* Adjust based on how tall you want the banner */
-    background-image: url('/assets/images/banner.png');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    background-color: #0e3b5c; /* Background color to match the image */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden; /* Hide any overflowing parts of the image */
+  }
+  
+  .banner img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain; /* Ensures the image keeps its aspect ratio */
   }
   
   /* Content Section */
@@ -56,23 +63,5 @@ body {
     color: white;
     text-align: center;
     padding: 10px 0;
-  }
-  
-  /* Responsive Banner Behavior */
-  @media (max-width: 1200px) {
-    .banner {
-      background-size: auto 100%; /* This will adjust the banner height but keep full height */
-      background-position: top center; /* Align the banner in the center */
-    }
-  }
-  
-  @media (max-width: 768px) {
-    .navbar ul {
-      flex-direction: column;
-    }
-  
-    .navbar ul li {
-      margin: 10px 0;
-    }
   }
   
