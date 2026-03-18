@@ -1,0 +1,4 @@
+obs_id,obs_collection,dataproduct_type,calib_level,target_name,s_ra,s_dec,t_min,t_max,em_min,em_max,access_format,access_estsize,node_id,access_url,is_public
+dataset-8,skava-import,image,2,target-8,120.0,-30.0,59010.0,59010.5,1.2e-6,1.8e-6,image/fits,4096,A,https://node-a.example.org/datalink/dataset-8,true
+dataset-8,skava-import,image,2,target-8,120.0,-30.0,59010.0,59010.5,1.2e-6,1.8e-6,image/fits,4096,B,https://node-b.example.org/datalink/dataset-8,true
+dataset-9,skava-import,image,2,target-9,121.0,-31.0,59011.0,59011.5,1.2e-6,1.8e-6,image/fits,8192,C,https://node-c.example.org/datalink/dataset-9,false

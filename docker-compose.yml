@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16
+    container_name: skava-db
+    environment:
+      POSTGRES_DB: skava
+      POSTGRES_USER: skava
+      POSTGRES_PASSWORD: skava
+    ports:
+      - "5432:5432"
+    volumes:
+      - skava_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skava -d skava"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: skava-api
+    environment:
+      SKAVA_ENV: dev
+      SKAVA_DATABASE_URL: postgresql+psycopg://skava:skava@db:5432/skava
+      SKAVA_PUBLIC_BASE_URL: http://localhost:8000
+      SKAVA_LOG_LEVEL: DEBUG
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["/srv/app/docker/entrypoint.sh"]
+    volumes:
+      - ./docker/entrypoint.sh:/srv/app/docker/entrypoint.sh
+
+volumes:
+  skava_pgdata:

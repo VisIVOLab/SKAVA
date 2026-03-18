@@ -1,0 +1,4 @@
+obs_id,obs_collection,dataproduct_type,node_id,access_url,s_ra,s_dec,t_min,t_max,em_min,em_max
+,skava-invalid,image,A,https://node-a.example.org/datalink/missing,120.0,-20.0,59030.0,59030.5,1.0e-6,1.8e-6
+dataset-invalid-2,skava-invalid,,B,https://node-b.example.org/datalink/dataset-invalid-2,120.0,-20.0,59030.0,59030.5,1.0e-6,1.8e-6
+dataset-invalid-3,skava-invalid,image,C,not-a-url,120.0,-20.0,59030.0,59030.5,1.0e-6,1.8e-6

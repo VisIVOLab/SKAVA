@@ -1,0 +1,5 @@
+source "https://rubygems.org"
+
+gem "jekyll", "~> 4.2.0"
+gem "webrick"  # Necessary for local development with Jekyll 4.x
+
