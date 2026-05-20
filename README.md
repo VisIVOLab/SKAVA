@@ -10,10 +10,9 @@ Production-ready backend service for distributed data discovery and access routi
 - Access endpoint returns routing metadata (DataLink/SODA precursor), not raw file payloads.
 - Structured JSON logging, request tracing, Prometheus metrics, and health endpoints.
 
-<<<<<<< Updated upstream
 ## Funding
 Funded by INAF under the Astrophysics Fundamental Research Grant (Techno Grant).
-=======
+
 ## Features
 
 - Discovery: `/discovery/search`, `/discovery/dataset/{obs_id}`
@@ -151,4 +150,3 @@ pytest
 
 This service is VO-aligned in production use.
 It intentionally does not implement full TAP/ObsTAP, full DataLink, or full SODA processing yet.
->>>>>>> Stashed changes
