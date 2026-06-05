@@ -40,6 +40,14 @@ def _as_bool(value: Any) -> bool | None:
     raise ValueError(f"Invalid boolean value '{value}'")
 
 
+def _as_dict(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    return {"value": value}
+
+
 def normalize_record(raw: dict[str, Any], source_type: str | None = None, source_ref: str | None = None) -> IngestionRecord:
     node_id = _as_str(raw.get("node_id")) or _as_str(raw.get("node_code"))
     access_url = _as_str(raw.get("access_url")) or _as_str(raw.get("access_endpoint"))
@@ -65,4 +73,9 @@ def normalize_record(raw: dict[str, Any], source_type: str | None = None, source
         checksum=_as_str(raw.get("checksum")),
         source_type=_as_str(raw.get("source_type")) or source_type,
         source_ref=_as_str(raw.get("source_ref")) or source_ref,
+        provenance=_as_dict(raw.get("provenance") or raw.get("provenance_json")),
+        doi=_as_str(raw.get("doi")),
+        pid=_as_str(raw.get("pid")),
+        citation=_as_str(raw.get("citation")),
+        license=_as_str(raw.get("license")),
     )

@@ -35,3 +35,9 @@ class DatasetMetadata(BaseModel):
     t_max: float | None = None
     em_min: float | None = None
     em_max: float | None = None
+    spatial_index_order: int | None = None
+    spatial_index_cell: str | None = None
+    doi: str | None = None
+    pid: str | None = None
+    citation: str | None = None
+    license: str | None = None

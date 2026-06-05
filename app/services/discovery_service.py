@@ -2,8 +2,8 @@ from collections.abc import Sequence
 import logging
 import time
 
-from sqlalchemy import Select, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import Select, func, select
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.errors import NoAvailableNodesError
 from app.metrics import record_ranking_decision
@@ -31,9 +31,9 @@ class DiscoveryService:
         )
         return list(self.db.scalars(stmt).all())
 
-    def _build_result(self, dataset: Dataset) -> DiscoveryResult:
+    def _build_result(self, dataset: Dataset, replicas: list[DatasetReplica] | None = None) -> DiscoveryResult:
         start = time.perf_counter()
-        replicas = self._fetch_replicas(dataset.id)
+        replicas = replicas if replicas is not None else self._fetch_replicas(dataset.id)
         eligible = self.policy.eligible(replicas)
         if not eligible:
             raise NoAvailableNodesError(f"No available nodes for dataset '{dataset.obs_id}'")
@@ -70,6 +70,9 @@ class DiscoveryService:
         time_value: NumericInterval | None = None,
         collection: str | None = None,
         dptype: str | None = None,
+        spatial_cell: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> DiscoverySearchResponse:
         stmt = select(Dataset)
 
@@ -79,16 +82,26 @@ class DiscoveryService:
             stmt = stmt.where(Dataset.obs_collection == collection)
         if dptype:
             stmt = stmt.where(Dataset.dataproduct_type == dptype)
+        if spatial_cell:
+            stmt = stmt.where(Dataset.spatial_index_cell == spatial_cell)
 
         stmt = apply_pos_filter(stmt, pos)
         stmt = apply_band_filter(stmt, band)
         stmt = apply_time_filter(stmt, time_value)
 
+        total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        stmt = (
+            stmt.options(selectinload(Dataset.replicas).selectinload(DatasetReplica.node))
+            .order_by(Dataset.obs_id)
+            .limit(limit)
+            .offset(offset)
+        )
+
         datasets: Sequence[Dataset] = self.db.scalars(stmt).all()
         results: list[DiscoveryResult] = []
         for dataset in datasets:
             try:
-                results.append(self._build_result(dataset))
+                results.append(self._build_result(dataset, replicas=list(dataset.replicas)))
             except NoAvailableNodesError:
                 # Ignore datasets without currently eligible replicas in search results.
                 continue
@@ -103,11 +116,15 @@ class DiscoveryService:
                     "TIME": f"{time_value.min_value} {time_value.max_value}" if time_value else None,
                     "COLLECTION": collection,
                     "DPTYPE": dptype,
+                    "SPATIAL_CELL": spatial_cell,
+                    "limit": limit,
+                    "offset": offset,
                 },
+                "total_candidates": total,
                 "results_count": len(results),
             },
         )
-        return DiscoverySearchResponse(results=results)
+        return DiscoverySearchResponse(results=results, total=total, limit=limit, offset=offset, returned=len(results))
 
     def get_dataset(self, obs_id: str) -> DiscoveryResult | None:
         dataset = self.db.scalar(select(Dataset).where(Dataset.obs_id == obs_id))

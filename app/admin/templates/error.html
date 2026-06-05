@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Error {{ status_code }} — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto bg-white rounded-lg shadow border border-slate-200 p-6 mt-12 text-center">
+  <h1 class="text-5xl font-bold text-brandDark">{{ status_code }}</h1>
+  <p class="text-slate-700 mt-3">
+    {% if status_code == 403 %}
+      You don't have the permissions for this page.
+    {% elif status_code == 404 %}
+      That page doesn't exist.
+    {% elif status_code >= 500 %}
+      The server hit an unexpected error.
+    {% else %}
+      {{ detail }}
+    {% endif %}
+  </p>
+  <a href="/admin/" class="inline-block mt-4 text-brand hover:underline">
+    ← Back to dashboard
+  </a>
+</div>
+{% endblock %}

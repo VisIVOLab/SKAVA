@@ -23,7 +23,12 @@ class DataLinkService:
 
     @staticmethod
     def _replica_access_healthy(replica: DatasetReplica) -> bool:
-        return bool(replica.access_endpoint and replica.access_endpoint.startswith("http"))
+        return bool(
+            replica.status == "available"
+            and replica.is_public
+            and replica.access_endpoint
+            and replica.access_endpoint.startswith(("http://", "https://"))
+        )
 
     def resolve(self, obs_id: str) -> DataLinkResponse | None:
         start = time.perf_counter()
@@ -81,7 +86,14 @@ class DataLinkService:
                 access_estsize=dataset.access_estsize,
             ),
             links=build_access_links(dataset, selected, ranked, datalink_url),
-            service_descriptors=build_service_descriptors(obs_id),
+            # Pass the ranked replicas' nodes to the service descriptor
+            # builder so it can emit one ``visivo-backend`` descriptor per
+            # node that has its ``visivo_backend_url`` populated. Order is
+            # preserved: the best-ranked node comes first, which the
+            # desktop client uses as the preferred routing target.
+            service_descriptors=build_service_descriptors(
+                    obs_id,
+                    nodes=[rep.node for rep in ranked]),
             capabilities=build_capabilities(),
         )
 

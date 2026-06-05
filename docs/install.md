@@ -95,4 +95,4 @@ curl -H "X-Internal-Api-Key: ${INTERNAL_API_KEY}" \
 ## Notes
 
 - `/access/{obs_id}` returns routing metadata, not raw file content.
-- Service is production-ready and VO-aligned; full TAP/DataLink/SODA server compliance is not claimed yet.
+- Service is production-hardened and VO-aligned; it includes a minimal TAP sync profile and DataLink VOTable output, while full TAP/DataLink/SODA server compliance is not claimed yet.

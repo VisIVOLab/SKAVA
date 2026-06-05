@@ -1,5 +1,6 @@
 from app.config import settings
 from app.models.dataset import Dataset
+from app.models.node import Node
 from app.models.replica import DatasetReplica
 from app.schemas.datalink import CapabilitiesDescriptor, LinkDescriptor, ServiceDescriptor
 
@@ -80,9 +81,23 @@ def build_access_links(
     return links
 
 
-def build_service_descriptors(obs_id: str) -> list[ServiceDescriptor]:
+def build_service_descriptors(
+    obs_id: str,
+    nodes: list[Node] | None = None,
+) -> list[ServiceDescriptor]:
+    """Build the service_descriptors[] array for the DataLink response.
+
+    The first descriptors are the always-present capability descriptors
+    (access-resolution, soda-sync stub, soda-async placeholder, cutout
+    placeholder). Per-node ``visivo-backend`` descriptors are appended
+    when any of the supplied ``nodes`` has its ``visivo_backend_url``
+    populated. The desktop client uses those entries to route compute
+    requests to the SRC's local backend instead of downloading the file.
+
+    See docs/distributed-backend-design.md §7 for the full design.
+    """
     base_url = settings.public_base_url.rstrip("/")
-    return [
+    descriptors: list[ServiceDescriptor] = [
         ServiceDescriptor(
             service_type="access-resolution",
             service_id="skava-access-resolution",
@@ -120,6 +135,28 @@ def build_service_descriptors(obs_id: str) -> list[ServiceDescriptor]:
             description="Future cutout/subset operations placeholder.",
         ),
     ]
+
+    # Per-node VisIVO backend descriptors (distributed-backend pattern).
+    for node in (nodes or []):
+        if not node.visivo_backend_url:
+            continue
+        descriptors.append(ServiceDescriptor(
+            service_type="visivo-backend",
+            service_id=f"visivo-backend-{node.code.lower()}",
+            access_url=node.visivo_backend_url,
+            standard_id=None,
+            supported_parameters=["ID"],
+            enabled=node.is_enabled and node.is_available,
+            description=(
+                f"VisIVO compute backend co-located with node {node.code} "
+                f"({node.name}). Desktop clients can open datasets "
+                "directly on the SRC without downloading the file."),
+            endpoint=node.visivo_backend_url,
+            node_code=node.code,
+            requires_auth=bool(node.visivo_backend_requires_auth),
+            supports_kinds=["image", "cube", "dynspec"],
+        ))
+    return descriptors
 
 
 def build_capabilities() -> CapabilitiesDescriptor:

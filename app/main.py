@@ -4,7 +4,11 @@ import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.admin.auth.session import get_or_generate_session_secret
+from app.admin.config import admin_settings
+from app.admin.router import register_admin
 from app.config import settings
 from app.db import wait_for_db
 from app.errors import SKAVAError
@@ -13,9 +17,13 @@ from app.middleware.request_context import RequestContextMiddleware
 from app.routers.access import router as access_router
 from app.routers.datalink import router as datalink_router
 from app.routers.discovery import router as discovery_router
+from app.routers.federation import router as federation_router
+from app.routers.provenance import router as provenance_router
+from app.routers.staging import router as staging_router
 from app.routers.system import router as system_router
 from app.routers.internal_ingestion import router as internal_ingestion_router
 from app.routers.soda import router as soda_router
+from app.routers.tap import router as tap_router
 from app.schemas.error import ErrorBody, ErrorResponse
 
 logger = logging.getLogger("skava.app")
@@ -33,6 +41,19 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
     app.add_middleware(RequestContextMiddleware)
+
+    # ── Admin UI session middleware ─────────────────────────────────────
+    # Required by Starlette's request.session; must run BEFORE
+    # request handlers but is allowed AFTER RequestContextMiddleware so
+    # the admin's audit log can read the request_id set there.
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=get_or_generate_session_secret(),
+        session_cookie=admin_settings.session_cookie_name,
+        max_age=admin_settings.session_max_age_seconds,
+        same_site="lax",
+        https_only=admin_settings.session_cookie_secure,
+    )
 
     @app.exception_handler(SKAVAError)
     async def skava_error_handler(_: Request, exc: SKAVAError):
@@ -72,7 +93,15 @@ def create_app() -> FastAPI:
     app.include_router(discovery_router)
     app.include_router(datalink_router)
     app.include_router(soda_router)
+    app.include_router(tap_router)
+    app.include_router(staging_router)
+    app.include_router(provenance_router)
+    app.include_router(federation_router)
     app.include_router(access_router)
+
+    # Admin UI: mounts /admin/* and /admin/static, registers its own
+    # error handler scoped to admin paths only.
+    register_admin(app)
     return app
 
 

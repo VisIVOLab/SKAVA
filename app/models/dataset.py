@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String
+from typing import Any
+
+from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -25,6 +27,8 @@ class Dataset(Base):
     t_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     em_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     em_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    spatial_index_order: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    spatial_index_cell: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     access_format: Mapped[str | None] = mapped_column(String(128), nullable=True)
     access_estsize: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -34,5 +38,10 @@ class Dataset(Base):
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
     checksum: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provenance_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    doi: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    pid: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    citation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    license: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     replicas = relationship("DatasetReplica", back_populates="dataset", cascade="all, delete-orphan")

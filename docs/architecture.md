@@ -3,7 +3,7 @@
 ## Summary
 
 Independent FastAPI + PostgreSQL service for distributed metadata discovery and access routing.
-The service is production-ready and aligned with IVOA concepts.
+The service is production-hardened and aligned with IVOA concepts.
 
 ## Data model
 
@@ -16,6 +16,7 @@ The service is production-ready and aligned with IVOA concepts.
 - `/discovery/search`: ObsCore-style discovery precursor; supports `POS`, `BAND`, `TIME`, `COLLECTION`, `DPTYPE`.
 - `/discovery/dataset/{obs_id}`: dataset metadata + available replicas + ranked best node.
 - `/access/{obs_id}`: DataLink/SODA precursor returning routing contract (`best_node`, `access_url`, supported operations).
+- `/tap/sync`: minimal TAP sync ObsCore compatibility profile for bounded ADQL access.
 - `/capabilities`: VOSI-inspired capability declaration.
 
 ## Production hardening
@@ -31,4 +32,4 @@ The service is production-ready and aligned with IVOA concepts.
 
 - ObsCore metadata naming and discovery behavior: aligned.
 - DataLink/SODA interaction model: precursor implementation.
-- TAP/ObsTAP endpoint: planned.
+- TAP/ObsTAP endpoint: minimal sync profile implemented; full TAP async and broad ADQL coverage planned.

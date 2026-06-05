@@ -2,9 +2,20 @@ from app.models.replica import DatasetReplica
 from app.ranking.base import RankingPolicy
 
 
+def _score(value: float | None, default: float) -> float:
+    return value if value is not None else default
+
+
 class DefaultRankingPolicy(RankingPolicy):
     def eligible(self, replicas: list[DatasetReplica]) -> list[DatasetReplica]:
-        return [rep for rep in replicas if rep.node.is_enabled and rep.node.is_available]
+        return [
+            rep
+            for rep in replicas
+            if getattr(rep, "status", "available") == "available"
+            and getattr(rep, "is_public", True)
+            and rep.node.is_enabled
+            and rep.node.is_available
+        ]
 
     def rank(self, replicas: list[DatasetReplica]) -> list[DatasetReplica]:
         eligible = self.eligible(replicas)
@@ -13,8 +24,9 @@ class DefaultRankingPolicy(RankingPolicy):
         return sorted(
             eligible,
             key=lambda r: (
-                r.node.latency_score if r.node.latency_score is not None else float("inf"),
-                -(r.node.capability_score if r.node.capability_score is not None else float("-inf")),
+                _score(getattr(r.node, "latency_score", None), float("inf")),
+                _score(getattr(r.node, "load_score", None), float("inf")),
+                -_score(getattr(r.node, "capability_score", None), float("-inf")),
             ),
         )
 

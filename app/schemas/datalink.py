@@ -37,6 +37,17 @@ class ServiceDescriptor(BaseModel):
     supported_parameters: list[str]
     enabled: bool
     description: str
+    # ── Optional fields used by service-type-specific descriptors ────────
+    # When ``service_type == "visivo-backend"`` (distributed VisIVO backend
+    # at an SRC node), the desktop client reads ``endpoint`` and
+    # ``node_code`` to match the entry against its known-backends registry,
+    # and ``requires_auth`` to decide whether to forward its bearer token.
+    # These extra fields are ignored by clients that consume the standard
+    # ServiceDescriptor shape.
+    endpoint: str | None = None
+    node_code: str | None = None
+    requires_auth: bool | None = None
+    supports_kinds: list[str] | None = None
 
 
 class CapabilitiesDescriptor(BaseModel):

@@ -17,7 +17,18 @@ Discovery endpoints map to these fields and are designed to evolve with full VO 
 - returns an access contract (routing metadata)
 - advertises operation hints in `supported_operations`
 
+`/datalink/{obs_id}` also supports a minimal VOTable links table for VO-oriented clients.
 This is intentionally not a full DataLink server implementation.
+
+## TAP/ObsTAP Profile
+
+`/tap/sync` implements a constrained ObsCore compatibility profile:
+- `SELECT` from `ivoa.ObsCore`
+- equality predicates on `obs_id`, `obs_collection`, `dataproduct_type`
+- bounded `MAXREC`
+- VOTable or JSON output
+
+Full TAP async and broad ADQL support remain future work.
 
 ## SODA Evolution Path
 
@@ -30,5 +41,5 @@ Planned next steps:
 
 ## Compliance Statement
 
-The service is production-ready and VO-aligned.
+The service is production-hardened and VO-aligned.
 It does not currently claim full TAP/ObsTAP, full DataLink, or full SODA standard-server compliance.

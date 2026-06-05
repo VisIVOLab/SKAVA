@@ -13,3 +13,7 @@ class DiscoveryResult(BaseModel):
 
 class DiscoverySearchResponse(BaseModel):
     results: list[DiscoveryResult]
+    total: int
+    limit: int
+    offset: int
+    returned: int

@@ -21,6 +21,12 @@ def to_dataset_metadata(dataset: Dataset) -> DatasetMetadata:
         t_max=dataset.t_max,
         em_min=dataset.em_min,
         em_max=dataset.em_max,
+        spatial_index_order=dataset.spatial_index_order,
+        spatial_index_cell=dataset.spatial_index_cell,
+        doi=dataset.doi,
+        pid=dataset.pid,
+        citation=dataset.citation,
+        license=dataset.license,
     )
 
 

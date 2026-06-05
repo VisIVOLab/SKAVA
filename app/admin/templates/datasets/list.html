@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Datasets — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Datasets</h1>
+  {% if can_edit %}
+    <a href="/admin/datasets/new"
+       class="bg-brand hover:bg-brandDark text-white rounded px-4 py-2 text-sm font-medium">
+      + Add dataset
+    </a>
+  {% endif %}
+</div>
+
+<form method="get" action="/admin/datasets/"
+      class="bg-white border border-slate-200 rounded p-4 mb-4 grid grid-cols-1 md:grid-cols-5 gap-3 text-sm">
+  <div class="md:col-span-2">
+    <label for="q" class="block text-xs text-slate-500 mb-1">Search</label>
+    <input id="q" name="q" type="text" value="{{ q }}"
+           placeholder="obs_id, title or target"
+           class="w-full border border-slate-300 rounded px-3 py-2
+                  focus:outline-none focus:ring-2 focus:ring-brand" />
+  </div>
+  <div>
+    <label for="collection" class="block text-xs text-slate-500 mb-1">Collection</label>
+    <select id="collection" name="collection"
+            class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+      <option value="">(any)</option>
+      {% for c in collections %}
+        <option value="{{ c }}" {% if collection == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="dptype" class="block text-xs text-slate-500 mb-1">Data product type</label>
+    <select id="dptype" name="dptype"
+            class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+      <option value="">(any)</option>
+      {% for d in dptypes %}
+        <option value="{{ d }}" {% if dptype == d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="flex items-end">
+    <button type="submit"
+            class="w-full bg-slate-700 hover:bg-slate-900 text-white rounded px-4 py-2 font-medium">
+      Filter
+    </button>
+  </div>
+</form>
+
+<p class="text-xs text-slate-500 mb-2">
+  {{ total }} dataset{{ '' if total == 1 else 's' }}
+  {% if q or collection or dptype %}match the filter{% endif %}.
+  {% if n_pages > 1 %}Page {{ page }} of {{ n_pages }}.{% endif %}
+</p>
+
+{% if not rows %}
+  <p class="text-slate-500 text-sm">No datasets to show.</p>
+{% else %}
+  <div class="bg-white border border-slate-200 rounded overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100 text-slate-700">
+        <tr>
+          <th scope="col" class="text-left px-3 py-2">obs_id</th>
+          <th scope="col" class="text-left px-3 py-2">Collection</th>
+          <th scope="col" class="text-left px-3 py-2">Type</th>
+          <th scope="col" class="text-left px-3 py-2">Target</th>
+          <th scope="col" class="text-left px-3 py-2">Reps.</th>
+          {% if can_edit %}<th scope="col" class="text-right px-3 py-2">Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ds in rows %}
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2 font-mono">
+              <a href="/admin/datasets/{{ ds.id }}"
+                 class="text-brand hover:underline">{{ ds.obs_id }}</a>
+            </td>
+            <td class="px-3 py-2 text-slate-600">{{ ds.obs_collection or '—' }}</td>
+            <td class="px-3 py-2">{{ ds.dataproduct_type or '—' }}</td>
+            <td class="px-3 py-2 text-slate-600">{{ ds.target_name or '—' }}</td>
+            <td class="px-3 py-2 text-slate-600">{{ replica_counts.get(ds.id, 0) }}</td>
+            {% if can_edit %}
+              <td class="px-3 py-2 text-right">
+                <a href="/admin/datasets/{{ ds.id }}/edit"
+                   class="text-brand hover:underline text-xs">edit</a>
+                <form method="post"
+                      action="/admin/datasets/{{ ds.id }}/delete"
+                      class="inline ml-3"
+                      onsubmit="return confirm('Delete dataset {{ ds.obs_id }} and all its replicas? This cannot be undone.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+                  <button type="submit"
+                          class="text-rose-600 hover:underline text-xs">delete</button>
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if n_pages > 1 %}
+    <nav class="flex items-center justify-between mt-4 text-sm" aria-label="Pagination">
+      {%- set qs = '&q=' ~ q ~ '&collection=' ~ collection ~ '&dptype=' ~ dptype -%}
+      {% if page > 1 %}
+        <a href="?page={{ page - 1 }}{{ qs }}" class="text-brand hover:underline">← Previous</a>
+      {% else %}
+        <span class="text-slate-400">← Previous</span>
+      {% endif %}
+      <span class="text-slate-500">Page {{ page }} of {{ n_pages }}</span>
+      {% if page < n_pages %}
+        <a href="?page={{ page + 1 }}{{ qs }}" class="text-brand hover:underline">Next →</a>
+      {% else %}
+        <span class="text-slate-400">Next →</span>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endif %}
+{% endblock %}

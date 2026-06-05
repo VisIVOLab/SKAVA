@@ -17,6 +17,9 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("INTERNAL_API_KEY", "SKAVA_INTERNAL_API_KEY"),
     )
+    access_tokens: str | None = None
+    federated_src_urls: str | None = None
+    federation_timeout_seconds: float = Field(default=2.0, ge=0.1)
 
     db_pool_size: int = Field(default=10, ge=1)
     db_max_overflow: int = Field(default=20, ge=0)
@@ -45,6 +48,18 @@ class Settings(BaseSettings):
             raise ValueError("SKAVA_PUBLIC_BASE_URL must use https:// in production")
 
         return self
+
+    @property
+    def access_token_set(self) -> set[str]:
+        if not self.access_tokens:
+            return set()
+        return {token.strip() for token in self.access_tokens.split(",") if token.strip()}
+
+    @property
+    def federated_sources(self) -> list[str]:
+        if not self.federated_src_urls:
+            return []
+        return [url.strip().rstrip("/") for url in self.federated_src_urls.split(",") if url.strip()]
 
 
 settings = Settings()

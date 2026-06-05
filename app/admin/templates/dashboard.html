@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+
+<section class="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8" aria-label="Counts">
+  {% for key, label in [
+    ('datasets', 'Datasets'),
+    ('nodes', 'Nodes'),
+    ('users', 'Users'),
+    ('audit_rows', 'Audit rows'),
+  ] %}
+    <div class="bg-white border border-slate-200 rounded p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">{{ label }}</div>
+      <div class="text-2xl font-semibold text-brandDark mt-1">
+        {{ counts[key]|default(0) }}
+      </div>
+    </div>
+  {% endfor %}
+</section>
+
+<section aria-labelledby="recent-audit-title" class="mb-8">
+  <h2 id="recent-audit-title" class="text-lg font-medium mb-2">Recent activity</h2>
+  {% if recent_audit %}
+    <div class="bg-white border border-slate-200 rounded overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-700">
+          <tr>
+            <th scope="col" class="text-left px-3 py-2">When (UTC)</th>
+            <th scope="col" class="text-left px-3 py-2">Who</th>
+            <th scope="col" class="text-left px-3 py-2">Action</th>
+            <th scope="col" class="text-left px-3 py-2">Target</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in recent_audit %}
+            <tr class="border-t border-slate-100">
+              <td class="px-3 py-2 text-slate-600 whitespace-nowrap">
+                {{ row.occurred_at.strftime('%Y-%m-%d %H:%M:%S') }}
+              </td>
+              <td class="px-3 py-2">{{ row.actor_label }}</td>
+              <td class="px-3 py-2 font-mono text-xs">{{ row.action }}</td>
+              <td class="px-3 py-2 text-slate-600">
+                {% if row.target_type %}
+                  {{ row.target_type }}/{{ row.target_id or '-' }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-slate-500 text-sm">No activity yet.</p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="profile-title">
+  <h2 id="profile-title" class="text-lg font-medium mb-2">Your profile</h2>
+  <dl class="bg-white border border-slate-200 rounded p-4 text-sm grid grid-cols-2 gap-y-2 max-w-lg">
+    <dt class="text-slate-500">Username</dt>
+    <dd class="font-mono">{{ current_user.username }}</dd>
+
+    <dt class="text-slate-500">Role</dt>
+    <dd>{{ current_user.role }}</dd>
+
+    <dt class="text-slate-500">Email</dt>
+    <dd>{{ current_user.email or '-' }}</dd>
+
+    <dt class="text-slate-500">Last login</dt>
+    <dd>
+      {% if current_user.last_login_at %}
+        {{ current_user.last_login_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+      {% else %}
+        First login
+      {% endif %}
+    </dd>
+  </dl>
+</section>
+{% endblock %}

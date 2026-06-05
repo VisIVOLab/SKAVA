@@ -30,6 +30,11 @@ class IngestionRecord:
     checksum: str | None = None
     source_type: str | None = None
     source_ref: str | None = None
+    provenance: dict[str, Any] | None = None
+    doi: str | None = None
+    pid: str | None = None
+    citation: str | None = None
+    license: str | None = None
 
 
 @dataclass

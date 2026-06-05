@@ -1,8 +1,9 @@
-# Access Layer: DataLink-like JSON
+# Access Layer: DataLink-like JSON and VOTable
 
 ## Purpose
 
-`GET /datalink/{obs_id}` provides the canonical production DataLink-like JSON envelope.
+`GET /datalink/{obs_id}` provides the canonical production DataLink-like JSON envelope by default.
+It also supports a minimal VOTable links table with `RESPONSEFORMAT=application/x-votable+xml` or `FORMAT=votable`.
 
 `GET /access/{obs_id}` remains available as a compatibility facade over `/datalink/{obs_id}`.
 
@@ -56,6 +57,7 @@ Actual server-side subset execution remains not implemented.
 
 ```bash
 curl 'http://localhost:8000/datalink/dataset-3'
+curl 'http://localhost:8000/datalink/dataset-3?FORMAT=votable'
 curl 'http://localhost:8000/access/dataset-3'
 ```
 

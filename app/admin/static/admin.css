@@ -1,0 +1,14 @@
+/* Small tweaks on top of Tailwind. Tailwind's Play CDN handles everything else. */
+
+/* HTMX request indicator: dim the page while a swap is in flight. */
+.htmx-request.fade-on-load,
+.htmx-request .fade-on-load {
+  opacity: 0.6;
+  transition: opacity 0.2s linear;
+}
+
+/* Visible focus ring on every interactive element (a11y baseline). */
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--brand-color, #70b5e3);
+  outline-offset: 2px;
+}

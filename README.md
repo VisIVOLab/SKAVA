@@ -1,6 +1,6 @@
 # SKAVA Data Discovery and Access Service
 
-Production-ready backend service for distributed data discovery and access routing in a SRC-like environment.
+Production-hardened backend service for distributed data discovery and access routing in a SRC-like environment.
 
 ## Architecture Summary
 
@@ -17,7 +17,12 @@ Funded by INAF under the Astrophysics Fundamental Research Grant (Techno Grant).
 
 - Discovery: `/discovery/search`, `/discovery/dataset/{obs_id}`
 - Canonical DataLink descriptor: `/datalink/{obs_id}`
+- TAP sync ObsCore compatibility profile: `/tap/sync`
+- TAP async job profile: `/tap/async`
 - SODA sync stub endpoint: `/soda/sync`
+- Metadata-cache staging: `/staging/jobs`
+- Provenance/PID/citation endpoint: `/provenance/{obs_id}`
+- Federated discovery peer queries: `/federation/search`
 - Access routing: `/access/{obs_id}`
 - Operational endpoints: `/availability`, `/health/db`, `/metrics`, `/capabilities`
 - VO-aligned metadata and capability model (without claiming full TAP/DataLink/SODA server compliance)
@@ -29,6 +34,7 @@ Funded by INAF under the Astrophysics Fundamental Research Grant (Techno Grant).
 - Discovery query guide: `docs/discovery_queries.md`
 - Access DataLink-like guide: `docs/access_datalink.md`
 - Canonical DataLink endpoint guide: `docs/datalink_endpoint.md`
+- TAP sync guide: `docs/tap_sync.md`
 - SODA sync guide: `docs/soda_sync.md`
 - Install guide: `docs/install.md`
 - Runbook: `docs/runbook.md`
@@ -45,6 +51,9 @@ Required in `staging` and `production`:
 
 Core variables:
 - `INTERNAL_API_KEY` (required for internal ingestion control API)
+- `SKAVA_ACCESS_TOKENS` (optional comma-separated bearer tokens for discovery/access endpoints)
+- `SKAVA_FEDERATED_SRC_URLS` (optional comma-separated peer base URLs)
+- `SKAVA_FEDERATION_TIMEOUT_SECONDS`
 - `SKAVA_ENV=dev|staging|production`
 - `SKAVA_LOG_LEVEL=DEBUG|INFO|WARNING|ERROR`
 - `SKAVA_DB_POOL_SIZE`
@@ -100,7 +109,14 @@ curl 'http://localhost:8000/discovery/search?COLLECTION=skava-demo&DPTYPE=image'
 curl 'http://localhost:8000/discovery/search?POS=CIRCLE%20180%20-30%200.2&BAND=1.3e-6%201.4e-6&TIME=59003.1%2059003.4'
 curl 'http://localhost:8000/discovery/dataset/dataset-3'
 curl 'http://localhost:8000/datalink/dataset-3'
+curl 'http://localhost:8000/datalink/dataset-3?RESPONSEFORMAT=application/x-votable+xml'
+curl 'http://localhost:8000/tap/sync?QUERY=SELECT%20TOP%201%20*%20FROM%20ivoa.ObsCore%20WHERE%20obs_id%20%3D%20%27dataset-3%27'
+curl -X POST 'http://localhost:8000/tap/async' -F 'QUERY=SELECT TOP 1 * FROM ivoa.ObsCore WHERE obs_id = '\''dataset-3'\'''
 curl 'http://localhost:8000/soda/sync?ID=dataset-3&POS=CIRCLE%20103%20-23%200.05&BAND=1.3e-6%201.4e-6&TIME=59003.1%2059003.3'
+curl -X POST 'http://localhost:8000/soda/execute?ID=dataset-3&POS=CIRCLE%20103%20-23%200.05'
+curl -X POST 'http://localhost:8000/staging/jobs?ID=dataset-3'
+curl 'http://localhost:8000/provenance/dataset-3'
+curl 'http://localhost:8000/federation/sources'
 curl 'http://localhost:8000/access/dataset-3'
 ```
 
@@ -108,16 +124,34 @@ Discovery semantics (production-oriented):
 - `POS` supports `CIRCLE ra dec radius` with center-based overlap approximation using `s_ra/s_dec` and optional `s_fov`.
 - `BAND` requires `min max` and overlaps against `em_min/em_max`.
 - `TIME` requires `min max` and overlaps against `t_min/t_max`.
+- `limit` and `offset` bound result sets for production-safe scans.
+- `SPATIAL_CELL` can filter the lightweight HEALPix/MOC-ready spatial cell key exposed in metadata.
 
 Access semantics (DataLink-like JSON):
 - `/datalink/{obs_id}` is the canonical DataLink-like JSON descriptor endpoint.
+- `/datalink/{obs_id}?RESPONSEFORMAT=application/x-votable+xml` returns a minimal VOTable links table.
 - `/access/{obs_id}` is a compatibility facade that delegates to `/datalink/{obs_id}` and preserves legacy fields.
-- current response is JSON-only and production-ready, designed as a precursor to full VO DataLink serialization.
+- current response supports JSON and a minimal VOTable links table, designed as a precursor to full VO DataLink compliance.
+
+TAP sync semantics:
+- `/tap/sync` provides a minimal ObsCore compatibility profile.
+- Supported ADQL is intentionally constrained to `SELECT` from `ivoa.ObsCore` with equality predicates for `obs_id`, `obs_collection`, and `dataproduct_type`.
+- Default output is VOTable; use `FORMAT=json` for JSON.
+- `/tap/async` persists TAP jobs and returns job status/results. In the current profile jobs execute immediately; the storage model is ready for a future worker queue.
+
+Staging semantics:
+- `/staging/jobs` creates a metadata-cache staging handoff and returns the selected access URL.
+- This does not yet perform byte-level data movement; it is the control-plane primitive for future prefetch/staging workers.
+
+Federation semantics:
+- `/federation/search` queries configured peer `/discovery/search` endpoints using `SKAVA_FEDERATED_SRC_URLS`.
+- Failures are reported per source without failing the whole response.
 
 SODA sync semantics:
 - `/soda/sync` validates `ID`, `POS`, `BAND`, `TIME`, `RESPONSEFORMAT` and resolves routing.
 - endpoint is operational as a validation/orchestration stub.
-- real server-side subsetting execution is not implemented yet.
+- `/soda/execute` validates subset parameters and creates a staging handoff job.
+- byte-level FITS cutout execution still requires a configured processing backend.
 
 Example discovery response (abridged):
 ```json
@@ -149,4 +183,4 @@ pytest
 ## Standards Position
 
 This service is VO-aligned in production use.
-It intentionally does not implement full TAP/ObsTAP, full DataLink, or full SODA processing yet.
+It intentionally does not implement full TAP async/full ADQL, full DataLink service behavior, or SODA processing yet.

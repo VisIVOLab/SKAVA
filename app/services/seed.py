@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.dataset import Dataset
 from app.models.node import Node
 from app.models.replica import DatasetReplica
+from app.spatial_index import DEFAULT_SPATIAL_ORDER, compute_spatial_cell
 
 
 def seed_data(db: Session) -> None:
@@ -61,12 +62,19 @@ def seed_data(db: Session) -> None:
             s_ra=100.0 + i,
             s_dec=-20.0 - i,
             s_fov=0.2,
+            spatial_index_order=DEFAULT_SPATIAL_ORDER,
+            spatial_index_cell=compute_spatial_cell(100.0 + i, -20.0 - i),
             t_min=59000.0 + i,
             t_max=59000.5 + i,
             em_min=1.2e-6,
             em_max=1.8e-6,
             access_format="image/fits",
             access_estsize=1024 * i,
+            provenance_json={"generated_by": "app.services.seed", "calibration_level": 2},
+            doi=f"10.0000/skava.demo.{i}",
+            pid=f"skava:demo:{obs_id}",
+            citation=f"SKAVA demo observation {i}",
+            license="CC-BY-4.0",
         )
     db.add_all(datasets.values())
     db.flush()

@@ -11,6 +11,7 @@ from app.ingestion.validators.metadata_validator import validate_record
 from app.models.dataset import Dataset
 from app.models.node import Node
 from app.models.replica import DatasetReplica
+from app.spatial_index import DEFAULT_SPATIAL_ORDER, compute_spatial_cell
 
 logger = logging.getLogger("skava.ingestion")
 
@@ -102,11 +103,18 @@ class IngestService:
             "t_max": record.t_max,
             "em_min": record.em_min,
             "em_max": record.em_max,
+            "spatial_index_order": DEFAULT_SPATIAL_ORDER if record.s_ra is not None and record.s_dec is not None else None,
+            "spatial_index_cell": compute_spatial_cell(record.s_ra, record.s_dec),
             "access_format": record.access_format,
             "access_estsize": record.access_estsize,
             "source_type": record.source_type,
             "source_ref": record.source_ref,
             "checksum": record.checksum,
+            "provenance_json": record.provenance,
+            "doi": record.doi,
+            "pid": record.pid,
+            "citation": record.citation,
+            "license": record.license,
             "updated_at": now,
             "ingested_at": now,
         }

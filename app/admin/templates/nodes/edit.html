@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if is_new %}New node{% else %}Edit {{ node.code }}{% endif %} — {{ brand.name }}
+{% endblock %}
+
+{# Helper macro to read either the prior form submission (on validation
+   error) or the persisted entity, falling back to the third argument. #}
+{% macro field(form, node, name, default='') -%}
+  {%- if form.get(name) is not none and form.get(name) != '' -%}
+    {{ form.get(name) }}
+  {%- elif node is not none and node[name] is not none -%}
+    {{ node[name] }}
+  {%- else -%}
+    {{ default }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro checked(form, node, name) -%}
+  {%- if form -%}
+    {%- if form.get(name) == 'on' %}checked{% endif -%}
+  {%- elif node is not none and node[name] -%}
+    checked
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="mb-6 flex items-baseline justify-between">
+  <h1 class="text-2xl font-semibold">
+    {% if is_new %}New node{% else %}Edit <span class="font-mono">{{ node.code }}</span>{% endif %}
+  </h1>
+  <a href="/admin/nodes/" class="text-sm text-slate-600 hover:text-brand">
+    ← Back to nodes
+  </a>
+</div>
+
+{% if error %}
+  <div role="alert"
+       class="border border-rose-300 bg-rose-50 text-rose-900 rounded px-4 py-2 mb-4 text-sm">
+    {{ error }}
+  </div>
+{% endif %}
+
+<form method="post"
+      action="{% if is_new %}/admin/nodes/new{% else %}/admin/nodes/{{ node.id }}/edit{% endif %}"
+      class="bg-white border border-slate-200 rounded p-6 space-y-5 max-w-3xl"
+      autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+
+  <fieldset class="space-y-4">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">Identity</legend>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label for="code" class="block text-sm font-medium text-slate-700 mb-1">
+          Code <span class="text-rose-500">*</span>
+        </label>
+        <input type="text" id="code" name="code" required
+               value="{{ field(form, node, 'code') }}"
+               placeholder="e.g. POWER9"
+               class="w-full border border-slate-300 rounded px-3 py-2 font-mono
+                      focus:outline-none focus:ring-2 focus:ring-brand"
+               pattern="[A-Za-z0-9_\-]+"
+               title="Letters, digits, underscore, dash only. Stored upper-case." />
+        <p class="text-xs text-slate-500 mt-1">
+          Stable identifier. Stored upper-case. Used as ObsCore ``node_id``.
+        </p>
+      </div>
+
+      <div>
+        <label for="name" class="block text-sm font-medium text-slate-700 mb-1">
+          Display name <span class="text-rose-500">*</span>
+        </label>
+        <input type="text" id="name" name="name" required
+               value="{{ field(form, node, 'name') }}"
+               placeholder="e.g. INAF Power9 (Catania)"
+               class="w-full border border-slate-300 rounded px-3 py-2
+                      focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+    </div>
+
+    <div>
+      <label for="base_url" class="block text-sm font-medium text-slate-700 mb-1">
+        Base URL <span class="text-rose-500">*</span>
+      </label>
+      <input type="url" id="base_url" name="base_url" required
+             value="{{ field(form, node, 'base_url') }}"
+             placeholder="http://pleiadi-gpu.oact.inaf.it:8000"
+             class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm
+                    focus:outline-none focus:ring-2 focus:ring-brand" />
+      <p class="text-xs text-slate-500 mt-1">
+        Endpoint where the node's data-access service is reachable.
+      </p>
+    </div>
+  </fieldset>
+
+  <fieldset class="space-y-4 border-t border-slate-200 pt-5">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">VisIVO backend</legend>
+    <p class="text-xs text-slate-500 -mt-1">
+      If this node co-hosts a VisIVO compute service, fill these so the
+      desktop client can route opens through it (compute-next-to-data) instead
+      of downloading. See ``docs/distributed-backend-design.md``.
+    </p>
+
+    <div>
+      <label for="visivo_backend_url" class="block text-sm font-medium text-slate-700 mb-1">
+        VisIVO backend URL
+      </label>
+      <input type="url" id="visivo_backend_url" name="visivo_backend_url"
+             value="{{ field(form, node, 'visivo_backend_url') }}"
+             placeholder="http://pleiadi-gpu.oact.inaf.it:8000"
+             class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm
+                    focus:outline-none focus:ring-2 focus:ring-brand" />
+      <p class="text-xs text-slate-500 mt-1">
+        Leave empty for archive-only nodes (no compute).
+      </p>
+    </div>
+
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="visivo_backend_requires_auth"
+             {{ checked(form, node, 'visivo_backend_requires_auth') }}
+             class="rounded border-slate-300 text-brand focus:ring-brand" />
+      Requires bearer-token authentication
+    </label>
+  </fieldset>
+
+  <fieldset class="space-y-4 border-t border-slate-200 pt-5">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">Scoring</legend>
+
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label for="latency_score" class="block text-sm font-medium text-slate-700 mb-1">
+          Latency score
+        </label>
+        <input type="number" step="any" id="latency_score" name="latency_score"
+               value="{{ field(form, node, 'latency_score') }}"
+               placeholder="ms"
+               class="w-full border border-slate-300 rounded px-3 py-2 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-brand" />
+        <p class="text-xs text-slate-500 mt-1">Lower is better.</p>
+      </div>
+
+      <div>
+        <label for="load_score" class="block text-sm font-medium text-slate-700 mb-1">
+          Load score
+        </label>
+        <input type="number" step="any" min="0" max="1" id="load_score" name="load_score"
+               value="{{ field(form, node, 'load_score') }}"
+               placeholder="0.0–1.0"
+               class="w-full border border-slate-300 rounded px-3 py-2 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-brand" />
+        <p class="text-xs text-slate-500 mt-1">0 = idle.</p>
+      </div>
+
+      <div>
+        <label for="capability_score" class="block text-sm font-medium text-slate-700 mb-1">
+          Capability score
+        </label>
+        <input type="number" step="any" min="0" max="1" id="capability_score" name="capability_score"
+               value="{{ field(form, node, 'capability_score') }}"
+               placeholder="0.0–1.0"
+               class="w-full border border-slate-300 rounded px-3 py-2 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-brand" />
+        <p class="text-xs text-slate-500 mt-1">1 = full feature set.</p>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="space-y-3 border-t border-slate-200 pt-5">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">Status flags</legend>
+
+    <label class="inline-flex items-center gap-2 text-sm mr-6">
+      <input type="checkbox" name="is_enabled"
+             {% if not form and (node is none or node.is_enabled) %}checked{% endif %}
+             {% if form and form.get('is_enabled') == 'on' %}checked{% endif %}
+             {% if form and form.get('is_enabled') != 'on' and node is not none %}{% if node.is_enabled %}{% endif %}{% endif %}
+             class="rounded border-slate-300 text-brand focus:ring-brand" />
+      Enabled
+    </label>
+
+    <label class="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_available"
+             {% if not form and (node is none or node.is_available) %}checked{% endif %}
+             {% if form and form.get('is_available') == 'on' %}checked{% endif %}
+             class="rounded border-slate-300 text-brand focus:ring-brand" />
+      Available
+    </label>
+  </fieldset>
+
+  <div class="flex items-center justify-end gap-3 pt-2">
+    <a href="/admin/nodes/" class="text-sm text-slate-600 hover:text-slate-900">
+      Cancel
+    </a>
+    <button type="submit"
+            class="bg-brand hover:bg-brandDark text-white rounded px-5 py-2 font-medium">
+      {% if is_new %}Create node{% else %}Save changes{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}
