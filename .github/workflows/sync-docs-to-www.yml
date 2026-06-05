@@ -1,0 +1,64 @@
+# Mirror the docs/ tree to the SKAVA-www repository.
+#
+# Runs on every push to main that changes anything under docs/, the
+# .readthedocs.yaml file, or this workflow itself. Force-pushes the
+# files (only the docs subset) into the www repo's main branch — no
+# manual copying needed.
+#
+# Setup required ONCE per repo:
+#   1. Create a Personal Access Token (PAT) with `repo` scope on the
+#      account that owns SKAVA-www. Classic PAT works; fine-grained PAT
+#      restricted to that single repo is safer.
+#   2. Add it to this repo's settings → Secrets and variables → Actions
+#      with the name SKAVA_WWW_PUSH_TOKEN.
+#   3. Done. Every push to main now triggers a mirror.
+
+name: Sync docs to SKAVA-www
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".readthedocs.yaml"
+      - ".github/workflows/sync-docs-to-www.yml"
+  workflow_dispatch:        # allow manual run from the Actions UI
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout SKAVA source repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout SKAVA-www target repo
+        uses: actions/checkout@v4
+        with:
+          repository: fvitello/SKAVA-www
+          path: www
+          token: ${{ secrets.SKAVA_WWW_PUSH_TOKEN }}
+
+      - name: Mirror docs/ + .readthedocs.yaml into www
+        run: |
+          # Wipe the previous mirrored docs (keep .git!) so deletions
+          # in the source repo propagate to www.
+          rm -rf www/docs
+          cp -r docs www/docs
+          cp .readthedocs.yaml www/.readthedocs.yaml
+
+      - name: Commit + push to SKAVA-www
+        working-directory: www
+        run: |
+          git config user.name  "skava-docs-bot"
+          git config user.email "skava-docs-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+              echo "No changes to mirror."
+              exit 0
+          fi
+          # Reference the source commit so audits can trace mirrors
+          # back to their origin.
+          git commit -m "Sync docs from VisIVOLab/SKAVA@${GITHUB_SHA::7}"
+          git push origin HEAD:main
