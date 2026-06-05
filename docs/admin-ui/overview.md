@@ -12,7 +12,7 @@ build step, no separate frontend deployment.
 | **Dashboard** | counts (datasets / nodes / users / audit rows), recent activity, your profile |
 | **Datasets** | paginated search + filter, single-record detail with replicas, edit form with FITS pre-fill |
 | **Nodes** | CRUD on federation members; VisIVO backend URL configuration |
-| **Upload** (Phase 2c) | drag-drop CSV / JSON for bulk ingestion |
+| **Upload** | drag-drop CSV / JSON for bulk ingestion |
 | **History** (Phase 3) | filterable audit log + ingestion job list |
 | **Users** (Phase 3) | manage local admin users + roles |
 

@@ -7,12 +7,18 @@ All notable changes to SKAVA. The repository follows
 
 ### Added
 
-* Admin UI Phase 2c — bulk CSV / JSON drag-drop upload form wrapping
-  ``/internal/ingestion/run``.
 * Admin UI Phase 3 — audit history viewer with filters + CSV export.
-* x86_64 + NVIDIA RTX PRO 6000 Blackwell VisIVO backend Apptainer
-  recipe.
 * Federation fan-out implementation behind ``SKAVA_FEDERATED_SRC_URLS``.
+
+### Done
+
+* **Admin UI Phase 2c** — bulk CSV / JSON drag-drop upload form.
+  Session-authenticated, dry-run by default, server-side wraps
+  ``IngestionJobService`` directly (no internal API key needed in
+  the browser). 32 MB cap; per-record error table; audit row
+  ``ingestion.upload`` written alongside the ingestion job.
+* **Power9 testbed runbook** — step-by-step end-to-end validation
+  procedure with troubleshooting matrix.
 
 ### Changed
 

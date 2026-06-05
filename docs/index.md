@@ -80,6 +80,7 @@ admin-ui/overview
 admin-ui/users-roles
 admin-ui/nodes
 admin-ui/datasets
+admin-ui/upload
 admin-ui/audit
 ```
 
@@ -123,6 +124,7 @@ operations/monitoring
 operations/backup
 operations/upgrades
 operations/troubleshooting
+operations/e2e-power9-runbook
 ```
 
 ```{toctree}

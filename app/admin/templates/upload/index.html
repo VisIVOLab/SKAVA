@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Upload manifest — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-baseline justify-between">
+  <h1 class="text-2xl font-semibold">Upload manifest</h1>
+  <a href="/admin/datasets/" class="text-sm text-slate-600 hover:text-brand">
+    Browse datasets →
+  </a>
+</div>
+
+{% if error %}
+  <div role="alert"
+       class="border border-rose-300 bg-rose-50 text-rose-900 rounded px-4 py-2 mb-4 text-sm">
+    {{ error }}
+  </div>
+{% endif %}
+
+{% if not can_ingest %}
+  <p class="text-slate-600 text-sm">
+    Your role does not allow ingestion. Ask an administrator for the
+    <code>ingester</code> role.
+  </p>
+{% else %}
+
+<form method="post" action="/admin/upload/" enctype="multipart/form-data"
+      class="bg-white border border-slate-200 rounded p-6 space-y-5 max-w-3xl">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+
+  <div>
+    <label for="file" class="block text-sm font-medium text-slate-700 mb-1">
+      Manifest file <span class="text-rose-500">*</span>
+    </label>
+    <input type="file" id="file" name="file" required
+           accept=".csv,.json,application/csv,application/json,text/csv"
+           class="block w-full text-sm border border-slate-300 rounded px-3 py-2
+                  focus:outline-none focus:ring-2 focus:ring-brand" />
+    <p class="text-xs text-slate-500 mt-1">
+      CSV or JSON, up to 32&nbsp;MB. For larger manifests use the
+      <a href="https://skava.readthedocs.io/en/latest/publisher/overview.html"
+         class="text-brand hover:underline" target="_blank" rel="noopener">
+        skava-publisher CLI
+      </a>.
+    </p>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label for="format" class="block text-sm font-medium text-slate-700 mb-1">
+        Format
+      </label>
+      <select id="format" name="format"
+              class="w-full border border-slate-300 rounded px-3 py-2 bg-white text-sm">
+        <option value="">Auto-detect</option>
+        <option value="csv">CSV</option>
+        <option value="json">JSON</option>
+      </select>
+      <p class="text-xs text-slate-500 mt-1">
+        Auto picks based on the filename's extension.
+      </p>
+    </div>
+
+    <div>
+      <label for="source_ref" class="block text-sm font-medium text-slate-700 mb-1">
+        Source reference
+      </label>
+      <input type="text" id="source_ref" name="source_ref"
+             placeholder="e.g. eso-archive-export-2026-06"
+             class="w-full border border-slate-300 rounded px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-brand" />
+      <p class="text-xs text-slate-500 mt-1">
+        Free-form. Defaults to <code>admin-ui:{{ current_user.username }}</code>.
+      </p>
+    </div>
+  </div>
+
+  <fieldset class="border border-slate-200 rounded p-4">
+    <legend class="text-xs font-medium text-slate-600 uppercase tracking-wide px-2">
+      Run mode
+    </legend>
+    <label class="inline-flex items-start gap-3 text-sm">
+      <input type="radio" name="dry_run" value="true" checked
+             class="mt-1 border-slate-300 text-brand focus:ring-brand" />
+      <span>
+        <strong>Dry run</strong> — validate every record against the schema
+        and the existing nodes, return a summary without writing.
+        <span class="block text-slate-500">Recommended for first upload.</span>
+      </span>
+    </label>
+    <label class="inline-flex items-start gap-3 text-sm mt-2">
+      <input type="radio" name="dry_run" value="false"
+             class="mt-1 border-slate-300 text-brand focus:ring-brand" />
+      <span>
+        <strong>Run</strong> — insert / update rows. Audit row written;
+        ingestion job recorded in History.
+      </span>
+    </label>
+  </fieldset>
+
+  <div class="flex items-center justify-end gap-3 pt-2">
+    <a href="/admin/" class="text-sm text-slate-600 hover:text-slate-900">
+      Cancel
+    </a>
+    <button type="submit"
+            class="bg-brand hover:bg-brandDark text-white rounded px-5 py-2 font-medium">
+      Upload
+    </button>
+  </div>
+</form>
+
+{% if result %}
+  {% set s = result.summary %}
+  {% set j = result.job %}
+  <section class="mt-8 bg-white border border-slate-200 rounded p-6 max-w-3xl">
+    <div class="flex items-baseline justify-between mb-3">
+      <h2 class="text-lg font-medium">
+        {% if result.dry_run %}Dry-run summary{% else %}Ingestion summary{% endif %}
+      </h2>
+      <span class="text-xs text-slate-500 font-mono">
+        job #{{ j.job_id }} · {{ result.format|upper }} · {{ result.filename }}
+      </span>
+    </div>
+
+    <dl class="grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-sm mb-4">
+      <dt class="text-slate-500">Inserted datasets</dt>
+      <dd class="font-medium">{{ s.inserted_datasets }}</dd>
+      <dt class="text-slate-500">Updated datasets</dt>
+      <dd class="font-medium">{{ s.updated_datasets }}</dd>
+      <dt class="text-slate-500">Inserted replicas</dt>
+      <dd class="font-medium">{{ s.inserted_replicas }}</dd>
+      <dt class="text-slate-500">Updated replicas</dt>
+      <dd class="font-medium">{{ s.updated_replicas }}</dd>
+      <dt class="text-slate-500">Skipped</dt>
+      <dd class="font-medium">{{ s.skipped }}</dd>
+      <dt class="text-slate-500">Validation errors</dt>
+      <dd class="font-medium">{{ s.validation_errors|length }}</dd>
+    </dl>
+
+    {% if s.validation_errors %}
+      <details class="text-sm">
+        <summary class="cursor-pointer text-rose-700 hover:underline">
+          {{ s.validation_errors|length }} validation error(s) — click to inspect
+        </summary>
+        <div class="border border-rose-200 bg-rose-50 rounded mt-2 overflow-hidden">
+          <table class="w-full text-xs">
+            <thead class="bg-rose-100 text-rose-900">
+              <tr>
+                <th class="text-left px-3 py-2 w-16">Row #</th>
+                <th class="text-left px-3 py-2 w-32">Code</th>
+                <th class="text-left px-3 py-2">Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in s.validation_errors %}
+                <tr class="border-t border-rose-200">
+                  <td class="px-3 py-1.5 font-mono">{{ e.index }}</td>
+                  <td class="px-3 py-1.5 font-mono">{{ e.code }}</td>
+                  <td class="px-3 py-1.5">{{ e.message }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    {% else %}
+      <p class="text-emerald-700 text-sm">All records validated successfully.</p>
+    {% endif %}
+
+    {% if result.dry_run and s.skipped == 0 %}
+      <p class="text-xs text-slate-500 mt-4">
+        Ready to ingest? Re-submit with <strong>Run</strong> selected.
+      </p>
+    {% endif %}
+  </section>
+{% endif %}
+
+{% endif %}
+{% endblock %}
