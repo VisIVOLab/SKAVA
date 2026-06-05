@@ -82,13 +82,15 @@
       <label for="base_url" class="block text-sm font-medium text-slate-700 mb-1">
         Base URL <span class="text-rose-500">*</span>
       </label>
-      <input type="url" id="base_url" name="base_url" required
+      <input type="text" id="base_url" name="base_url" required
              value="{{ field(form, node, 'base_url') }}"
-             placeholder="http://pleiadi-gpu.oact.inaf.it:8000"
+             placeholder="http://host:8000  |  file:///data  |  ftp://archive.eso.org"
              class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-sm
                     focus:outline-none focus:ring-2 focus:ring-brand" />
       <p class="text-xs text-slate-500 mt-1">
-        Endpoint where the node's data-access service is reachable.
+        Where the data lives. SKAVA only stores this URL — the consumer
+        (e.g. VisIVO backend) is what knows how to fetch from
+        <code>http://</code>, <code>file://</code>, <code>ftp://</code>, etc.
       </p>
     </div>
   </fieldset>

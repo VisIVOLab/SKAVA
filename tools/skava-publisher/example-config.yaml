@@ -23,7 +23,13 @@ node:
   code: POWER9
 
   # Template that turns a file's path RELATIVE to its scan root into a
-  # public access URL. {relpath} is the only placeholder.
+  # public access URL. {relpath} is the only placeholder. The publisher
+  # passes paths RELATIVE to each scan root, so the pattern must include
+  # the absolute prefix (whether an HTTP base or a filesystem prefix).
+  #
+  # Examples:
+  #   "http://pleiadi-gpu.oact.inaf.it:8001/data/{relpath}"   # production
+  #   "file:///data/cubes/{relpath}"                          # local-disk dev
   file_serve_url_pattern: "http://pleiadi-gpu.oact.inaf.it:8001/data/{relpath}"
 
 scan:

@@ -48,6 +48,25 @@ _can_edit = require_role(UserRole.ingester)
 # on the first invalid field.
 
 
+# SKAVA is a discovery catalogue — it doesn't access files itself, it
+# just hands access URLs to the consumer (e.g. the VisIVO backend) which
+# decides how to interpret them. So this validator is intentionally
+# permissive about the scheme: file://, http(s)://, ftp://, sftp://,
+# s3://, etc. are all valid here. The only thing rejected is an empty
+# string and a scheme-less value, since the consumer needs to know which
+# protocol to dispatch to.
+#
+# In contrast, ``visivo_backend_url`` is consumed by the VisIVO backend
+# *itself* over HTTP(S) — it's a control-plane URL, not a data URL.
+# So that one stays strict.
+
+_SCHEME_RX = __import__("re").compile(r"^[a-z][a-z0-9+\-.]*://", flags=__import__("re").I)
+
+
+def _has_scheme(url: str) -> bool:
+    return bool(_SCHEME_RX.match(url))
+
+
 def _parse_node_form(form: dict[str, str]) -> dict:
     code = (form.get("code") or "").strip().upper()
     name = (form.get("name") or "").strip()
@@ -58,10 +77,12 @@ def _parse_node_form(form: dict[str, str]) -> dict:
         raise HTTPException(400, "Code cannot contain spaces.")
     if not name:
         raise HTTPException(400, "Name is required.")
-    if not base_url or not (
-        base_url.startswith("http://") or base_url.startswith("https://")
-    ):
-        raise HTTPException(400, "Base URL must start with http:// or https://")
+    if not base_url or not _has_scheme(base_url):
+        raise HTTPException(
+            400,
+            "Base URL must include a scheme (e.g. http://, https://, "
+            "file://, ftp://, sftp://).",
+        )
 
     def _opt_float(key: str) -> float | None:
         raw = (form.get(key) or "").strip()
@@ -76,6 +97,8 @@ def _parse_node_form(form: dict[str, str]) -> dict:
     if visivo_url and not (
         visivo_url.startswith("http://") or visivo_url.startswith("https://")
     ):
+        # VisIVO backend speaks HTTP(S) only — this is a control-plane
+        # URL the desktop client hits directly, not a data access URL.
         raise HTTPException(
             400, "VisIVO backend URL must start with http:// or https://"
         )
