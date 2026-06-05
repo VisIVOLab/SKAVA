@@ -27,6 +27,102 @@
   </div>
 {% endif %}
 
+{# ── FITS pre-fill helper ──────────────────────────────────────────
+    Uploads the chosen FITS to /admin/datasets/extract-from-fits, then
+    populates EMPTY form fields with whatever astropy could decode from
+    the headers. Anything the operator already typed in is left
+    untouched, so the helper is non-destructive even on a half-filled
+    form. #}
+<div class="mb-4 bg-sky-50 border border-sky-200 rounded p-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <label for="fits-upload" class="block text-sm font-medium text-slate-700">
+        Pre-fill from FITS file
+      </label>
+      <p class="text-xs text-slate-500">
+        Reads the primary HDU header and fills empty fields only.
+        Up to {{ 5 }} MB. Your existing edits are preserved.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="file" id="fits-upload"
+             accept=".fits,.fit,.fts,application/fits"
+             class="text-sm" />
+      <button type="button" id="fits-extract-btn"
+              class="bg-sky-600 hover:bg-sky-800 text-white rounded px-3 py-1.5 text-sm
+                     disabled:opacity-50 disabled:cursor-not-allowed">
+        Extract metadata
+      </button>
+    </div>
+  </div>
+  <p id="fits-status" class="text-xs mt-2" aria-live="polite"></p>
+</div>
+
+<script>
+(function () {
+  const btn = document.getElementById('fits-extract-btn');
+  const input = document.getElementById('fits-upload');
+  const status = document.getElementById('fits-status');
+  const csrf = {{ csrf_token(request) | tojson }};
+  if (!btn) return;
+
+  btn.addEventListener('click', async function () {
+    const f = input.files && input.files[0];
+    if (!f) {
+      status.textContent = 'Choose a FITS file first.';
+      status.className = 'text-xs mt-2 text-amber-700';
+      return;
+    }
+    btn.disabled = true;
+    status.textContent = 'Parsing ' + f.name + ' …';
+    status.className = 'text-xs mt-2 text-slate-600';
+
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('csrf_token', csrf);
+
+    try {
+      const resp = await fetch('/admin/datasets/extract-from-fits', {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-CSRF-Token': csrf },
+        credentials: 'same-origin',
+      });
+      if (!resp.ok) {
+        const msg = await resp.text();
+        status.textContent = 'Extraction failed (' + resp.status + '): ' + msg;
+        status.className = 'text-xs mt-2 text-rose-700';
+        return;
+      }
+      const data = await resp.json();
+      let filled = 0, skipped = 0;
+      for (const [name, value] of Object.entries(data)) {
+        const el = document.querySelector('form [name="' + name + '"]');
+        if (!el) continue;
+        // Only fill empty fields — preserve operator edits.
+        const current = el.value === undefined ? '' : String(el.value).trim();
+        if (current === '') {
+          el.value = value;
+          filled += 1;
+        } else {
+          skipped += 1;
+        }
+      }
+      const parts = [];
+      parts.push('Filled ' + filled + ' field' + (filled === 1 ? '' : 's'));
+      if (skipped > 0) parts.push(skipped + ' kept (already set)');
+      status.textContent = parts.join(', ') + '.';
+      status.className = 'text-xs mt-2 text-emerald-700';
+    } catch (e) {
+      status.textContent = 'Network error: ' + e.message;
+      status.className = 'text-xs mt-2 text-rose-700';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+
 <form method="post"
       action="{% if is_new %}/admin/datasets/new{% else %}/admin/datasets/{{ ds.id }}/edit{% endif %}"
       class="bg-white border border-slate-200 rounded p-6 space-y-6 max-w-4xl"

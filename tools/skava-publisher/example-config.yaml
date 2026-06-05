@@ -1,0 +1,76 @@
+# skava-publisher example configuration. Copy to
+# /etc/skava-publisher.yaml (or wherever) and edit. Secrets must come
+# from environment variables — ${VAR} substitutions are expanded at
+# load time and missing vars surface as Pydantic validation errors.
+
+skava:
+  # SKAVA discovery service endpoint.
+  api_url: https://skava.inaf.it
+
+  # Set in the host environment, NOT in this file:
+  #   export SKAVA_INTERNAL_API_KEY="<openssl rand -hex 32>"
+  internal_api_key: ${SKAVA_INTERNAL_API_KEY}
+
+  # Connection + read timeout per request. Large manifests need a
+  # generous value; SKAVA's internal-ingestion endpoint is fast but
+  # validation of 10k+ records can take 30+ seconds.
+  timeout_seconds: 60.0
+  verify_tls: true
+
+node:
+  # Must match the SKAVA Node.code for this site. Used as ObsCore
+  # node_id on every record.
+  code: POWER9
+
+  # Template that turns a file's path RELATIVE to its scan root into a
+  # public access URL. {relpath} is the only placeholder.
+  file_serve_url_pattern: "http://pleiadi-gpu.oact.inaf.it:8001/data/{relpath}"
+
+scan:
+  # One or more roots. Each is walked depth-first.
+  roots:
+    - /data/ska_2026/cubes
+    - /data/ska_2026/dynspec
+
+  # Filename glob patterns. Includes match the filename only;
+  # excludes match the full relative path.
+  include:
+    - "*.fits"
+    - "*.fits.gz"
+    - "*.h5"
+    - "*.hdf5"
+    - "*.sf"          # PSRFITS variant
+  exclude:
+    - "**/tmp/**"
+    - "**/.staging/**"
+    - "*.partial"
+    - "*~"
+
+  follow_symlinks: false
+
+  # SHA256 is computed once per file (when state.db first sees it)
+  # so audits can detect silent file rewrites later. Skip for files
+  # larger than the threshold to keep scans fast.
+  compute_checksum: true
+  checksum_max_bytes: 53687091200    # 50 GB
+
+defaults:
+  # Used when the extractor leaves these unset.
+  obs_collection: inaf-power9-ska
+  license: CC-BY-4.0
+  is_public: true
+  publisher_label: skava-publisher@power9
+
+state:
+  # Tracks already-published files so re-runs are cheap.
+  db_path: /var/lib/skava-publisher/state.db
+
+watch:
+  enabled: true
+  interval_seconds: 21600    # 6 hours
+
+# Abort a scan that produces this many extraction errors. Catches
+# disk faults / format drift before they pollute SKAVA with junk.
+extract_failure_threshold: 10
+
+log_level: INFO

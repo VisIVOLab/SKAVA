@@ -12,11 +12,14 @@ will go.
 """
 from __future__ import annotations
 
+import io
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import (
+    APIRouter, Depends, File, HTTPException, Request, UploadFile, status,
+)
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -24,6 +27,7 @@ from app.admin.audit.service import log_action
 from app.admin.auth.rbac import require_role
 from app.admin.auth.session import current_user_required
 from app.admin.csrf import CSRFDep
+from app.admin.services.fits_extract import extract_obscore_from_fits
 from app.admin.templating import flash, render
 from app.db import get_db
 from app.models.dataset import Dataset
@@ -461,6 +465,67 @@ async def add_replica(
         f"/admin/datasets/{ds.id}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
+
+
+# ─── FITS pre-fill helper ───────────────────────────────────────────────────
+#
+# Used by the JS snippet at the top of edit.html: operator uploads a
+# FITS file, we parse the primary HDU header (lazily importing astropy
+# so the rest of SKAVA boots fast) and return a JSON dict keyed by the
+# form input ``name=`` attributes. The client-side JS then fills only
+# the EMPTY form fields, leaving anything the operator already typed
+# untouched.
+
+# Limit to ~5 MB of header bytes — FITS headers are 2880-byte blocks
+# and rarely exceed 100 KB; a 5 MB cap is generous and stops a hostile
+# upload from exhausting the worker memory.
+_MAX_FITS_UPLOAD = 5 * 1024 * 1024
+
+
+@router.post("/extract-from-fits")
+async def extract_from_fits(
+    request: Request,
+    _: CSRFDep,
+    file: Annotated[UploadFile, File(...)],
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(_can_edit)],
+):
+    """Parse a FITS file's primary header and return ObsCore form values."""
+    # Read in chunks so an oversized upload is rejected early.
+    buf = bytearray()
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if len(buf) > _MAX_FITS_UPLOAD:
+            raise HTTPException(
+                413, f"FITS upload exceeds {_MAX_FITS_UPLOAD // (1024 * 1024)} MB.",
+            )
+    if not buf:
+        raise HTTPException(400, "Empty file.")
+
+    try:
+        result = extract_obscore_from_fits(io.BytesIO(bytes(buf)))
+    except Exception as exc:  # noqa: BLE001 — astropy raises many types
+        raise HTTPException(
+            400,
+            f"Could not parse as FITS: {exc.__class__.__name__}: {exc}",
+        ) from exc
+
+    # Audit row so we can tell who asked for what. ``target_id`` is the
+    # uploaded filename rather than a DB id because no dataset is
+    # created here — the operator still has to confirm + submit the form.
+    log_action(
+        db, request, actor=user, action="dataset.extract_from_fits",
+        target_type="fits-upload",
+        target_id=file.filename or "<unnamed>",
+        changes={"fields_extracted": sorted(result.keys()),
+                 "file_size_bytes": len(buf)},
+    )
+    db.commit()
+
+    return JSONResponse(result)
 
 
 @router.post("/{dataset_id}/replicas/{replica_id}/delete")
