@@ -49,7 +49,7 @@ if [ -z "$KEY" ]; then
     exit 1
 fi
 curl -fsS -X POST http://localhost:8000/internal/ingestion/run \
-    -H "X-Internal-Key: $KEY" \
+    -H "X-Internal-Api-Key: $KEY" \
     -F "file=@${TMP}" -F "format=csv" \
     -F "source_ref=power9-testbed" | python -m json.tool
 rm -f "$TMP"

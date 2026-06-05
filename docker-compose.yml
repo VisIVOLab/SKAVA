@@ -26,6 +26,8 @@ services:
       SKAVA_DATABASE_URL: postgresql+psycopg://skava:skava@db:5432/skava
       SKAVA_PUBLIC_BASE_URL: http://localhost:8000
       SKAVA_LOG_LEVEL: DEBUG
+      # Internal ingestion API key. Dev value — rotate in production.
+      INTERNAL_API_KEY: dev-mac-key-not-for-prod-rotate-me-please
     ports:
       - "8000:8000"
     depends_on:

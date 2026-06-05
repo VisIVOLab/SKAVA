@@ -154,7 +154,7 @@ sqlite3 /var/lib/skava-publisher/state.db \
 
 ## Security notes
 
-* The internal API key is sent on every request as `X-Internal-Key`.
+* The internal API key is sent on every request as `X-Internal-Api-Key`.
 * TLS verification is on by default; only disable (`verify_tls: false`)
   for dev SKAVA with a self-signed cert.
 * The publisher needs READ access on the data tree and READ+WRITE on

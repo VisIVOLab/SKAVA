@@ -29,7 +29,7 @@ def _client(cfg: PublisherConfig) -> httpx.Client:
         base_url=str(cfg.skava.api_url),
         timeout=httpx.Timeout(cfg.skava.timeout_seconds),
         verify=cfg.skava.verify_tls,
-        headers={"X-Internal-Key": cfg.skava.internal_api_key},
+        headers={"X-Internal-Api-Key": cfg.skava.internal_api_key},
     )
 
 

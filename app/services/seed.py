@@ -1,4 +1,6 @@
-from sqlalchemy import delete, select
+import os
+
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.dataset import Dataset
@@ -8,6 +10,34 @@ from app.spatial_index import DEFAULT_SPATIAL_ORDER, compute_spatial_cell
 
 
 def seed_data(db: Session) -> None:
+    """Insert the demo dataset / node fixtures.
+
+    Behaviour is gated on the state of the DB and an env var so that
+    developer workflows (publisher → admin UI → restart) don't get
+    wiped on every container start:
+
+    * If the ``nodes`` table is empty → run the full seed (this is the
+      first boot of a fresh DB).
+    * If it already has rows → skip silently, leaving any operator-
+      added nodes / datasets in place.
+
+    Set ``SKAVA_SEED_RESET=true`` to force the legacy destructive
+    behaviour (wipe + re-seed), useful only when you really want to
+    drop everything back to the demo fixtures.
+    """
+    force_reset = (os.environ.get("SKAVA_SEED_RESET") or "").lower() in (
+        "1", "true", "yes", "y",
+    )
+    node_count = db.scalar(select(func.count()).select_from(Node)) or 0
+    if node_count > 0 and not force_reset:
+        print(
+            f"[seed] Skipping seed: {node_count} node(s) already present. "
+            "Set SKAVA_SEED_RESET=true to wipe and re-seed."
+        )
+        return
+
+    if force_reset and node_count > 0:
+        print("[seed] SKAVA_SEED_RESET=true → wiping existing data before seed.")
     db.execute(delete(DatasetReplica))
     db.execute(delete(Dataset))
     db.execute(delete(Node))

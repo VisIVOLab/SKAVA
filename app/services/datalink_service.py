@@ -21,13 +21,18 @@ class DataLinkService:
         self.db = db
         self.policy = DefaultRankingPolicy()
 
-    @staticmethod
-    def _replica_access_healthy(replica: DatasetReplica) -> bool:
+    # Allowed URL schemes for a replica to be considered "healthy"
+    # (and therefore selectable). SKAVA is scheme-agnostic at the
+    # catalogue level — consumers decide which they can fetch.
+    _HEALTHY_SCHEMES = ("http://", "https://", "file://", "ftp://", "sftp://")
+
+    @classmethod
+    def _replica_access_healthy(cls, replica: DatasetReplica) -> bool:
         return bool(
             replica.status == "available"
             and replica.is_public
             and replica.access_endpoint
-            and replica.access_endpoint.startswith(("http://", "https://"))
+            and replica.access_endpoint.startswith(cls._HEALTHY_SCHEMES)
         )
 
     def resolve(self, obs_id: str) -> DataLinkResponse | None:
