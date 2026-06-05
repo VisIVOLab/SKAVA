@@ -1,4 +1,10 @@
 # Documentation build dependencies — pinned for reproducible ReadTheDocs builds.
+#
+# These are the ONLY packages the docs build needs. SKAVA's runtime
+# dependencies (fastapi, pydantic, sqlalchemy, …) are NOT required:
+# the docs reference the codebase by URL only and ``intersphinx``
+# pulls remote inventories from each project's published docs site
+# without needing the package locally.
 
 sphinx>=7.4,<9
 furo>=2024.8.6                 # modern theme with first-class dark mode
@@ -6,14 +12,3 @@ myst-parser>=3.0               # Markdown source support
 sphinx-copybutton>=0.5.2       # copy-to-clipboard on code blocks
 sphinx-design>=0.6             # grids / tabs / cards in Markdown
 linkify-it-py>=2.0             # bare-URL autodetection for MyST
-
-# The following are imported in conf.py via autodoc; they only need
-# installing if you want apidoc pages to render off-line. RTD installs
-# them transitively from the project root pyproject.toml, no harm in
-# pinning them here too for local builds.
-fastapi>=0.115
-pydantic>=2.7
-pydantic-settings>=2.3
-sqlalchemy>=2.0
-alembic>=1.13
-httpx>=0.27

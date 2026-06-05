@@ -24,10 +24,11 @@ sphinx:
 python:
   install:
     - requirements: docs/requirements.txt
-    - method: pip
-      path: .
-      extra_requirements:
-        - dev
+    # NB: we deliberately do NOT ``pip install .`` the SKAVA project on
+    # ReadTheDocs. The docs are pure Markdown / RST and reference the
+    # codebase by URL only — no ``autodoc`` / ``automodule`` pulls happen
+    # in the build. This lets the docs build on the SKAVA-www mirror
+    # (which holds only the ``docs/`` subtree, no pyproject.toml).
 
 formats:
   - pdf
