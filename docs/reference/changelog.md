@@ -19,6 +19,10 @@ All notable changes to SKAVA. The repository follows
   ``ingestion.upload`` written alongside the ingestion job.
 * **Power9 testbed runbook** — step-by-step end-to-end validation
   procedure with troubleshooting matrix.
+* **SLURM-backed VisIVO backend pattern** — generic integration
+  recipe for any SRC running SLURM + shared filesystem (BeeGFS,
+  GPFS, Lustre, NFS). Three-stable-layers approach: filesystem path,
+  ``localhost`` tunnel URL, node code. Token rotation strategies.
 
 ### Changed
 

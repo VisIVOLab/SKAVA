@@ -5,6 +5,13 @@ INAF Power9 SRC testbed. Each step prints what success looks like;
 the troubleshooting hints in the bottom section cover what to do when
 a step disagrees.
 
+```{note}
+For the **general** pattern of integrating SKAVA with a SLURM cluster
++ shared filesystem (applicable to any SRC, not just INAF Power9),
+see [SLURM-backed VisIVO backend](../client-integration/slurm-backed-backend).
+This page is the worked example.
+```
+
 The runbook assumes:
 
 * SKAVA is up at `http://localhost:8000` on your Mac

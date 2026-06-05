@@ -114,6 +114,7 @@ api/auth
 
 client-integration/visivo-desktop
 client-integration/backend-routing
+client-integration/slurm-backed-backend
 ```
 
 ```{toctree}
