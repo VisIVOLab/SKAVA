@@ -286,7 +286,7 @@ hostname and the SLURM-tunnel pattern becomes optional.
 
 ```bash
 # Health check through the tunnel
-curl -sf -H "Authorization: Bearer $VISIVO_TOKEN" \
+curl -sf -H "X-Visivo-Token: $VISIVO_TOKEN" \
      http://localhost:8000/v1/health
 # {"ok": true, "version": "..."}
 
@@ -303,7 +303,7 @@ curl -s "https://skava.example.org/datalink/<obs-id>" \
 
 # Manually drive open_skava end-to-end
 curl -s -X POST \
-    -H "Authorization: Bearer $VISIVO_TOKEN" \
+    -H "X-Visivo-Token: $VISIVO_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"obs_id":"<obs-id>","access_url":"file:///data/cubes/foo.fits"}' \
     http://localhost:8000/v1/datasets/open_skava | jq

@@ -67,12 +67,12 @@ Save the token as `POWER9_TOKEN` in your terminal.
 
 ```bash
 # From Power9 itself
-curl -sf -H "Authorization: Bearer $POWER9_TOKEN" \
+curl -sf -H "X-Visivo-Token: $POWER9_TOKEN" \
      http://localhost:8000/v1/health | jq
 # {"status": "ok"}
 
 # From your Mac (assumes pleiadi-gpu is reachable on the network)
-curl -sf -H "Authorization: Bearer $POWER9_TOKEN" \
+curl -sf -H "X-Visivo-Token: $POWER9_TOKEN" \
      http://pleiadi-gpu.oact.inaf.it:8000/v1/health | jq
 # {"status": "ok"}
 ```

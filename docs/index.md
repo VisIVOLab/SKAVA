@@ -82,6 +82,7 @@ admin-ui/nodes
 admin-ui/datasets
 admin-ui/upload
 admin-ui/audit
+admin-ui/history
 ```
 
 ```{toctree}
@@ -115,6 +116,7 @@ api/auth
 client-integration/visivo-desktop
 client-integration/backend-routing
 client-integration/slurm-backed-backend
+client-integration/large-cube-loading-pattern
 ```
 
 ```{toctree}
@@ -125,6 +127,7 @@ operations/monitoring
 operations/backup
 operations/upgrades
 operations/troubleshooting
+operations/admin-ui-runbook
 operations/e2e-power9-runbook
 ```
 

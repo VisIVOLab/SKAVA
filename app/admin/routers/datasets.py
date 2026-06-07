@@ -27,6 +27,7 @@ from app.admin.audit.service import log_action
 from app.admin.auth.rbac import require_role
 from app.admin.auth.session import current_user_required
 from app.admin.csrf import CSRFDep
+from app.admin.csv_export import stream_csv
 from app.admin.services.fits_extract import extract_obscore_from_fits
 from app.admin.templating import flash, render
 from app.db import get_db
@@ -194,6 +195,73 @@ def list_datasets(
             "dptypes": dptypes,
             "can_edit": user.has_role(UserRole.ingester, UserRole.admin),
         },
+    )
+
+
+# ─── CSV export (Phase 3) ────────────────────────────────────────────────────
+
+
+_EXPORT_LIMIT = 100_000   # safety cap; see history.export_history
+
+
+@router.get("/export.csv")
+def export_datasets(
+    user: Annotated[User, Depends(current_user_required)],
+    db: Annotated[Session, Depends(get_db)],
+    q: str = "",
+    collection: str = "",
+    dptype: str = "",
+):
+    """Stream the filtered dataset list as CSV.
+
+    Mirrors the same filter set as :func:`list_datasets`, so what the
+    operator sees in the table is what they download. ObsCore-aligned
+    column ordering for downstream tools that expect the canonical
+    ``obs_id`` / ``obs_collection`` / etc. column names.
+    """
+    stmt = select(Dataset).order_by(Dataset.obs_id).limit(_EXPORT_LIMIT)
+    if q:
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Dataset.obs_id.ilike(like),
+                Dataset.obs_title.ilike(like),
+                Dataset.target_name.ilike(like),
+            )
+        )
+    if collection:
+        stmt = stmt.where(Dataset.obs_collection == collection)
+    if dptype:
+        stmt = stmt.where(Dataset.dataproduct_type == dptype)
+
+    def _rows():
+        for ds in db.scalars(stmt):
+            n_reps = len(ds.replicas) if ds.replicas is not None else 0
+            yield (
+                ds.obs_id,
+                ds.obs_collection or "",
+                ds.dataproduct_type or "",
+                ds.obs_title or "",
+                ds.target_name or "",
+                ds.s_ra,
+                ds.s_dec,
+                ds.s_fov,
+                ds.t_min,
+                ds.t_max,
+                ds.em_min,
+                ds.em_max,
+                n_reps,
+            )
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return stream_csv(
+        header=[
+            "obs_id", "obs_collection", "dataproduct_type", "obs_title",
+            "target_name", "s_ra", "s_dec", "s_fov",
+            "t_min", "t_max", "em_min", "em_max", "replica_count",
+        ],
+        rows=_rows(),
+        filename=f"skava-datasets-{stamp}.csv",
     )
 
 

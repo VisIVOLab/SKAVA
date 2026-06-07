@@ -21,6 +21,7 @@ from pathlib import Path
 from app.admin.routers import auth as auth_routes
 from app.admin.routers import dashboard as dashboard_routes
 from app.admin.routers import datasets as datasets_routes
+from app.admin.routers import history as history_routes
 from app.admin.routers import nodes as nodes_routes
 from app.admin.routers import upload as upload_routes
 from app.admin.templating import render
@@ -33,6 +34,7 @@ router.include_router(dashboard_routes.router)
 router.include_router(nodes_routes.router)
 router.include_router(datasets_routes.router)
 router.include_router(upload_routes.router)
+router.include_router(history_routes.router)
 
 
 def _wants_html(request: Request) -> bool:

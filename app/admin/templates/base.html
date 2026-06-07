@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -26,20 +26,27 @@
 </head>
 
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+  {# A11y: skip-to-main-content link for keyboard users. Hidden until
+     focused; lands them past the nav and flash banner. #}
+  <a href="#main"
+     class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50
+            focus:bg-brand focus:text-white focus:px-3 focus:py-1 focus:rounded">
+    Skip to main content
+  </a>
   {% block topbar %}
     {% if current_user %}
-    <header class="bg-brand text-white">
+    <header class="bg-brand text-white" role="banner">
       <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <a href="/admin/" class="text-lg font-semibold hover:opacity-90">
+        <a href="/admin/" class="text-lg font-semibold hover:opacity-90"
+           aria-label="{{ brand.name }} — go to dashboard">
           {{ brand.name }}
         </a>
-        <nav class="flex items-center gap-4 text-sm">
+        <nav class="flex items-center gap-4 text-sm" aria-label="Main">
           <a href="/admin/" class="hover:underline">Dashboard</a>
-          {# Phase 2+ — enabled progressively as each section ships. #}
           <a href="/admin/datasets/" class="hover:underline">Datasets</a>
           <a href="/admin/nodes/" class="hover:underline">Nodes</a>
           <a href="/admin/upload/" class="hover:underline">Upload</a>
-          <span class="opacity-50 cursor-not-allowed" title="Phase 3">History</span>
+          <a href="/admin/history/" class="hover:underline">History</a>
         </nav>
         <div class="flex items-center gap-3 text-sm">
           <span class="opacity-90">
@@ -79,11 +86,12 @@
     {% endif %}
   {% endwith %}
 
-  <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+  <main id="main" class="flex-1 max-w-6xl mx-auto w-full px-4 py-6"
+        tabindex="-1">
     {% block content %}{% endblock %}
   </main>
 
-  <footer class="text-center text-xs text-slate-500 py-4">
+  <footer class="text-center text-xs text-slate-500 py-4" role="contentinfo">
     {{ brand.name }} · INAF
   </footer>
 </body>

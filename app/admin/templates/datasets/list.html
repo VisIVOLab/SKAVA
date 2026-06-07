@@ -49,11 +49,22 @@
   </div>
 </form>
 
-<p class="text-xs text-slate-500 mb-2">
-  {{ total }} dataset{{ '' if total == 1 else 's' }}
-  {% if q or collection or dptype %}match the filter{% endif %}.
-  {% if n_pages > 1 %}Page {{ page }} of {{ n_pages }}.{% endif %}
-</p>
+<div class="flex items-baseline justify-between mb-2">
+  <p class="text-xs text-slate-500">
+    {{ total }} dataset{{ '' if total == 1 else 's' }}
+    {% if q or collection or dptype %}match the filter{% endif %}.
+    {% if n_pages > 1 %}Page {{ page }} of {{ n_pages }}.{% endif %}
+  </p>
+  {# Phase 3: CSV export of the currently-filtered list. Mirrors the
+     same q/collection/dptype params so what the operator sees is what
+     they download. #}
+  {% set export_qs %}{% if q %}q={{ q }}&{% endif %}{% if collection %}collection={{ collection }}&{% endif %}{% if dptype %}dptype={{ dptype }}&{% endif %}{% endset %}
+  <a href="/admin/datasets/export.csv{% if export_qs %}?{{ export_qs[:-1] }}{% endif %}"
+     class="text-xs text-brand hover:underline"
+     aria-label="Download the current filtered dataset list as CSV">
+    ⬇ Export CSV
+  </a>
+</div>
 
 {% if not rows %}
   <p class="text-slate-500 text-sm">No datasets to show.</p>
