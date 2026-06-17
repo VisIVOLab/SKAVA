@@ -7,6 +7,12 @@ All notable changes to SKAVA. The repository follows
 
 ### Added
 
+* **TAP ObsTAP profile upgrade** — the ``/tap/sync`` ADQL surface now supports
+  range/equality predicates on whitelisted ObsCore columns (temporal/spectral
+  filtering) and the ObsTAP cone-search geometry
+  ``1 = CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', ra, dec, radius))``,
+  reusing the discovery filtering. New VOSI ``GET /tap/tables`` tableset
+  (TAP_SCHEMA equivalent) so TOPCAT/pyvo can introspect columns/UCDs.
 * **SODA execution (compute-next-to-data)** — ``POST /soda/execute`` performs a
   real byte-level FITS cutout by delegating to the dataset node's co-located
   VisIVO backend (``/v1/datasets/cutout``) when it serves a ``file://`` replica,

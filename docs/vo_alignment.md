@@ -27,13 +27,20 @@ The JSON descriptor remains the default and is what the VisIVO desktop consumes.
 
 ## TAP/ObsTAP Profile
 
-`/tap/sync` implements a constrained ObsCore compatibility profile:
+`/tap/sync` implements an ObsCore profile with a real (if bounded) ADQL surface:
 - `SELECT` from `ivoa.ObsCore`
-- equality predicates on `obs_id`, `obs_collection`, `dataproduct_type`
-- bounded `MAXREC`
+- equality **and range** predicates (`= != <> < <= > >=`) on whitelisted ObsCore
+  columns — temporal (`t_min`/`t_max`) and spectral (`em_min`/`em_max`) filtering
+  fall out of this directly
+- the ObsTAP cone-search geometry
+  `1 = CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', ra, dec, radius))`
+- `AND`-joined predicates (no `OR`), bounded `MAXREC`
 - VOTable or JSON output
+- a VOSI **`/tap/tables`** tableset (TAP_SCHEMA equivalent) so VO tools
+  (TOPCAT, pyvo) can discover the columns, UCDs and datatypes
 
-Full TAP async and broad ADQL support remain future work.
+Full async TAP and broader ADQL (joins, functions, `OR`, full POLYGON geometry)
+remain future work.
 
 ## SODA: validation + real execution
 

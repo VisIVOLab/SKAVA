@@ -71,6 +71,7 @@ class DiscoveryService:
         collection: str | None = None,
         dptype: str | None = None,
         spatial_cell: str | None = None,
+        extra_conditions: list | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> DiscoverySearchResponse:
@@ -84,6 +85,12 @@ class DiscoveryService:
             stmt = stmt.where(Dataset.dataproduct_type == dptype)
         if spatial_cell:
             stmt = stmt.where(Dataset.spatial_index_cell == spatial_cell)
+
+        # Pre-built column conditions (e.g. ADQL range/equality predicates
+        # parsed by the TAP profile). Applied verbatim — callers are trusted
+        # to pass SQLAlchemy expressions over the Dataset model.
+        for condition in (extra_conditions or []):
+            stmt = stmt.where(condition)
 
         stmt = apply_pos_filter(stmt, pos)
         stmt = apply_band_filter(stmt, band)

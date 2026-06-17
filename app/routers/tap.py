@@ -6,6 +6,8 @@ from app.errors import InvalidQueryError
 from app.schemas.discovery import DiscoverySearchResponse
 from app.security.internal_api_key import require_access_token
 from app.services.tap_service import TapService
+from app.vo.adql import QUERYABLE_COLUMNS
+from app.vo.tap_schema import TABLESET_MEDIA_TYPE, obscore_tableset
 from app.vo.votable import VOTABLE_MEDIA_TYPE, discovery_results_to_votable
 
 router = APIRouter(prefix="/tap", tags=["tap"])
@@ -16,13 +18,28 @@ def tap_capabilities() -> dict:
     return {
         "standard_id": "ivo://ivoa.net/std/TAP",
         "profile": "TAP sync ObsCore compatibility profile",
-        "status": "minimal-production-profile",
+        "status": "obscore-profile",
         "languages": [{"name": "ADQL", "version": "2.1"}],
         "tables": ["ivoa.ObsCore"],
+        "tables_endpoint": "/tap/tables",
         "output_formats": ["application/json", VOTABLE_MEDIA_TYPE],
         "limits": {"MAXREC": 1000},
-        "supported_where_predicates": ["obs_id", "obs_collection", "dataproduct_type"],
+        "supported_operators": ["=", "!=", "<>", "<", "<=", ">", ">="],
+        "supported_geometry": [
+            "1 = CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', ra, dec, radius))"
+        ],
+        "queryable_columns": QUERYABLE_COLUMNS,
     }
+
+
+@router.get("/tables")
+def tap_tables() -> Response:
+    """VOSI tableset describing ivoa.ObsCore (TAP_SCHEMA equivalent).
+
+    Loaded by VO tools (TOPCAT, pyvo) to discover the queryable columns,
+    their datatypes, UCDs and units before building ADQL.
+    """
+    return Response(content=obscore_tableset(), media_type=TABLESET_MEDIA_TYPE)
 
 
 def _render_tap_response(result: DiscoverySearchResponse, fmt: str | None) -> DiscoverySearchResponse | Response:

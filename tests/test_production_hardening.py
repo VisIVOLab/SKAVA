@@ -78,9 +78,13 @@ def test_tap_sync_votable_default(client):
 
 
 def test_tap_rejects_unsupported_where_clause(client):
-    resp = client.get(
-        "/tap/sync",
-        params={"QUERY": "SELECT * FROM ivoa.ObsCore WHERE s_ra > 100"},
-    )
-    assert resp.status_code == 400
-    assert resp.json()["error"]["code"] == "invalid_query"
+    # OR, unknown columns and unsupported geometry remain rejected even though
+    # range/equality predicates on whitelisted ObsCore columns are now allowed.
+    for query in (
+        "SELECT * FROM ivoa.ObsCore WHERE obs_id = 'x' OR obs_id = 'y'",
+        "SELECT * FROM ivoa.ObsCore WHERE bogus_column > 1",
+        "SELECT * FROM ivoa.ObsCore WHERE 1 = INTERSECTS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 1, 2, 3))",
+    ):
+        resp = client.get("/tap/sync", params={"QUERY": query})
+        assert resp.status_code == 400, query
+        assert resp.json()["error"]["code"] == "invalid_query"

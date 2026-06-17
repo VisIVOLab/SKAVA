@@ -4,15 +4,20 @@
 
 `/tap/sync` provides a minimal production-safe TAP sync compatibility profile for `ivoa.ObsCore`.
 
-It is intentionally constrained:
+Supported ADQL surface (bounded but real):
 - synchronous requests only
-- `ADQL` only
-- `SELECT` from `ivoa.ObsCore`
-- equality predicates for `obs_id`, `obs_collection`, and `dataproduct_type`
+- `ADQL` only, `SELECT` from `ivoa.ObsCore`
+- equality **and range** predicates (`= != <> < <= > >=`) on whitelisted ObsCore
+  columns (incl. `t_min`/`t_max` temporal, `em_min`/`em_max` spectral)
+- ObsTAP cone search `1 = CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', ra, dec, radius))`
+- `AND`-joined predicates (no `OR`)
 - `MAXREC` capped at `1000`
 - output as VOTable by default or JSON with `FORMAT=json`
+- VOSI tableset at `GET /tap/tables` (TAP_SCHEMA equivalent)
 
-This is not a full TAP/ADQL server. It gives VO clients a stable standards-oriented entrypoint while broader TAP/ObsTAP support evolves.
+Not yet a full TAP/ADQL server (no joins/functions/`OR`, no async TAP, no full
+POLYGON geometry), but enough for VO tools to introspect and cone/range-query
+`ivoa.ObsCore`.
 
 ## Endpoints
 

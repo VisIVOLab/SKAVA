@@ -9,11 +9,12 @@ from app.errors import InvalidQueryError
 from app.models.tap_job import TapJob
 from app.schemas.discovery import DiscoverySearchResponse
 from app.services.discovery_service import DiscoveryService
+from app.vo.adql import parse_where
+from app.vo.query_params import CirclePos
 
 _TOP_RE = re.compile(r"\bTOP\s+(\d+)\b", re.IGNORECASE)
 _FROM_OBSCORE_RE = re.compile(r"\bFROM\s+(?:ivoa\.)?ObsCore\b", re.IGNORECASE)
 _WHERE_RE = re.compile(r"\bWHERE\b(.+)$", re.IGNORECASE | re.DOTALL)
-_EQ_RE = re.compile(r"\b(obs_id|obs_collection|dataproduct_type|spatial_index_cell)\s*=\s*'([^']+)'", re.IGNORECASE)
 
 
 class TapService:
@@ -28,45 +29,28 @@ class TapService:
         return max(1, min(requested, 1000))
 
     @staticmethod
-    def _parse_filters(query: str) -> dict[str, str | None]:
+    def _parse_query(query: str) -> tuple[CirclePos | None, list]:
+        """Validate the SELECT/FROM and parse the WHERE clause into a cone
+        position and a list of SQLAlchemy column conditions."""
         if not _FROM_OBSCORE_RE.search(query):
-            raise InvalidQueryError("Only SELECT queries from ivoa.ObsCore are supported by this TAP sync profile")
+            raise InvalidQueryError(
+                "Only SELECT queries from ivoa.ObsCore are supported by this TAP profile")
 
-        filters: dict[str, str | None] = {"obs_id": None, "collection": None, "dptype": None, "spatial_cell": None}
         where_match = _WHERE_RE.search(query)
         if not where_match:
-            return filters
-
-        where_clause = where_match.group(1)
-        unsupported = re.sub(_EQ_RE, "", where_clause)
-        unsupported = re.sub(r"\bAND\b|\s|\(|\)", "", unsupported, flags=re.IGNORECASE)
-        if unsupported:
-            raise InvalidQueryError("Unsupported ADQL WHERE clause; supported equality predicates: obs_id, obs_collection, dataproduct_type, spatial_index_cell")
-
-        for field, value in _EQ_RE.findall(where_clause):
-            normalized = field.lower()
-            if normalized == "obs_id":
-                filters["obs_id"] = value
-            elif normalized == "obs_collection":
-                filters["collection"] = value
-            elif normalized == "dataproduct_type":
-                filters["dptype"] = value
-            elif normalized == "spatial_index_cell":
-                filters["spatial_cell"] = value
-        return filters
+            return None, []
+        return parse_where(where_match.group(1))
 
     def sync_query(self, query: str, maxrec: int | None = None) -> DiscoverySearchResponse:
         query = query.strip().rstrip(";")
         if not query.strip().lower().startswith("select"):
             raise InvalidQueryError("Only SELECT queries are supported")
 
-        filters = self._parse_filters(query)
+        pos, conditions = self._parse_query(query)
         limit = self._parse_limit(query, maxrec)
         return DiscoveryService(self.db).search(
-            obs_id=filters["obs_id"],
-            collection=filters["collection"],
-            dptype=filters["dptype"],
-            spatial_cell=filters["spatial_cell"],
+            pos=pos,
+            extra_conditions=conditions,
             limit=limit,
             offset=0,
         )
