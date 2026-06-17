@@ -74,8 +74,13 @@ def test_history_filter_by_actor(admin_client):
     ])
     r = admin_client.get("/admin/history/?actor=alice")
     assert r.status_code == 200
-    assert "alice" in r.text
-    assert "bob" not in r.text
+    # The actor filter <datalist> autocompletes from ALL known actors, so it
+    # legitimately contains "bob". Strip it before asserting on the results so
+    # the test checks the filtered rows, not the filter UI.
+    import re
+    body = re.sub(r"<datalist\b.*?</datalist>", "", r.text, flags=re.DOTALL | re.IGNORECASE)
+    assert "alice" in body
+    assert "bob" not in body
 
 
 def test_history_detail_page(admin_client):

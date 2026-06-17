@@ -33,7 +33,13 @@ from app.db import Base
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # BIGINT in PostgreSQL (production); INTEGER under SQLite so the PK acts
+    # as the rowid alias and auto-increments. A plain BIGINT PRIMARY KEY in
+    # SQLite is NOT the rowid alias and would insert NULL → NOT NULL failure
+    # (breaks the admin/audit tests, which run on SQLite via create_all).
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True
+    )
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -5,6 +5,26 @@ from app.admin.csv_export import _format_value, stream_csv
 from datetime import datetime, timezone
 
 
+def _drain_streaming_body(resp) -> str:
+    """Drain a StreamingResponse body across Starlette versions.
+
+    Newer Starlette wraps even a *sync* content generator so ``body_iterator``
+    becomes an async generator; older versions expose the sync generator
+    directly. Handle both so the test is version-robust.
+    """
+    it = resp.body_iterator
+    if hasattr(it, "__aiter__"):
+        import anyio
+
+        async def _collect():
+            return [chunk async for chunk in it]
+
+        parts = anyio.run(_collect)
+    else:
+        parts = list(it)
+    return "".join(p if isinstance(p, str) else p.decode() for p in parts)
+
+
 def test_format_value_handles_none_and_primitives():
     assert _format_value(None) == ""
     assert _format_value(42) == "42"
@@ -33,11 +53,7 @@ def test_stream_csv_emits_header_and_rows():
         rows=[(1, "one"), (2, "two")],
         filename="test.csv",
     )
-    # Drain the StreamingResponse body.
-    chunks = []
-    for chunk in resp.body_iterator:
-        chunks.append(chunk if isinstance(chunk, str) else chunk.decode())
-    body = "".join(chunks)
+    body = _drain_streaming_body(resp)
     assert body.startswith("col1,col2")
     assert "1,one" in body
     assert "2,two" in body
