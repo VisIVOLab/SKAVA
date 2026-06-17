@@ -82,6 +82,8 @@ non-overlapping regions return `400`.
 
 - The desktop's **compute-next-to-data open** (`/v1/datasets/open_skava` + moments /
   region / channel) is unchanged and already wired.
-- `/v1/datasets/cutout` is consumed by **SKAVA `/soda/execute`** (VO/SODA clients), not by
-  a desktop GUI action. The desktop keeps its own VLKB cutout path
-  (`/v1/vlkb/fetch_cutout`). A desktop "SODA subset" action could be added later.
+- `/v1/datasets/cutout` is consumed by **SKAVA `/soda/execute`** (VO/SODA clients) **and**
+  by the VisIVO desktop's **"SODA subset"** action in the SKAVA Discovery tab. The desktop
+  calls it with `save_to_workspace=true` so the cutout is written to the node backend's
+  Workspace Exports and opened **in place** (never downloaded to the client). The desktop
+  also keeps its separate VLKB cutout path (`/v1/vlkb/fetch_cutout`).

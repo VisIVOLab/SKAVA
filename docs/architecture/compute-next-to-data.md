@@ -205,10 +205,20 @@ small cutout transits the network. The difference is *who* orchestrates:
 * - SODA cutout for VO clients
   - SKAVA (`/soda/execute`)
   - `/v1/datasets/cutout`
+* - Desktop "SODA subset" action
+  - VisIVO desktop (SKAVA Discovery tab)
+  - `/v1/datasets/cutout` (`save_to_workspace=true`, opened in place)
 ```
 
-When the node has no co-located backend, `/soda/execute` degrades to a
-metadata-cache staging handoff. See [SODA execution](../soda_execution).
+The desktop **"SODA subset"** button resolves the dataset's DataLink, prompts
+for a POS/BAND region (prefilled from the ObsCore metadata), runs the cutout on
+the matched co-located backend with `save_to_workspace=true`, and opens the
+resulting FITS in place — the cutout never transits to the client. It sits
+alongside the unchanged VLKB-specific cutout flow.
+
+When the node has no co-located backend, SKAVA's `/soda/execute` degrades to a
+metadata-cache staging handoff (and the desktop button reports that a
+co-located backend is required). See [SODA execution](../soda_execution).
 
 ## How to enable this on a new node
 
