@@ -62,3 +62,8 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Put the project root on sys.path so ``tests`` resolves as a (namespace)
+# package — ``test_admin_auth`` does ``from tests.conftest import …``. Without
+# this it only works under ``python -m pytest`` (which adds the CWD); plain
+# ``pytest`` in CI would fail with ModuleNotFoundError: No module named 'tests'.
+pythonpath = ["."]
