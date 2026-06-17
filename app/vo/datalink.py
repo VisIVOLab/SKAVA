@@ -84,6 +84,7 @@ def build_access_links(
 def build_service_descriptors(
     obs_id: str,
     nodes: list[Node] | None = None,
+    soda_execution_available: bool = False,
 ) -> list[ServiceDescriptor]:
     """Build the service_descriptors[] array for the DataLink response.
 
@@ -128,11 +129,17 @@ def build_service_descriptors(
         ServiceDescriptor(
             service_type="cutout",
             service_id="skava-cutout",
-            access_url=f"{base_url}/soda/sync",
+            access_url=f"{base_url}/soda/execute",
             standard_id="ivo://ivoa.net/std/SODA#sync-1.0",
             supported_parameters=["ID", "POS", "BAND", "TIME"],
-            enabled=False,
-            description="Future cutout/subset operations placeholder.",
+            enabled=soda_execution_available,
+            description=(
+                "Server-side SODA cutout executed on the node's co-located "
+                "VisIVO backend (compute-next-to-data)."
+                if soda_execution_available
+                else "Cutout/subset execution requires a node with a co-located "
+                "VisIVO backend serving a file:// replica."
+            ),
         ),
     ]
 
@@ -159,15 +166,23 @@ def build_service_descriptors(
     return descriptors
 
 
-def build_capabilities() -> CapabilitiesDescriptor:
+def build_capabilities(soda_execution_available: bool = False) -> CapabilitiesDescriptor:
+    """Build the DataLink capability flags for a dataset.
+
+    ``soda_execution_available`` is True when at least one ranked node for
+    the dataset exposes a co-located VisIVO backend, i.e. ``/soda/execute``
+    can compute a real byte-level cutout instead of a staging handoff. When
+    no such node exists the flags stay False (capability-honest: the SODA
+    endpoint is declared, but execution is not available for this dataset).
+    """
     return CapabilitiesDescriptor(
         supports_datalink=True,
-        supports_soda_sync=False,
+        supports_soda_sync=soda_execution_available,
         supports_soda_async=False,
-        supports_cutout=False,
+        supports_cutout=soda_execution_available,
         supports_preview=False,
         supports_soda_sync_endpoint=True,
-        supports_soda_sync_execution=False,
+        supports_soda_sync_execution=soda_execution_available,
         supports_soda_async_endpoint=False,
         supports_soda_async_execution=False,
     )

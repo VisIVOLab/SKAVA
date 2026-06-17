@@ -103,14 +103,14 @@ Selected fields:
     this same endpoint.
 * - ``soda-sync``
   - SODA sync 1.0
-  - Cutout / band-subset / time-subset on demand. Today validates
-    parameters and routes; full execution is on the roadmap.
+  - Validates parameters and routes (`/soda/sync`). Always enabled.
 * - ``soda-async``
   - SODA async 1.0
-  - Reserved (``enabled: false`` until execution lands).
+  - Reserved (``enabled: false`` until async execution lands).
 * - ``cutout``
   - SODA sync 1.0
-  - Convenience alias for cutout-only consumers (reserved).
+  - Real cutout via `/soda/execute`. ``enabled: true`` **when the
+    dataset has a node with a co-located VisIVO backend** (else false).
 * - ``visivo-backend``
   - SKAVA-specific
   - VisIVO compute backend co-located with the best replica.
@@ -168,12 +168,22 @@ DataLink-style; for each link:
 Generic VO clients (Aladin, TOPCAT) will render these as a tabular
 list when the user clicks "follow DataLink" on a search result.
 
-## VOTable output (planned)
+## VOTable output
 
-Today the response is JSON. A future flag (e.g.
-`?responseformat=votable`) will serialize the same envelope as a
-DataLink VOTable for stricter IVOA-tool compatibility. Track the
-roadmap item on the issue tracker.
+JSON is the default. Request `RESPONSEFORMAT=application/x-votable+xml`
+(or `FORMAT=votable`) to get a **conformant IVOA DataLink VOTable**:
+
+- the standard `{links}` table columns
+  (`ID, access_url, service_def, error_message, semantics, description,
+  content_type, content_length`, plus the SKAVA `node_id` extension) with
+  the spec UCDs;
+- IVOA semantics vocabulary terms (`#this`, `#preview`, `#cutout`, …);
+- a service-descriptor `RESOURCE` (`utype="adhoc:service"`,
+  `standardID = SODA#sync-1.0`) for the cutout, with an `inputParams`
+  `GROUP` (`ID` ref + `POS`/`BAND`/`TIME`) pointing at `/soda/execute`.
+
+This is what Aladin / TOPCAT consume as a DataLink document; the JSON
+descriptor is what the VisIVO desktop reads via `service_descriptors`.
 
 ## Error responses
 

@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     federated_src_urls: str | None = None
     federation_timeout_seconds: float = Field(default=2.0, ge=0.1)
 
+    # ── SODA execution (compute-next-to-data delegation) ─────────────────
+    # When a dataset's best node exposes a co-located VisIVO backend
+    # (Node.visivo_backend_url), /soda/execute delegates the byte-level
+    # cutout there. The bearer token is forwarded when the node's backend
+    # requires auth; the timeout bounds the synchronous wait.
+    visivo_backend_token: str | None = None
+    soda_backend_timeout_seconds: float = Field(default=120.0, ge=1.0)
+
     db_pool_size: int = Field(default=10, ge=1)
     db_max_overflow: int = Field(default=20, ge=0)
     db_pool_timeout: int = Field(default=30, ge=1)

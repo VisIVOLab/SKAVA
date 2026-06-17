@@ -7,6 +7,18 @@ All notable changes to SKAVA. The repository follows
 
 ### Added
 
+* **SODA execution (compute-next-to-data)** — ``POST /soda/execute`` performs a
+  real byte-level FITS cutout by delegating to the dataset node's co-located
+  VisIVO backend (``/v1/datasets/cutout``) when it serves a ``file://`` replica,
+  streaming ``application/fits`` back; falls back to the staging handoff
+  otherwise. New settings ``SKAVA_VISIVO_BACKEND_TOKEN`` /
+  ``SKAVA_SODA_BACKEND_TIMEOUT_SECONDS``.
+* **Conformant IVOA DataLink VOTable** — ``/datalink/{obs_id}`` with
+  ``RESPONSEFORMAT=application/x-votable+xml`` now emits the standard ``{links}``
+  columns (spec UCDs), IVOA semantics terms, and a SODA cutout service descriptor.
+* DataLink capability flags (``supports_soda_sync_execution`` / ``supports_cutout``)
+  and the ``cutout`` service descriptor now reflect per-dataset execution
+  availability (enabled when a ranked node has a co-located VisIVO backend).
 * Admin UI Phase 3 — audit history viewer with filters + CSV export.
 * Federation fan-out implementation behind ``SKAVA_FEDERATED_SRC_URLS``.
 

@@ -64,7 +64,7 @@ One file per public concern. Routers are thin; business logic lives in
 |---|---|---|
 | `discovery.py` | search + per-dataset detail | none |
 | `datalink.py` | resolve obs_id → access URL + descriptors | none |
-| `soda.py` | SODA sync / async stubs | none |
+| `soda.py` | `/soda/sync` validation; `/soda/execute` real cutout (delegates to node VisIVO backend) | node VisIVO backend |
 | `tap.py` | sync ADQL subset | none |
 | `access.py` | `/access/{obs_id}` short-link redirector | none |
 | `federation.py` | fan-out to sibling instances (stub) | none |

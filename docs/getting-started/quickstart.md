@@ -112,18 +112,21 @@ curl -s "$SKAVA/discovery/search?obs_collection=quickstart" \
     | jq '.results[].metadata'
 ```
 
-## 4. SODA — request a cutout (stub)
+## 4. SODA — request a cutout
 
 ```{note}
-The SODA executor is on the roadmap. Today the endpoint validates
-parameters and returns a routing response without actually
-materialising the cutout.
+`/soda/sync` validates and routes (JSON). `/soda/execute` performs a real
+byte-level cutout when the dataset's node has a co-located VisIVO backend
+serving a `file://` replica, streaming `application/fits` back; otherwise
+it returns a staging-handoff JSON. See [SODA execution](../soda_execution).
 ```
 
 ```bash
-curl -s -X POST "$SKAVA/soda/sync" \
-    -H "Content-Type: application/json" \
-    -d "{\"ID\":\"$OBS\",\"POS\":\"CIRCLE 83.6 22.0 0.1\"}" | jq
+# Validate + route
+curl -s "$SKAVA/soda/sync?ID=$OBS&POS=CIRCLE%2083.6%2022.0%200.1" | jq
+
+# Execute (real cutout when a co-located backend is available)
+curl -s -X POST "$SKAVA/soda/execute?ID=$OBS&POS=CIRCLE%2083.6%2022.0%200.1" -o cutout.fits
 ```
 
 ## 5. TAP — ObsCore queries

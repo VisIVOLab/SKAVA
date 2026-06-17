@@ -62,8 +62,9 @@ An IVOA-style hint in the DataLink response that tells clients what
 protocols / endpoints serve this dataset. SKAVA ships several:
 
 * `access-resolution` — the canonical DataLink endpoint
-* `soda-sync` / `soda-async` — IVOA SODA for cutouts (sync stub today)
-* `cutout` — placeholder
+* `soda-sync` — IVOA SODA validation/routing; `soda-async` reserved
+* `cutout` — real cutout via `/soda/execute` (enabled when the dataset's
+  node has a co-located VisIVO backend)
 * `visivo-backend` *(SKAVA-specific)* — the URL of a VisIVO compute
   backend co-located with the dataset's best replica
 

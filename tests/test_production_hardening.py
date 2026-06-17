@@ -42,7 +42,13 @@ def test_datalink_votable_response(client):
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/x-votable+xml")
     assert "<VOTABLE" in resp.text
-    assert "direct-download" in resp.text
+    # Conformant IVOA DataLink output: standard {links} columns, the
+    # #this semantics term, and a SODA cutout service descriptor.
+    assert 'name="access_url"' in resp.text
+    assert 'name="semantics"' in resp.text
+    assert "#this" in resp.text
+    assert 'utype="adhoc:service"' in resp.text
+    assert "ivo://ivoa.net/std/SODA#sync-1.0" in resp.text
 
 
 def test_tap_sync_json_profile(client):

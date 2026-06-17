@@ -1,13 +1,16 @@
 # SODA API
 
-`POST /soda/sync` and (planned) `POST /soda/async` — IVOA
-SODA-compatible endpoints for server-side operations on data access.
+`GET /soda/sync`, `POST /soda/execute`, and (planned) `POST /soda/async`
+— IVOA SODA-oriented endpoints for server-side operations on data access.
 
 ```{note}
-The sync endpoint currently **validates the request and routes**
-through the federation logic but does not yet execute the cutout
-itself. Result is a response indicating "would have routed to node
-X" without the materialised file. Full execution is on the roadmap.
+`/soda/sync` **validates and routes** a SODA request and returns a JSON
+descriptor. `/soda/execute` **performs a real byte-level FITS cutout**:
+when the dataset's best node runs a co-located VisIVO backend serving a
+`file://` replica, SKAVA delegates the cutout to that backend
+(`/v1/datasets/cutout`), which computes it in place (compute-next-to-data)
+and streams the FITS back. Otherwise `/soda/execute` falls back to a
+metadata-cache staging handoff.
 ```
 
 ## Endpoints
@@ -19,15 +22,37 @@ X" without the materialised file. Full execution is on the roadmap.
 * - Endpoint
   - Status
   - Notes
-* - ``POST /soda/sync``
-  - validating only
-  - JSON body. Returns parameter-validation result + the routing
-    decision that would be applied if execution were enabled.
+* - ``GET /soda/sync``
+  - validation + routing
+  - Returns a JSON descriptor (parameter validation + routing decision).
+    Does not stream pixels.
+* - ``POST /soda/execute``
+  - real cutout / fallback
+  - Streams ``application/fits`` when the best node has a co-located
+    VisIVO backend + ``file://`` replica; otherwise returns a staging
+    handoff JSON job.
 * - ``POST /soda/async``
-  - placeholder (501)
-  - Reserved for the future async job interface. Reachable only
-    when ``capabilities.supports_soda_async`` is true.
+  - placeholder (disabled)
+  - Reserved for the future async job interface. Advertised via
+    ``capabilities.supports_soda_async`` (false today).
 ```
+
+## Execute request (real cutout)
+
+```bash
+curl -s -X POST \
+    "https://skava.inaf.it/soda/execute?ID=power9-3a7f1b2c0e5d4986&POS=CIRCLE%2083.6%2022.0%200.1&BAND=1.4e-3%202.1e-3" \
+    -o crab_cutout.fits
+# Response headers on success:
+#   Content-Type: application/fits
+#   X-Soda-Applied: pos,band
+#   X-Soda-Executed-On: POWER9
+```
+
+Delegation requires the best node to have ``visivo_backend_url`` set and
+the replica to be a ``file://`` URL. A reachable backend that fails the
+cutout returns ``502 backend_execution_failed``. See
+[SODA execution](../soda_execution) for the design.
 
 ## Sync request
 
@@ -76,56 +101,42 @@ curl -s -X POST "https://skava.inaf.it/soda/sync" \
   - ``application/fits`` (default) or ``image/png``.
 ```
 
-### Response
+### `/soda/sync` response (validation descriptor)
 
 ```json
 {
-    "valid":  true,
-    "error":  "",
-    "obs_id": "power9-3a7f1b2c0e5d4986",
-    "routing": {
-        "best_node": "POWER9",
-        "access_endpoint": "http://pleiadi-gpu.oact.inaf.it:8001/data/crab.fits",
-        "would_execute_at": "POWER9"
-    },
-    "operations_planned": [
-        {"type": "POS", "value": "CIRCLE 83.6 22.0 0.1"},
-        {"type": "BAND", "value": "1.4e-3 2.1e-3"}
-    ],
-    "execution_status": "not-implemented"
+    "status": "accepted",
+    "mode": "soda-sync-stub",
+    "dataset": {"obs_id": "power9-3a7f1b2c0e5d4986"},
+    "routing": {"best_node": "POWER9", "access_url": "file:///data/crab.fits"},
+    "request": {"ID": "power9-3a7f1b2c0e5d4986", "POS": "CIRCLE 83.6 22.0 0.1"},
+    "operation": {"type": "subset", "supports_execution": false},
+    "next_step": {"datalink": "https://skava.inaf.it/datalink/power9-3a7f1b2c0e5d4986"}
 }
 ```
 
-When `valid=false`, `error` holds the human message and
-`details[]` carries the structured per-parameter errors.
+`/soda/sync` validates and routes only; use `/soda/execute` to get pixels.
 
-## What execution will look like (roadmap)
+### `/soda/execute` execution flow
 
-Phase 2 of the SODA work plan:
+1. SKAVA resolves the dataset and its best node.
+2. If the node has a co-located VisIVO backend **and** a `file://` replica,
+   SKAVA POSTs the cutout request to the node's `/v1/datasets/cutout`.
+3. The backend opens the FITS locally, applies `POS`/`BAND` with astropy,
+   and returns the subset; SKAVA streams it back as `application/fits`
+   with `X-Soda-Applied` / `X-Soda-Executed-On` headers.
+4. If no co-located backend is available, SKAVA returns a metadata-cache
+   staging handoff JSON instead.
 
-1. Sync endpoint stays the same on the wire.
-2. SKAVA dispatches the request to the VisIVO backend at the
-   chosen node (using its existing cube cutout API).
-3. Backend returns the cutout bytes; SKAVA streams them with the
-   `RESPONSEFORMAT` Content-Type.
-4. `execution_status` becomes one of `success`, `partial`, `failed`.
-
-For async:
-
-1. Submit returns a 303 with `Location: /soda/async/jobs/{id}`.
-2. Job lifecycle endpoints: GET `/jobs/{id}` (status), GET
-   `/jobs/{id}/results` (bytes when done), DELETE `/jobs/{id}`
-   (abort).
-3. Worker pool processes jobs out of the request thread.
-
-The HTTP surface is stable today; only the implementation backing it
-will change.
+Async SODA (`/soda/async`) with a job queue and lifecycle endpoints
+remains future work; the HTTP surface above is stable.
 
 ## Use from VO tools
 
-Aladin and TOPCAT understand the SODA descriptors emitted by the
-DataLink endpoint. Once execution lands, the existing client UI for
-"apply cutout" will work transparently against SKAVA's `/soda/sync`.
+Aladin and TOPCAT understand the SODA descriptors emitted by the DataLink
+endpoint (`utype="adhoc:service"`, `standardID = SODA#sync-1.0`, pointing
+at `/soda/execute`). Their "apply cutout" UI works against SKAVA's
+`/soda/execute` for datasets whose node runs a co-located VisIVO backend.
 
 ## Errors
 
@@ -136,15 +147,18 @@ DataLink endpoint. Once execution lands, the existing client UI for
 * - Status
   - When
 * - 200
-  - Request parsed and (would-be) routed. ``valid`` field tells
-    you whether parameters passed schema checks.
+  - `/soda/sync`: validated + routed. `/soda/execute`: streamed cutout,
+    or staging-handoff JSON when no co-located backend.
 * - 400
-  - Body not JSON, missing ``ID``, unrecognised parameter.
+  - Missing ``ID``, malformed/unsupported ``POS``/``BAND``/``TIME``, or a
+    region that does not overlap the dataset.
 * - 404
   - obs_id unknown.
-* - 501
-  - Async endpoint reached (capabilities advertise it as disabled
-    today).
+* - 502
+  - ``backend_execution_failed`` — node backend reachable but the cutout
+    failed or timed out.
+* - 503
+  - No available replicas for the dataset.
 ```
 
 ## See also

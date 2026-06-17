@@ -17,8 +17,13 @@ Discovery endpoints map to these fields and are designed to evolve with full VO 
 - returns an access contract (routing metadata)
 - advertises operation hints in `supported_operations`
 
-`/datalink/{obs_id}` also supports a minimal VOTable links table for VO-oriented clients.
-This is intentionally not a full DataLink server implementation.
+`/datalink/{obs_id}` also serves a **conformant IVOA DataLink VOTable** (request with
+`RESPONSEFORMAT=application/x-votable+xml`): the standard `{links}` table columns
+(`ID, access_url, service_def, semantics, content_type, content_length, …` with the
+spec UCDs), `#`-prefixed semantics vocabulary terms, and a service-descriptor
+`RESOURCE` (`utype="adhoc:service"`) for the SODA cutout with an `inputParams` group
+(`ID/POS/BAND/TIME`). This is consumable by pyvo / TOPCAT as a DataLink document.
+The JSON descriptor remains the default and is what the VisIVO desktop consumes.
 
 ## TAP/ObsTAP Profile
 
@@ -30,16 +35,21 @@ This is intentionally not a full DataLink server implementation.
 
 Full TAP async and broad ADQL support remain future work.
 
-## SODA Evolution Path
+## SODA: validation + real execution
 
-Current implementation exposes SODA-oriented affordances (`supports_soda`, operation hints), while real processing operations are deferred.
+- `/soda/sync` validates SODA parameters and returns a routing descriptor.
+- `/soda/execute` performs a **real byte-level FITS cutout** (`POS`/`BAND`) by delegating
+  to the dataset node's co-located VisIVO backend (compute-next-to-data), with a staging
+  handoff fallback when no backend is available. See [SODA execution](soda_execution.md).
 
-Planned next steps:
-1. Add operation descriptors for cutout/subset parameterization.
-2. Implement execution backends for selected SODA operations.
-3. Align response serialization with richer VO artifacts where needed.
+Remaining SODA work:
+1. asynchronous SODA (`/soda/async`) with a job queue;
+2. additional region shapes (full POLYGON geometry) and `POL`/`BAND` refinements;
+3. richer VOTable error/parameter serialisation.
 
 ## Compliance Statement
 
-The service is production-hardened and VO-aligned.
-It does not currently claim full TAP/ObsTAP, full DataLink, or full SODA standard-server compliance.
+The service is production-hardened and VO-aligned. DataLink is served as a conformant
+VOTable descriptor and SODA cutout execution is implemented via node-local delegation.
+It does not yet claim full TAP/ObsTAP, full async DataLink/SODA, or full standard-server
+compliance across all operations.

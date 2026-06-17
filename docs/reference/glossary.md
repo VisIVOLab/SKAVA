@@ -129,8 +129,9 @@ replica
 
 SODA
     Server-side Operations on Data Access — IVOA standard for
-    cutouts and subsetting. SKAVA's `/soda/sync` validates and
-    routes; execution is on the roadmap.
+    cutouts and subsetting. SKAVA's `/soda/sync` validates and routes;
+    `/soda/execute` performs the real cutout by delegating to the
+    dataset node's co-located VisIVO backend (compute-next-to-data).
 
 SKA
     Square Kilometre Array — the radio observatory the catalogue

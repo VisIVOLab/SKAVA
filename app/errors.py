@@ -26,3 +26,10 @@ class NoAvailableNodesError(SKAVAError):
 class ServiceUnavailableError(SKAVAError):
     status_code = 503
     code = "service_unavailable"
+
+
+class BackendExecutionError(SKAVAError):
+    """A node's co-located VisIVO backend was reachable but failed the cutout."""
+
+    status_code = 502
+    code = "backend_execution_failed"

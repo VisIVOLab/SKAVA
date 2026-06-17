@@ -7,7 +7,7 @@ Production-hardened backend service for distributed data discovery and access ro
 - FastAPI application with modular service layers (`routers`, `services`, `ranking`, `vo`).
 - PostgreSQL metadata catalog with ObsCore-inspired `datasets` and distributed placement via `dataset_replicas`.
 - Ranking policy filters disabled/unavailable nodes and supports fallback to next candidate.
-- Access endpoint returns routing metadata (DataLink/SODA precursor), not raw file payloads.
+- Access endpoint returns routing metadata; `/soda/execute` performs real node-local FITS cutouts (compute-next-to-data) without moving the dataset.
 - Structured JSON logging, request tracing, Prometheus metrics, and health endpoints.
 
 ## Funding
@@ -19,7 +19,8 @@ Funded by INAF under the Astrophysics Fundamental Research Grant (Techno Grant).
 - Canonical DataLink descriptor: `/datalink/{obs_id}`
 - TAP sync ObsCore compatibility profile: `/tap/sync`
 - TAP async job profile: `/tap/async`
-- SODA sync stub endpoint: `/soda/sync`
+- SODA sync validation endpoint: `/soda/sync`
+- SODA cutout execution (node-local, compute-next-to-data): `/soda/execute`
 - Metadata-cache staging: `/staging/jobs`
 - Provenance/PID/citation endpoint: `/provenance/{obs_id}`
 - Federated discovery peer queries: `/federation/search`
@@ -36,6 +37,7 @@ Funded by INAF under the Astrophysics Fundamental Research Grant (Techno Grant).
 - Canonical DataLink endpoint guide: `docs/datalink_endpoint.md`
 - TAP sync guide: `docs/tap_sync.md`
 - SODA sync guide: `docs/soda_sync.md`
+- SODA execution (compute-next-to-data) guide: `docs/soda_execution.md`
 - Install guide: `docs/install.md`
 - Runbook: `docs/runbook.md`
 - VO alignment notes: `docs/vo_alignment.md`
@@ -113,7 +115,7 @@ curl 'http://localhost:8000/datalink/dataset-3?RESPONSEFORMAT=application/x-vota
 curl 'http://localhost:8000/tap/sync?QUERY=SELECT%20TOP%201%20*%20FROM%20ivoa.ObsCore%20WHERE%20obs_id%20%3D%20%27dataset-3%27'
 curl -X POST 'http://localhost:8000/tap/async' -F 'QUERY=SELECT TOP 1 * FROM ivoa.ObsCore WHERE obs_id = '\''dataset-3'\'''
 curl 'http://localhost:8000/soda/sync?ID=dataset-3&POS=CIRCLE%20103%20-23%200.05&BAND=1.3e-6%201.4e-6&TIME=59003.1%2059003.3'
-curl -X POST 'http://localhost:8000/soda/execute?ID=dataset-3&POS=CIRCLE%20103%20-23%200.05'
+curl -X POST 'http://localhost:8000/soda/execute?ID=dataset-3&POS=CIRCLE%20103%20-23%200.05' -o cutout.fits
 curl -X POST 'http://localhost:8000/staging/jobs?ID=dataset-3'
 curl 'http://localhost:8000/provenance/dataset-3'
 curl 'http://localhost:8000/federation/sources'
@@ -127,11 +129,13 @@ Discovery semantics (production-oriented):
 - `limit` and `offset` bound result sets for production-safe scans.
 - `SPATIAL_CELL` can filter the lightweight HEALPix/MOC-ready spatial cell key exposed in metadata.
 
-Access semantics (DataLink-like JSON):
-- `/datalink/{obs_id}` is the canonical DataLink-like JSON descriptor endpoint.
-- `/datalink/{obs_id}?RESPONSEFORMAT=application/x-votable+xml` returns a minimal VOTable links table.
+Access semantics (DataLink):
+- `/datalink/{obs_id}` is the canonical access descriptor endpoint (JSON by default).
+- `/datalink/{obs_id}?RESPONSEFORMAT=application/x-votable+xml` returns a **conformant IVOA
+  DataLink VOTable**: standard `{links}` columns with spec UCDs, `#`-prefixed semantics
+  terms, and a SODA cutout service descriptor (`utype="adhoc:service"`) — consumable by
+  pyvo/TOPCAT.
 - `/access/{obs_id}` is a compatibility facade that delegates to `/datalink/{obs_id}` and preserves legacy fields.
-- current response supports JSON and a minimal VOTable links table, designed as a precursor to full VO DataLink compliance.
 
 TAP sync semantics:
 - `/tap/sync` provides a minimal ObsCore compatibility profile.
@@ -147,11 +151,16 @@ Federation semantics:
 - `/federation/search` queries configured peer `/discovery/search` endpoints using `SKAVA_FEDERATED_SRC_URLS`.
 - Failures are reported per source without failing the whole response.
 
-SODA sync semantics:
-- `/soda/sync` validates `ID`, `POS`, `BAND`, `TIME`, `RESPONSEFORMAT` and resolves routing.
-- endpoint is operational as a validation/orchestration stub.
-- `/soda/execute` validates subset parameters and creates a staging handoff job.
-- byte-level FITS cutout execution still requires a configured processing backend.
+SODA semantics:
+- `/soda/sync` validates `ID`, `POS`, `BAND`, `TIME`, `RESPONSEFORMAT` and resolves routing (JSON descriptor).
+- `/soda/execute` performs a **real byte-level FITS cutout** when the dataset's best node
+  exposes a co-located VisIVO backend (`Node.visivo_backend_url`) serving a `file://`
+  replica: SKAVA delegates to the node's `/v1/datasets/cutout`, the cutout is computed on
+  the node, and `application/fits` is streamed back (compute-next-to-data).
+- When no co-located backend is available, `/soda/execute` falls back to a metadata-cache
+  staging handoff (legacy behaviour).
+- A reachable backend that fails the cutout surfaces as `502 backend_execution_failed`.
+- See `docs/soda_execution.md` for the delegation design and the backend endpoint.
 
 Example discovery response (abridged):
 ```json
@@ -182,5 +191,10 @@ pytest
 
 ## Standards Position
 
-This service is VO-aligned in production use.
-It intentionally does not implement full TAP async/full ADQL, full DataLink service behavior, or SODA processing yet.
+This service is VO-aligned in production use:
+- DataLink is served both as JSON and as a conformant IVOA DataLink VOTable descriptor;
+- SODA cutout execution (`POS`/`BAND`) is implemented via compute-next-to-data delegation
+  to a node's co-located VisIVO backend, with a staging-handoff fallback.
+
+It intentionally does not yet implement full TAP async / full ADQL, asynchronous
+DataLink/SODA job services, or full standard-server compliance across all operations.

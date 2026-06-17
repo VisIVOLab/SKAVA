@@ -2,12 +2,12 @@
 
 ## Purpose
 
-`GET /datalink/{obs_id}` provides the canonical production DataLink-like JSON envelope by default.
-It also supports a minimal VOTable links table with `RESPONSEFORMAT=application/x-votable+xml` or `FORMAT=votable`.
+`GET /datalink/{obs_id}` provides the canonical DataLink JSON envelope by default.
+It also serves a **conformant IVOA DataLink VOTable** with `RESPONSEFORMAT=application/x-votable+xml` or `FORMAT=votable` (standard `{links}` columns with spec UCDs, IVOA semantics terms, and a SODA cutout service descriptor).
 
 `GET /access/{obs_id}` remains available as a compatibility facade over `/datalink/{obs_id}`.
 
-This is not a full IVOA DataLink server yet. It is a practical precursor that keeps existing clients working and exposes structured links/service descriptors for future VO evolution.
+The JSON envelope is what the VisIVO desktop consumes; the VOTable targets generic VO tools (pyvo/TOPCAT). Asynchronous DataLink service behaviour remains future work.
 
 ## Response Structure
 
@@ -50,8 +50,11 @@ Current placeholders are explicitly marked:
 - `soda-async` links/descriptors
 - `cutout` descriptor
 
-`soda-sync` is exposed as an operational stub endpoint (`/soda/sync`) for validation and routing orchestration.
-Actual server-side subset execution remains not implemented.
+`soda-sync` (`/soda/sync`) validates and routes. Real server-side subset
+execution runs via `/soda/execute`, which delegates the cutout to the
+dataset node's co-located VisIVO backend (compute-next-to-data) and falls
+back to a staging handoff when none is available. See
+[SODA execution](soda_execution.md).
 
 ## Curl Example
 

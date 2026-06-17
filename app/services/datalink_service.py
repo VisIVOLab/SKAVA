@@ -75,6 +75,13 @@ class DataLinkService:
         record_ranking_decision(selected.node.code)
         datalink_url = build_datalink_url(obs_id)
 
+        # SODA execution is available for this dataset when at least one
+        # ranked node runs a co-located VisIVO backend that /soda/execute
+        # can delegate the byte-level cutout to (compute-next-to-data).
+        soda_execution_available = any(
+            getattr(rep.node, "visivo_backend_url", None) for rep in ranked
+        )
+
         response = DataLinkResponse(
             dataset=DatasetDescriptor(
                 obs_id=dataset.obs_id,
@@ -98,8 +105,9 @@ class DataLinkService:
             # desktop client uses as the preferred routing target.
             service_descriptors=build_service_descriptors(
                     obs_id,
-                    nodes=[rep.node for rep in ranked]),
-            capabilities=build_capabilities(),
+                    nodes=[rep.node for rep in ranked],
+                    soda_execution_available=soda_execution_available),
+            capabilities=build_capabilities(soda_execution_available),
         )
 
         logger.info(
