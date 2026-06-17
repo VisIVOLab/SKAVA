@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}{{ brand.name }}{% endblock %}</title>
+
+  <!-- Tailwind via Play CDN — switch to a precompiled file in production -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand:     '{{ brand.color }}',
+            brandDark: '{{ brand.color_dark }}',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/admin/static/admin.css" />
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+  {# A11y: skip-to-main-content link for keyboard users. Hidden until
+     focused; lands them past the nav and flash banner. #}
+  <a href="#main"
+     class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50
+            focus:bg-brand focus:text-white focus:px-3 focus:py-1 focus:rounded">
+    Skip to main content
+  </a>
+  {% block topbar %}
+    {% if current_user %}
+    <header class="bg-brand text-white" role="banner">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <a href="/admin/" class="text-lg font-semibold hover:opacity-90"
+           aria-label="{{ brand.name }} — go to dashboard">
+          {{ brand.name }}
+        </a>
+        <nav class="flex items-center gap-4 text-sm" aria-label="Main">
+          <a href="/admin/" class="hover:underline">Dashboard</a>
+          <a href="/admin/datasets/" class="hover:underline">Datasets</a>
+          <a href="/admin/nodes/" class="hover:underline">Nodes</a>
+          <a href="/admin/upload/" class="hover:underline">Upload</a>
+          <a href="/admin/history/" class="hover:underline">History</a>
+        </nav>
+        <div class="flex items-center gap-3 text-sm">
+          <span class="opacity-90">
+            {{ current_user.username }}
+            <span class="bg-white/20 rounded px-2 py-0.5 text-xs ml-1">
+              {{ current_user.role }}
+            </span>
+          </span>
+          <form method="post" action="/admin/logout" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+            <button type="submit"
+                    class="bg-white/10 hover:bg-white/20 rounded px-3 py-1">
+              Logout
+            </button>
+          </form>
+        </div>
+      </div>
+    </header>
+    {% endif %}
+  {% endblock %}
+
+  {% with flashes = consume_flash(request) %}
+    {% if flashes %}
+      <div class="max-w-6xl mx-auto w-full px-4 mt-4 space-y-2" aria-live="polite">
+        {% for f in flashes %}
+          {%- set palette = {
+              'success': 'bg-emerald-50 border-emerald-300 text-emerald-900',
+              'error':   'bg-rose-50 border-rose-300 text-rose-900',
+              'info':    'bg-sky-50 border-sky-300 text-sky-900',
+              'warning': 'bg-amber-50 border-amber-300 text-amber-900',
+          }.get(f.level, 'bg-slate-50 border-slate-300 text-slate-900') -%}
+          <div class="border rounded px-4 py-2 {{ palette }}">
+            {{ f.message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <main id="main" class="flex-1 max-w-6xl mx-auto w-full px-4 py-6"
+        tabindex="-1">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="text-center text-xs text-slate-500 py-4" role="contentinfo">
+    {{ brand.name }} · INAF
+  </footer>
+</body>
+</html>

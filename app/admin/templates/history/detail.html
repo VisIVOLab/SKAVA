@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Audit entry #{{ row.id }} — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="/admin/history/" class="text-sm text-brand hover:underline">
+    ← Back to audit history
+  </a>
+</div>
+
+<h1 class="text-2xl font-semibold mb-6">Audit entry #{{ row.id }}</h1>
+
+<section aria-labelledby="meta-title" class="mb-6">
+  <h2 id="meta-title" class="sr-only">Entry metadata</h2>
+  <dl class="bg-white border border-slate-200 rounded p-4 grid grid-cols-2 gap-y-2 gap-x-6 text-sm max-w-3xl">
+    <dt class="text-slate-500">When (UTC)</dt>
+    <dd class="font-mono">{{ row.occurred_at.strftime('%Y-%m-%d %H:%M:%S.%f') }}</dd>
+
+    <dt class="text-slate-500">Actor</dt>
+    <dd>
+      {{ row.actor_label }}
+      {% if row.actor_user_id %}
+        <span class="text-slate-400 font-mono text-xs">
+          (user id {{ row.actor_user_id }})
+        </span>
+      {% else %}
+        <span class="text-slate-400 text-xs">(user deleted)</span>
+      {% endif %}
+    </dd>
+
+    <dt class="text-slate-500">Action</dt>
+    <dd class="font-mono text-xs">{{ row.action }}</dd>
+
+    <dt class="text-slate-500">Target</dt>
+    <dd>
+      {% if row.target_type %}
+        <span class="font-mono text-xs">
+          {{ row.target_type }}/{{ row.target_id or '-' }}
+        </span>
+      {% else %}
+        <span class="text-slate-400">-</span>
+      {% endif %}
+    </dd>
+
+    <dt class="text-slate-500">IP address</dt>
+    <dd class="font-mono text-xs">{{ row.ip_address or '-' }}</dd>
+
+    <dt class="text-slate-500">Request id</dt>
+    <dd class="font-mono text-xs">{{ row.request_id or '-' }}</dd>
+
+    <dt class="text-slate-500">User agent</dt>
+    <dd class="text-xs text-slate-700 break-all">{{ row.user_agent or '-' }}</dd>
+  </dl>
+</section>
+
+<section aria-labelledby="changes-title">
+  <h2 id="changes-title" class="text-lg font-medium mb-2">Recorded changes</h2>
+  {% if row.changes_json %}
+    <pre class="bg-slate-900 text-slate-100 rounded p-4 text-xs overflow-x-auto"
+         aria-label="Change payload, JSON formatted"
+    >{{ row.changes_json | tojson(indent=2) }}</pre>
+  {% else %}
+    <p class="text-slate-500 text-sm">No change payload recorded for this action.</p>
+  {% endif %}
+</section>
+{% endblock %}

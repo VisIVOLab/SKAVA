@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skava-discovery-service"
+version = "0.1.0"
+description = "VO-aligned production service for SKAVA data discovery and access orchestration"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "sqlalchemy>=2.0.30",
+  "psycopg[binary]>=3.1.19",
+  "alembic>=1.13.1",
+  "pydantic>=2.7.0",
+  "pydantic-settings>=2.3.0",
+  "prometheus-client>=0.20.0",
+  "python-multipart>=0.0.9",
+  # HTTP client used to delegate SODA cutout execution to a node's
+  # co-located VisIVO backend (compute-next-to-data). See
+  # app/services/soda_execution_service.py.
+  "httpx>=0.27.0",
+  # ── Admin UI (see app/admin/) ────────────────────────────────────────
+  # Jinja2 powers the server-rendered templates; itsdangerous is the
+  # signing backend used by Starlette's SessionMiddleware; bcrypt is
+  # used directly for password hashing (we deliberately avoid passlib,
+  # which has been unmaintained since 2020 and breaks at startup with
+  # bcrypt>=4.1).
+  "jinja2>=3.1.4",
+  "itsdangerous>=2.2.0",
+  "bcrypt>=4.1.0",
+  # FITS header parsing for the admin UI's "Pre-fill from FITS" form
+  # helper. Pulls in numpy + scipy as transitive deps (~150 MB added
+  # to the api image); acceptable cost for a feature that prevents
+  # operators having to copy/paste 15 fields from FITS headers by hand.
+  "astropy>=6.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+  "httpx>=0.27.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# Bundle non-Python files into the installed package. Required for the
+# admin UI's Jinja2 templates and static assets — without this,
+# ``pip install`` ships only the ``.py`` files and the runtime gets
+# ``TemplateNotFound``.
+[tool.setuptools.package-data]
+"app.admin" = [
+    "templates/*.html",
+    "templates/**/*.html",
+    "static/*.css",
+    "static/**/*",
+    "README.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

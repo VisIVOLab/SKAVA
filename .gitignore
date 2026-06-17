@@ -1,0 +1,8 @@
+.DS_Store
+*.pyc
+__pycache__/
+/tests/__pycache__
+/skava_discovery_service.egg-info
+/app/__pycache__
+/tools/skava-publisher/skava_publisher.egg-info
+/.venv

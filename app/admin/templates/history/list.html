@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Audit history — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="flex items-baseline justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Audit history</h1>
+  <div class="text-sm text-slate-500" aria-live="polite">
+    {{ total }} entr{{ 'y' if total == 1 else 'ies' }}
+    {% if total >= export_limit %}
+      <span class="text-amber-700"
+            title="CSV export is capped at {{ export_limit }} rows for safety.">
+        (export capped at {{ export_limit }})
+      </span>
+    {% endif %}
+  </div>
+</div>
+
+<form method="get" action="/admin/history/"
+      class="bg-white border border-slate-200 rounded p-4 mb-6 grid gap-3 md:grid-cols-3"
+      aria-labelledby="filter-title">
+  <h2 id="filter-title" class="sr-only">Filter audit log</h2>
+
+  <label class="flex flex-col gap-1 text-sm">
+    <span class="text-slate-600">Search action / target id</span>
+    <input type="text" name="q" value="{{ q }}"
+           class="border border-slate-300 rounded px-2 py-1"
+           autocomplete="off"
+           placeholder="dataset.create, ds_123, …" />
+  </label>
+
+  <label class="flex flex-col gap-1 text-sm">
+    <span class="text-slate-600">Section</span>
+    <select name="action_prefix" class="border border-slate-300 rounded px-2 py-1">
+      <option value="">— any —</option>
+      {% for p in action_prefixes %}
+        <option value="{{ p }}" {% if p == action_prefix %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="flex flex-col gap-1 text-sm">
+    <span class="text-slate-600">Target type</span>
+    <select name="target_type" class="border border-slate-300 rounded px-2 py-1">
+      <option value="">— any —</option>
+      {% for t in target_types %}
+        <option value="{{ t }}" {% if t == target_type %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="flex flex-col gap-1 text-sm">
+    <span class="text-slate-600">Actor</span>
+    <input type="text" name="actor" value="{{ actor }}"
+           list="known-actors"
+           class="border border-slate-300 rounded px-2 py-1"
+           autocomplete="off"
+           placeholder="username" />
+    <datalist id="known-actors">
+      {% for a in actors %}<option value="{{ a }}"></option>{% endfor %}
+    </datalist>
+  </label>
+
+  <label class="flex flex-col gap-1 text-sm">
+    <span class="text-slate-600">From (UTC)</span>
+    <input type="date" name="since" value="{{ since }}"
+           class="border border-slate-300 rounded px-2 py-1" />
+  </label>
+
+  <label class="flex flex-col gap-1 text-sm">
+    <span class="text-slate-600">To (UTC)</span>
+    <input type="date" name="until" value="{{ until }}"
+           class="border border-slate-300 rounded px-2 py-1" />
+  </label>
+
+  <div class="md:col-span-3 flex items-center gap-3 pt-1">
+    <button type="submit"
+            class="bg-brand text-white rounded px-4 py-1.5 hover:opacity-90">
+      Apply filter
+    </button>
+    <a href="/admin/history/" class="text-sm text-slate-500 hover:underline">
+      Reset
+    </a>
+    <span class="flex-1"></span>
+    <a href="/admin/history/export.csv{% if export_qs %}?{{ export_qs }}{% endif %}"
+       class="text-sm text-brand hover:underline"
+       aria-label="Download current filter as CSV file">
+      ⬇ Export CSV
+    </a>
+  </div>
+</form>
+
+{% if rows %}
+  <div class="bg-white border border-slate-200 rounded overflow-hidden">
+    <table class="w-full text-sm" aria-label="Audit history">
+      <thead class="bg-slate-100 text-slate-700">
+        <tr>
+          <th scope="col" class="text-left px-3 py-2">When (UTC)</th>
+          <th scope="col" class="text-left px-3 py-2">Who</th>
+          <th scope="col" class="text-left px-3 py-2">Action</th>
+          <th scope="col" class="text-left px-3 py-2">Target</th>
+          <th scope="col" class="text-left px-3 py-2">IP</th>
+          <th scope="col" class="text-right px-3 py-2"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr class="border-t border-slate-100 hover:bg-slate-50">
+            <td class="px-3 py-2 text-slate-600 whitespace-nowrap">
+              {{ row.occurred_at.strftime('%Y-%m-%d %H:%M:%S') }}
+            </td>
+            <td class="px-3 py-2">{{ row.actor_label }}</td>
+            <td class="px-3 py-2 font-mono text-xs">{{ row.action }}</td>
+            <td class="px-3 py-2 text-slate-600">
+              {% if row.target_type %}
+                {{ row.target_type }}/{{ row.target_id or '-' }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td class="px-3 py-2 font-mono text-xs text-slate-500">
+              {{ row.ip_address or '-' }}
+            </td>
+            <td class="px-3 py-2 text-right">
+              <a href="/admin/history/{{ row.id }}"
+                 class="text-brand hover:underline"
+                 aria-label="View details of audit entry {{ row.id }}">
+                Details
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if n_pages > 1 %}
+    <nav class="flex justify-between items-center mt-4 text-sm" aria-label="Pagination">
+      {% set base_qs = export_qs %}
+      {% set prev_page = page - 1 %}
+      {% set next_page = page + 1 %}
+      <div>
+        {% if page > 1 %}
+          <a href="?page={{ prev_page }}{% if base_qs %}&{{ base_qs }}{% endif %}"
+             class="text-brand hover:underline" rel="prev">← Previous</a>
+        {% else %}
+          <span class="text-slate-300">← Previous</span>
+        {% endif %}
+      </div>
+      <div class="text-slate-500">Page {{ page }} / {{ n_pages }}</div>
+      <div>
+        {% if page < n_pages %}
+          <a href="?page={{ next_page }}{% if base_qs %}&{{ base_qs }}{% endif %}"
+             class="text-brand hover:underline" rel="next">Next →</a>
+        {% else %}
+          <span class="text-slate-300">Next →</span>
+        {% endif %}
+      </div>
+    </nav>
+  {% endif %}
+{% else %}
+  <p class="text-slate-500 text-sm">No audit entries match the current filter.</p>
+{% endif %}
+{% endblock %}

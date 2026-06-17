@@ -1,0 +1,38 @@
+[
+  {
+    "obs_id": "dataset-10",
+    "obs_collection": "skava-json",
+    "dataproduct_type": "image",
+    "calib_level": 2,
+    "target_name": "target-10",
+    "s_ra": 130.0,
+    "s_dec": -35.0,
+    "t_min": 59020.0,
+    "t_max": 59020.5,
+    "em_min": 1.1e-6,
+    "em_max": 1.9e-6,
+    "access_format": "image/fits",
+    "access_estsize": 12345,
+    "node_id": "A",
+    "access_url": "https://node-a.example.org/datalink/dataset-10",
+    "is_public": true
+  },
+  {
+    "obs_id": "dataset-11",
+    "obs_collection": "skava-json",
+    "dataproduct_type": "image",
+    "calib_level": 2,
+    "target_name": "target-11",
+    "s_ra": 131.0,
+    "s_dec": -36.0,
+    "t_min": 59021.0,
+    "t_max": 59021.5,
+    "em_min": 1.1e-6,
+    "em_max": 1.9e-6,
+    "access_format": "image/fits",
+    "access_estsize": 22345,
+    "node_id": "B",
+    "access_url": "https://node-b.example.org/datalink/dataset-11",
+    "is_public": true
+  }
+]

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Nodes — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Nodes</h1>
+  {% if can_edit %}
+    <a href="/admin/nodes/new"
+       class="bg-brand hover:bg-brandDark text-white rounded px-4 py-2 text-sm font-medium">
+      + Add node
+    </a>
+  {% endif %}
+</div>
+
+{% if not nodes %}
+  <p class="text-slate-500 text-sm">
+    No nodes registered yet.
+    {% if can_edit %}
+      Use <a href="/admin/nodes/new" class="text-brand hover:underline">Add node</a>
+      to register the first one.
+    {% endif %}
+  </p>
+{% else %}
+  <div class="bg-white border border-slate-200 rounded overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100 text-slate-700">
+        <tr>
+          <th scope="col" class="text-left px-3 py-2">Code</th>
+          <th scope="col" class="text-left px-3 py-2">Name</th>
+          <th scope="col" class="text-left px-3 py-2">Base URL</th>
+          <th scope="col" class="text-left px-3 py-2">VisIVO backend</th>
+          <th scope="col" class="text-left px-3 py-2">Replicas</th>
+          <th scope="col" class="text-left px-3 py-2">Status</th>
+          {% if can_edit %}<th scope="col" class="text-right px-3 py-2">Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in nodes %}
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2 font-mono">{{ n.code }}</td>
+            <td class="px-3 py-2">{{ n.name }}</td>
+            <td class="px-3 py-2 text-slate-600 truncate max-w-xs" title="{{ n.base_url }}">
+              {{ n.base_url }}
+            </td>
+            <td class="px-3 py-2">
+              {% if n.visivo_backend_url %}
+                <span class="inline-flex items-center gap-1 text-xs">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span class="text-slate-600 truncate max-w-[12rem]"
+                        title="{{ n.visivo_backend_url }}">
+                    {{ n.visivo_backend_url }}
+                  </span>
+                </span>
+              {% else %}
+                <span class="text-slate-400 text-xs">—</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2 text-slate-600">
+              {{ replica_counts.get(n.id, 0) }}
+            </td>
+            <td class="px-3 py-2">
+              {% if n.is_enabled and n.is_available %}
+                <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded">
+                  active
+                </span>
+              {% elif not n.is_enabled %}
+                <span class="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded">
+                  disabled
+                </span>
+              {% else %}
+                <span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded">
+                  unavailable
+                </span>
+              {% endif %}
+            </td>
+            {% if can_edit %}
+              <td class="px-3 py-2 text-right">
+                <a href="/admin/nodes/{{ n.id }}/edit"
+                   class="text-brand hover:underline text-xs">edit</a>
+                <form method="post"
+                      action="/admin/nodes/{{ n.id }}/delete"
+                      class="inline ml-3"
+                      onsubmit="return confirm('Delete node {{ n.code }}? This cannot be undone.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+                  <button type="submit"
+                          class="text-rose-600 hover:underline text-xs">
+                    delete
+                  </button>
+                </form>
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

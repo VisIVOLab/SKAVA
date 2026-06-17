@@ -1,0 +1,23 @@
+/* INAF brand accents on top of Furo. */
+
+:root {
+    --brand-blue:        #70b5e3;
+    --brand-blue-dark:   #3a6e8c;
+}
+
+/* Tight inline code blocks. */
+.rst-content code.literal {
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+/* Compact admonitions. */
+.admonition {
+    margin: 0.5em 0;
+}
+
+/* Nicer mermaid diagram framing when MyST + mermaid extension is added. */
+.mermaid {
+    text-align: center;
+    margin: 1em 0;
+}

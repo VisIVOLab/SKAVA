@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+
+<section class="grid gap-4 grid-cols-2 md:grid-cols-4 mb-8" aria-label="Counts">
+  {% for key, label in [
+    ('datasets', 'Datasets'),
+    ('nodes', 'Nodes'),
+    ('users', 'Users'),
+    ('audit_rows', 'Audit rows'),
+  ] %}
+    <div class="bg-white border border-slate-200 rounded p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">{{ label }}</div>
+      <div class="text-2xl font-semibold text-brandDark mt-1">
+        {{ counts[key]|default(0) }}
+      </div>
+    </div>
+  {% endfor %}
+</section>
+
+<section aria-labelledby="trend-title" class="mb-8">
+  <h2 id="trend-title" class="text-lg font-medium mb-3">Activity (last {{ window_days }} days)</h2>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div class="bg-white border border-slate-200 rounded p-4">
+      <h3 class="text-sm font-medium text-slate-700 mb-2">Audit rows per day</h3>
+      {% if audit_per_day %}
+        {% set audit_max = (audit_per_day | map(attribute=1) | max) | default(1) %}
+        <ul class="space-y-1 text-sm" aria-label="Audit rows per day">
+          {% for day, n in audit_per_day %}
+            <li class="flex items-center gap-2">
+              <span class="font-mono text-xs text-slate-500 w-24">{{ day }}</span>
+              <span class="flex-1 bg-slate-100 rounded h-3 relative">
+                <span class="absolute inset-y-0 left-0 bg-brand rounded"
+                      style="width: {{ (n / audit_max * 100) | round(1) }}%"></span>
+              </span>
+              <span class="font-mono text-xs w-10 text-right">{{ n }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-slate-500 text-sm">No activity in the last {{ window_days }} days.</p>
+      {% endif %}
+    </div>
+
+    <div class="bg-white border border-slate-200 rounded p-4">
+      <h3 class="text-sm font-medium text-slate-700 mb-2">Top actors</h3>
+      {% if top_actors %}
+        <ul class="space-y-1 text-sm" aria-label="Most active actors">
+          {% for actor, n in top_actors %}
+            <li class="flex items-center justify-between">
+              <span>{{ actor }}</span>
+              <span class="font-mono text-xs text-slate-500">{{ n }} actions</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-slate-500 text-sm">No activity in the last {{ window_days }} days.</p>
+      {% endif %}
+
+      <h3 class="text-sm font-medium text-slate-700 mt-4 mb-2">Top actions</h3>
+      {% if top_actions %}
+        <ul class="space-y-1 text-sm" aria-label="Most frequent actions">
+          {% for action, n in top_actions %}
+            <li class="flex items-center justify-between">
+              <span class="font-mono text-xs">{{ action }}</span>
+              <span class="font-mono text-xs text-slate-500">{{ n }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-slate-500 text-sm">—</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if per_node %}
+<section aria-labelledby="per-node-title" class="mb-8">
+  <h2 id="per-node-title" class="text-lg font-medium mb-3">Datasets per node</h2>
+  <div class="bg-white border border-slate-200 rounded p-4">
+    {% set node_max = (per_node | map(attribute=1) | max) | default(1) %}
+    <ul class="space-y-1 text-sm" aria-label="Distinct datasets replicated to each node">
+      {% for code, n in per_node %}
+        <li class="flex items-center gap-2">
+          <span class="font-mono text-xs text-slate-700 w-32">{{ code }}</span>
+          <span class="flex-1 bg-slate-100 rounded h-3 relative">
+            <span class="absolute inset-y-0 left-0 bg-brand rounded"
+                  style="width: {{ (n / (node_max if node_max > 0 else 1) * 100) | round(1) }}%"></span>
+          </span>
+          <span class="font-mono text-xs w-10 text-right">{{ n }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+<section aria-labelledby="recent-audit-title" class="mb-8">
+  <div class="flex items-baseline justify-between mb-2">
+    <h2 id="recent-audit-title" class="text-lg font-medium">Recent activity</h2>
+    <a href="/admin/history/" class="text-sm text-brand hover:underline">
+      Full history →
+    </a>
+  </div>
+  {% if recent_audit %}
+    <div class="bg-white border border-slate-200 rounded overflow-hidden">
+      <table class="w-full text-sm" aria-label="Last 10 audit entries">
+        <thead class="bg-slate-100 text-slate-700">
+          <tr>
+            <th scope="col" class="text-left px-3 py-2">When (UTC)</th>
+            <th scope="col" class="text-left px-3 py-2">Who</th>
+            <th scope="col" class="text-left px-3 py-2">Action</th>
+            <th scope="col" class="text-left px-3 py-2">Target</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in recent_audit %}
+            <tr class="border-t border-slate-100">
+              <td class="px-3 py-2 text-slate-600 whitespace-nowrap">
+                <a href="/admin/history/{{ row.id }}"
+                   class="hover:underline">
+                  {{ row.occurred_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                </a>
+              </td>
+              <td class="px-3 py-2">{{ row.actor_label }}</td>
+              <td class="px-3 py-2 font-mono text-xs">{{ row.action }}</td>
+              <td class="px-3 py-2 text-slate-600">
+                {% if row.target_type %}
+                  {{ row.target_type }}/{{ row.target_id or '-' }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-slate-500 text-sm">No activity yet.</p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="profile-title">
+  <h2 id="profile-title" class="text-lg font-medium mb-2">Your profile</h2>
+  <dl class="bg-white border border-slate-200 rounded p-4 text-sm grid grid-cols-2 gap-y-2 max-w-lg">
+    <dt class="text-slate-500">Username</dt>
+    <dd class="font-mono">{{ current_user.username }}</dd>
+
+    <dt class="text-slate-500">Role</dt>
+    <dd>{{ current_user.role }}</dd>
+
+    <dt class="text-slate-500">Email</dt>
+    <dd>{{ current_user.email or '-' }}</dd>
+
+    <dt class="text-slate-500">Last login</dt>
+    <dd>
+      {% if current_user.last_login_at %}
+        {{ current_user.last_login_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+      {% else %}
+        First login
+      {% endif %}
+    </dd>
+  </dl>
+</section>
+{% endblock %}

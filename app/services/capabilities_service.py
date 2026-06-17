@@ -1,0 +1,125 @@
+from app.schemas.system import CapabilitiesResponse, CapabilityInterface, CapabilityStandard
+
+
+# VOSI-inspired JSON capabilities for the production VO-aligned service.
+def get_capabilities() -> CapabilitiesResponse:
+    return CapabilitiesResponse(
+        service="SKAVA Data Discovery and Access",
+        profile="VO-aligned Production Service",
+        version="0.2.0",
+        vosi={"availability": "/availability", "capabilities": "/capabilities"},
+        interfaces=[
+            CapabilityInterface(
+                name="availability",
+                path="/availability",
+                method="GET",
+                description="Service availability with DB checks and optional node summary.",
+                params=["include_nodes"],
+            ),
+            CapabilityInterface(
+                name="db_health",
+                path="/health/db",
+                method="GET",
+                description="Database reachability check.",
+                params=[],
+            ),
+            CapabilityInterface(
+                name="metrics",
+                path="/metrics",
+                method="GET",
+                description="Prometheus metrics endpoint.",
+                params=[],
+            ),
+            CapabilityInterface(
+                name="discovery_search",
+                path="/discovery/search",
+                method="GET",
+                description="ObsCore-inspired discovery endpoint.",
+                params=["POS", "BAND", "TIME", "COLLECTION", "DPTYPE", "SPATIAL_CELL", "obs_id", "limit", "offset"],
+            ),
+            CapabilityInterface(
+                name="discovery_dataset",
+                path="/discovery/dataset/{obs_id}",
+                method="GET",
+                description="Retrieve metadata, available replicas and best node for one observation.",
+                params=["obs_id"],
+            ),
+            CapabilityInterface(
+                name="datalink_descriptor",
+                path="/datalink/{obs_id}",
+                method="GET",
+                description="Canonical DataLink-like JSON descriptor endpoint.",
+                params=["obs_id"],
+            ),
+            CapabilityInterface(
+                name="soda_sync",
+                path="/soda/sync",
+                method="GET",
+                description="SODA sync stub endpoint: validates subset requests and resolves routing, without executing server-side subsetting yet.",
+                params=["ID", "POS", "BAND", "TIME", "RESPONSEFORMAT"],
+            ),
+            CapabilityInterface(
+                name="soda_execute",
+                path="/soda/execute",
+                method="POST",
+                description="SODA subset execution handoff backed by staging job metadata.",
+                params=["ID", "POS", "BAND", "TIME", "RESPONSEFORMAT"],
+            ),
+            CapabilityInterface(
+                name="tap_sync",
+                path="/tap/sync",
+                method="GET|POST",
+                description="Minimal TAP sync ObsCore compatibility profile with ADQL equality predicates.",
+                params=["REQUEST", "LANG", "QUERY", "MAXREC", "FORMAT"],
+            ),
+            CapabilityInterface(
+                name="tap_async",
+                path="/tap/async",
+                method="POST",
+                description="TAP async compatibility endpoint backed by persisted job records.",
+                params=["REQUEST", "LANG", "QUERY", "MAXREC", "FORMAT"],
+            ),
+            CapabilityInterface(
+                name="staging_jobs",
+                path="/staging/jobs",
+                method="POST",
+                description="Metadata-cache staging endpoint for prefetch/access handoff workflows.",
+                params=["ID", "mode"],
+            ),
+            CapabilityInterface(
+                name="provenance",
+                path="/provenance/{obs_id}",
+                method="GET",
+                description="Dataset provenance, PID/DOI and citation metadata.",
+                params=["obs_id"],
+            ),
+            CapabilityInterface(
+                name="federation_search",
+                path="/federation/search",
+                method="GET",
+                description="Best-effort federated discovery across configured SRC-compatible peers.",
+                params=["POS", "BAND", "TIME", "COLLECTION", "DPTYPE", "obs_id", "limit"],
+            ),
+            CapabilityInterface(
+                name="tap_capabilities",
+                path="/tap/capabilities",
+                method="GET",
+                description="TAP sync compatibility profile declaration.",
+                params=[],
+            ),
+            CapabilityInterface(
+                name="access_compatibility",
+                path="/access/{obs_id}",
+                method="GET",
+                description="Compatibility facade over /datalink/{obs_id} preserving legacy access contract.",
+                params=["obs_id"],
+            ),
+        ],
+        standards=[
+            CapabilityStandard(name="ObsCore", ivoa_id="ivo://ivoa.net/std/ObsCore", support_level="aligned"),
+            CapabilityStandard(name="DataLink", ivoa_id="ivo://ivoa.net/std/DataLink", support_level="minimal-votable-profile"),
+            CapabilityStandard(name="SODA", ivoa_id="ivo://ivoa.net/std/SODA", support_level="precursor"),
+            CapabilityStandard(name="TAP/ObsTAP", ivoa_id="ivo://ivoa.net/std/TAP", support_level="minimal-sync-profile"),
+        ],
+        compliance_note="Production-hardened VO-aligned service. ObsCore discovery, access routing, DataLink VOTable output, and a minimal TAP sync profile are operational; full TAP async, full ADQL, and SODA execution remain planned extensions.",
+    )

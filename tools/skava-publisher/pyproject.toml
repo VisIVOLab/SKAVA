@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skava-publisher"
+version = "0.1.0"
+description = "Publisher CLI for the SKAVA Data Discovery Service — runs co-located with the data on each node and uploads JSON manifests to SKAVA."
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+  {name = "INAF / SKAVA", email = "skava@inaf.it"},
+]
+dependencies = [
+  # CLI ergonomics + nicer help text
+  "click>=8.1.7",
+  # YAML config with env-var substitution
+  "pyyaml>=6.0.1",
+  # Config validation + type coercion
+  "pydantic>=2.7.0",
+  "pydantic-settings>=2.3.0",
+  # HTTP client (SKAVA POST)
+  "httpx>=0.27.0",
+  # FITS + PSRFITS
+  "astropy>=6.1",
+  # LOFAR / generic dynspec
+  "h5py>=3.10",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+# Single entry point — ``skava-publisher <subcommand>``
+skava-publisher = "skava_publisher.cli:main"
+
+[project.entry-points."skava_publisher.extractors"]
+# Built-in extractors registered as entry points. Third-party extractors
+# can register additional extension handlers under the same group via
+# their own pyproject.toml.
+fits = "skava_publisher.extractors.fits:FitsExtractor"
+hdf5 = "skava_publisher.extractors.hdf5:Hdf5Extractor"
+psrfits = "skava_publisher.extractors.psrfits:PsrFitsExtractor"
+
+[tool.setuptools.packages.find]
+include = ["skava_publisher*"]

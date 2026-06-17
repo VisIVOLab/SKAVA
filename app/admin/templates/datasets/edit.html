@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if is_new %}New dataset{% else %}Edit {{ ds.obs_id }}{% endif %} — {{ brand.name }}
+{% endblock %}
+
+{% macro v(form, ds, name) -%}
+  {%- if form.get(name) is not none and form.get(name) != '' -%}
+    {{ form.get(name) }}
+  {%- elif ds is not none and ds[name] is not none -%}
+    {{ ds[name] }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="mb-6 flex items-baseline justify-between">
+  <h1 class="text-2xl font-semibold">
+    {% if is_new %}New dataset{% else %}Edit <span class="font-mono">{{ ds.obs_id }}</span>{% endif %}
+  </h1>
+  <a href="{% if ds %}/admin/datasets/{{ ds.id }}{% else %}/admin/datasets/{% endif %}"
+     class="text-sm text-slate-600 hover:text-brand">← Back</a>
+</div>
+
+{% if error %}
+  <div role="alert"
+       class="border border-rose-300 bg-rose-50 text-rose-900 rounded px-4 py-2 mb-4 text-sm">
+    {{ error }}
+  </div>
+{% endif %}
+
+{# ── FITS pre-fill helper ──────────────────────────────────────────
+    Uploads the chosen FITS to /admin/datasets/extract-from-fits, then
+    populates EMPTY form fields with whatever astropy could decode from
+    the headers. Anything the operator already typed in is left
+    untouched, so the helper is non-destructive even on a half-filled
+    form. #}
+<div class="mb-4 bg-sky-50 border border-sky-200 rounded p-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <label for="fits-upload" class="block text-sm font-medium text-slate-700">
+        Pre-fill from FITS file
+      </label>
+      <p class="text-xs text-slate-500">
+        Reads the primary HDU header and fills empty fields only.
+        Up to {{ 5 }} MB. Your existing edits are preserved.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="file" id="fits-upload"
+             accept=".fits,.fit,.fts,application/fits"
+             class="text-sm" />
+      <button type="button" id="fits-extract-btn"
+              class="bg-sky-600 hover:bg-sky-800 text-white rounded px-3 py-1.5 text-sm
+                     disabled:opacity-50 disabled:cursor-not-allowed">
+        Extract metadata
+      </button>
+    </div>
+  </div>
+  <p id="fits-status" class="text-xs mt-2" aria-live="polite"></p>
+</div>
+
+<script>
+(function () {
+  const btn = document.getElementById('fits-extract-btn');
+  const input = document.getElementById('fits-upload');
+  const status = document.getElementById('fits-status');
+  const csrf = {{ csrf_token(request) | tojson }};
+  if (!btn) return;
+
+  btn.addEventListener('click', async function () {
+    const f = input.files && input.files[0];
+    if (!f) {
+      status.textContent = 'Choose a FITS file first.';
+      status.className = 'text-xs mt-2 text-amber-700';
+      return;
+    }
+    btn.disabled = true;
+    status.textContent = 'Parsing ' + f.name + ' …';
+    status.className = 'text-xs mt-2 text-slate-600';
+
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('csrf_token', csrf);
+
+    try {
+      const resp = await fetch('/admin/datasets/extract-from-fits', {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-CSRF-Token': csrf },
+        credentials: 'same-origin',
+      });
+      if (!resp.ok) {
+        const msg = await resp.text();
+        status.textContent = 'Extraction failed (' + resp.status + '): ' + msg;
+        status.className = 'text-xs mt-2 text-rose-700';
+        return;
+      }
+      const data = await resp.json();
+      let filled = 0, skipped = 0;
+      for (const [name, value] of Object.entries(data)) {
+        const el = document.querySelector('form [name="' + name + '"]');
+        if (!el) continue;
+        // Only fill empty fields — preserve operator edits.
+        const current = el.value === undefined ? '' : String(el.value).trim();
+        if (current === '') {
+          el.value = value;
+          filled += 1;
+        } else {
+          skipped += 1;
+        }
+      }
+      const parts = [];
+      parts.push('Filled ' + filled + ' field' + (filled === 1 ? '' : 's'));
+      if (skipped > 0) parts.push(skipped + ' kept (already set)');
+      status.textContent = parts.join(', ') + '.';
+      status.className = 'text-xs mt-2 text-emerald-700';
+    } catch (e) {
+      status.textContent = 'Network error: ' + e.message;
+      status.className = 'text-xs mt-2 text-rose-700';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+
+<form method="post"
+      action="{% if is_new %}/admin/datasets/new{% else %}/admin/datasets/{{ ds.id }}/edit{% endif %}"
+      class="bg-white border border-slate-200 rounded p-6 space-y-6 max-w-4xl"
+      autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+
+  <fieldset class="space-y-4">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">Identity</legend>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label for="obs_id" class="block text-sm font-medium text-slate-700 mb-1">
+          obs_id <span class="text-rose-500">*</span>
+        </label>
+        <input type="text" id="obs_id" name="obs_id" required
+               value="{{ v(form, ds, 'obs_id') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2 font-mono
+                      focus:outline-none focus:ring-2 focus:ring-brand" />
+      </div>
+      <div>
+        <label for="obs_title" class="block text-sm font-medium text-slate-700 mb-1">Title</label>
+        <input type="text" id="obs_title" name="obs_title"
+               value="{{ v(form, ds, 'obs_title') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="obs_collection" class="block text-sm font-medium text-slate-700 mb-1">Collection</label>
+        <input type="text" id="obs_collection" name="obs_collection"
+               value="{{ v(form, ds, 'obs_collection') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="dataproduct_type" class="block text-sm font-medium text-slate-700 mb-1">Data product type</label>
+        <input type="text" id="dataproduct_type" name="dataproduct_type"
+               value="{{ v(form, ds, 'dataproduct_type') }}"
+               placeholder="image | cube | dynspec | polarimetric | event | catalog"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="calib_level" class="block text-sm font-medium text-slate-700 mb-1">Calib. level</label>
+        <input type="number" id="calib_level" name="calib_level" min="0" max="4"
+               value="{{ v(form, ds, 'calib_level') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="target_name" class="block text-sm font-medium text-slate-700 mb-1">Target name</label>
+        <input type="text" id="target_name" name="target_name"
+               value="{{ v(form, ds, 'target_name') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="facility_name" class="block text-sm font-medium text-slate-700 mb-1">Facility</label>
+        <input type="text" id="facility_name" name="facility_name"
+               value="{{ v(form, ds, 'facility_name') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="instrument_name" class="block text-sm font-medium text-slate-700 mb-1">Instrument</label>
+        <input type="text" id="instrument_name" name="instrument_name"
+               value="{{ v(form, ds, 'instrument_name') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="space-y-4 border-t border-slate-200 pt-5">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">Spatial / time / spectral</legend>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label for="s_ra" class="block text-sm font-medium text-slate-700 mb-1">RA (deg)</label>
+        <input type="number" step="any" id="s_ra" name="s_ra" value="{{ v(form, ds, 's_ra') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="s_dec" class="block text-sm font-medium text-slate-700 mb-1">Dec (deg)</label>
+        <input type="number" step="any" id="s_dec" name="s_dec" value="{{ v(form, ds, 's_dec') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="s_fov" class="block text-sm font-medium text-slate-700 mb-1">FoV (deg)</label>
+        <input type="number" step="any" id="s_fov" name="s_fov" value="{{ v(form, ds, 's_fov') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="t_min" class="block text-sm font-medium text-slate-700 mb-1">t_min (MJD)</label>
+        <input type="number" step="any" id="t_min" name="t_min" value="{{ v(form, ds, 't_min') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="t_max" class="block text-sm font-medium text-slate-700 mb-1">t_max (MJD)</label>
+        <input type="number" step="any" id="t_max" name="t_max" value="{{ v(form, ds, 't_max') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div></div>
+      <div>
+        <label for="em_min" class="block text-sm font-medium text-slate-700 mb-1">em_min (m)</label>
+        <input type="number" step="any" id="em_min" name="em_min" value="{{ v(form, ds, 'em_min') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2 font-mono" />
+      </div>
+      <div>
+        <label for="em_max" class="block text-sm font-medium text-slate-700 mb-1">em_max (m)</label>
+        <input type="number" step="any" id="em_max" name="em_max" value="{{ v(form, ds, 'em_max') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2 font-mono" />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="space-y-4 border-t border-slate-200 pt-5">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">Access</legend>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="access_format" class="block text-sm font-medium text-slate-700 mb-1">Access format</label>
+        <input type="text" id="access_format" name="access_format"
+               value="{{ v(form, ds, 'access_format') }}"
+               placeholder="image/fits"
+               class="w-full border border-slate-300 rounded px-3 py-2 font-mono" />
+      </div>
+      <div>
+        <label for="access_estsize" class="block text-sm font-medium text-slate-700 mb-1">Estimated size (KB)</label>
+        <input type="number" id="access_estsize" name="access_estsize"
+               value="{{ v(form, ds, 'access_estsize') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="space-y-4 border-t border-slate-200 pt-5">
+    <legend class="text-sm font-medium text-slate-600 uppercase tracking-wide">Provenance</legend>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="doi" class="block text-sm font-medium text-slate-700 mb-1">DOI</label>
+        <input type="text" id="doi" name="doi" value="{{ v(form, ds, 'doi') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="pid" class="block text-sm font-medium text-slate-700 mb-1">PID</label>
+        <input type="text" id="pid" name="pid" value="{{ v(form, ds, 'pid') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="license" class="block text-sm font-medium text-slate-700 mb-1">License</label>
+        <input type="text" id="license" name="license" value="{{ v(form, ds, 'license') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label for="source_ref" class="block text-sm font-medium text-slate-700 mb-1">Source ref</label>
+        <input type="text" id="source_ref" name="source_ref" value="{{ v(form, ds, 'source_ref') }}"
+               class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+    </div>
+    <div>
+      <label for="citation" class="block text-sm font-medium text-slate-700 mb-1">Citation</label>
+      <textarea id="citation" name="citation" rows="2"
+                class="w-full border border-slate-300 rounded px-3 py-2">{{ v(form, ds, 'citation') }}</textarea>
+    </div>
+  </fieldset>
+
+  <div class="flex items-center justify-end gap-3 pt-2">
+    <a href="{% if ds %}/admin/datasets/{{ ds.id }}{% else %}/admin/datasets/{% endif %}"
+       class="text-sm text-slate-600 hover:text-slate-900">Cancel</a>
+    <button type="submit"
+            class="bg-brand hover:bg-brandDark text-white rounded px-5 py-2 font-medium">
+      {% if is_new %}Create dataset{% else %}Save changes{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}

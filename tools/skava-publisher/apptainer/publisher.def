@@ -1,0 +1,107 @@
+Bootstrap: docker
+From: python:3.12-slim
+
+%labels
+    Maintainer SKAVA <skava@inaf.it>
+    Version    0.1.0
+    Description SKAVA Publisher — CLI that scans local datasets and pushes JSON manifests to SKAVA.
+
+%help
+    Apptainer image for the SKAVA Publisher. The container ships the
+    skava-publisher CLI plus its dependencies (astropy, h5py, click,
+    httpx, …) — operators on data nodes can run it without installing
+    Python deps host-side.
+
+    ── Quick start ──────────────────────────────────────────────────────
+    # Build (RUN FROM THE TOOL DIR — paths in %setup are relative to cwd)
+    cd SKAVA/tools/skava-publisher
+    apptainer build --fakeroot publisher.sif apptainer/publisher.def
+
+    # Bind: the data tree, the config file, the state DB directory
+    apptainer run \\
+        --bind /data:/data \\
+        --bind /etc/skava-publisher.yaml:/etc/skava-publisher.yaml \\
+        --bind /var/lib/skava-publisher:/var/lib/skava-publisher \\
+        publisher.sif scan -c /etc/skava-publisher.yaml -o /tmp/manifest.json
+
+    # Publish
+    apptainer run --bind ... publisher.sif publish -c /etc/skava-publisher.yaml -y
+
+    # Cron-friendly watch mode
+    apptainer run --bind ... publisher.sif watch -c /etc/skava-publisher.yaml --once
+
+    ── Environment ──────────────────────────────────────────────────────
+    SKAVA_INTERNAL_API_KEY (required if config references ${SKAVA_INTERNAL_API_KEY})
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%post
+    set -e
+    # Build deps for h5py / numpy / astropy on ppc64le where wheels
+    # don't exist. On x86_64 the wheels are used and these are mostly
+    # idle, but having them present means the same .def builds on
+    # every architecture without per-arch branching.
+    apt-get update -qq
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc g++ gfortran make automake autoconf libtool cmake \
+        libffi-dev libssl-dev libhdf5-dev \
+        libopenblas-dev liblapack-dev libfftw3-dev libcfitsio-dev \
+        pkg-config \
+        && rm -rf /var/lib/apt/lists/*
+
+    pip install --no-cache-dir --upgrade pip
+
+    # ─── Locate the publisher source ──────────────────────────────────
+    SRC=$(find /srv/publisher_src -name pyproject.toml -print -quit 2>/dev/null)
+    if [ -z "$SRC" ]; then
+        echo "ERROR: pyproject.toml not found under /srv/publisher_src"
+        ls -la /srv/publisher_src/ || true
+        exit 1
+    fi
+    SRC_DIR=$(dirname "$SRC")
+    echo "[publisher.def] Source root: $SRC_DIR"
+
+    pip install --no-cache-dir "$SRC_DIR"
+
+    # Sanity check
+    python -c "import skava_publisher; print('skava-publisher', skava_publisher.__version__, 'OK')"
+    skava-publisher --version
+
+%setup
+    # ${PWD} should be SKAVA/tools/skava-publisher when the user runs
+    # ``apptainer build`` from that directory.
+    set -ex
+    ROOTFS="${APPTAINER_ROOTFS:-${SINGULARITY_ROOTFS:-}}"
+    if [ -z "$ROOTFS" ]; then
+        echo "ERROR: Neither APPTAINER_ROOTFS nor SINGULARITY_ROOTFS is set."
+        exit 1
+    fi
+    SRC="${PWD}"
+    if [ ! -f "$SRC/pyproject.toml" ]; then
+        # Fallback if user ran build from repo root.
+        SRC="${PWD}/tools/skava-publisher"
+        if [ ! -f "$SRC/pyproject.toml" ]; then
+            echo "ERROR: pyproject.toml not found in expected locations."
+            echo "Tried: ${PWD}, ${PWD}/tools/skava-publisher"
+            exit 1
+        fi
+    fi
+    echo "[%setup] Staging publisher source from: $SRC"
+    mkdir -p "$ROOTFS/srv/publisher_src"
+    cp -r "$SRC"/. "$ROOTFS/srv/publisher_src/"
+
+%runscript
+    #!/bin/bash
+    exec skava-publisher "$@"
+
+%test
+    skava-publisher --version
+    skava-publisher --help > /dev/null
+    python -c "from skava_publisher.extractors import discover; \
+               names = [e.name for e in discover()]; \
+               print('extractors:', names); \
+               assert 'fits' in names and 'hdf5' in names and 'psrfits' in names, \
+                      f'missing extractors: {names}'"

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ ds.obs_id }} — {{ brand.name }}{% endblock %}
+
+{% macro row(label, value) -%}
+  <dt class="text-slate-500">{{ label }}</dt>
+  <dd>
+    {%- if value is none or value == '' -%}<span class="text-slate-400">—</span>
+    {%- else -%}{{ value }}{%- endif -%}
+  </dd>
+{%- endmacro %}
+
+{% block content %}
+<div class="mb-6 flex items-baseline justify-between flex-wrap gap-4">
+  <h1 class="text-2xl font-semibold font-mono">{{ ds.obs_id }}</h1>
+  <div class="flex items-center gap-3">
+    {% if can_edit %}
+      <a href="/admin/datasets/{{ ds.id }}/edit"
+         class="bg-brand hover:bg-brandDark text-white rounded px-4 py-2 text-sm">
+        Edit
+      </a>
+      <form method="post" action="/admin/datasets/{{ ds.id }}/delete"
+            class="inline"
+            onsubmit="return confirm('Delete {{ ds.obs_id }} and its {{ ds.replicas|length }} replica(s)? This cannot be undone.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+        <button type="submit"
+                class="bg-rose-100 hover:bg-rose-200 text-rose-900 rounded px-4 py-2 text-sm">
+          Delete
+        </button>
+      </form>
+    {% endif %}
+    <a href="/admin/datasets/" class="text-sm text-slate-600 hover:text-brand">← Back</a>
+  </div>
+</div>
+
+<section aria-labelledby="obscore" class="mb-8">
+  <h2 id="obscore" class="text-lg font-medium mb-2">ObsCore</h2>
+  <dl class="bg-white border border-slate-200 rounded p-4 text-sm
+             grid grid-cols-1 md:grid-cols-[10rem_1fr] gap-y-2 gap-x-4">
+    {{ row("obs_id", ds.obs_id) }}
+    {{ row("Title", ds.obs_title) }}
+    {{ row("Collection", ds.obs_collection) }}
+    {{ row("Data product type", ds.dataproduct_type) }}
+    {{ row("Calibration level", ds.calib_level) }}
+    {{ row("Target", ds.target_name) }}
+    {{ row("Facility", ds.facility_name) }}
+    {{ row("Instrument", ds.instrument_name) }}
+    {{ row("RA (deg)", ds.s_ra) }}
+    {{ row("Dec (deg)", ds.s_dec) }}
+    {{ row("FoV (deg)", ds.s_fov) }}
+    {{ row("t_min (MJD)", ds.t_min) }}
+    {{ row("t_max (MJD)", ds.t_max) }}
+    {{ row("em_min (m)", ds.em_min) }}
+    {{ row("em_max (m)", ds.em_max) }}
+    {{ row("Access format", ds.access_format) }}
+    {{ row("Access est. size (KB)", ds.access_estsize) }}
+  </dl>
+</section>
+
+<section aria-labelledby="prov" class="mb-8">
+  <h2 id="prov" class="text-lg font-medium mb-2">Provenance</h2>
+  <dl class="bg-white border border-slate-200 rounded p-4 text-sm
+             grid grid-cols-1 md:grid-cols-[10rem_1fr] gap-y-2 gap-x-4">
+    {{ row("DOI", ds.doi) }}
+    {{ row("PID", ds.pid) }}
+    {{ row("License", ds.license) }}
+    {{ row("Citation", ds.citation) }}
+    {{ row("Source type", ds.source_type) }}
+    {{ row("Source ref", ds.source_ref) }}
+    {{ row("Checksum", ds.checksum) }}
+    {{ row("Ingested at", ds.ingested_at) }}
+    {{ row("Updated at", ds.updated_at) }}
+  </dl>
+</section>
+
+<section aria-labelledby="replicas" class="mb-4">
+  <div class="flex items-baseline justify-between mb-2">
+    <h2 id="replicas" class="text-lg font-medium">Replicas ({{ ds.replicas|length }})</h2>
+  </div>
+
+  {% if ds.replicas %}
+    <div class="bg-white border border-slate-200 rounded overflow-hidden mb-4">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-700">
+          <tr>
+            <th scope="col" class="text-left px-3 py-2">Node</th>
+            <th scope="col" class="text-left px-3 py-2">Remote path</th>
+            <th scope="col" class="text-left px-3 py-2">Access endpoint</th>
+            <th scope="col" class="text-left px-3 py-2">Public</th>
+            <th scope="col" class="text-left px-3 py-2">Status</th>
+            {% if can_edit %}<th scope="col" class="text-right px-3 py-2">Actions</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in ds.replicas %}
+            <tr class="border-t border-slate-100">
+              <td class="px-3 py-2 font-mono">{{ r.node.code if r.node else r.node_id }}</td>
+              <td class="px-3 py-2 font-mono text-xs truncate max-w-xs" title="{{ r.remote_path }}">
+                {{ r.remote_path }}
+              </td>
+              <td class="px-3 py-2 font-mono text-xs truncate max-w-xs" title="{{ r.access_endpoint }}">
+                {{ r.access_endpoint }}
+              </td>
+              <td class="px-3 py-2">
+                {{ 'yes' if r.is_public else 'no' }}
+              </td>
+              <td class="px-3 py-2">{{ r.status }}</td>
+              {% if can_edit %}
+                <td class="px-3 py-2 text-right">
+                  <form method="post"
+                        action="/admin/datasets/{{ ds.id }}/replicas/{{ r.id }}/delete"
+                        class="inline"
+                        onsubmit="return confirm('Remove replica on {{ r.node.code if r.node else r.node_id }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+                    <button type="submit" class="text-rose-600 hover:underline text-xs">
+                      remove
+                    </button>
+                  </form>
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-slate-500 text-sm mb-4">No replicas yet.</p>
+  {% endif %}
+
+  {% if can_edit %}
+    <form method="post" action="/admin/datasets/{{ ds.id }}/replicas/new"
+          class="bg-white border border-slate-200 rounded p-4 text-sm space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+      <h3 class="text-sm font-medium text-slate-700">Add replica</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label for="node_id" class="block text-xs text-slate-500 mb-1">Node</label>
+          <select id="node_id" name="node_id" required
+                  class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+            <option value="">(choose node)</option>
+            {% for n in nodes_for_replica %}
+              <option value="{{ n.id }}">{{ n.code }} — {{ n.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="remote_path" class="block text-xs text-slate-500 mb-1">Remote path</label>
+          <input id="remote_path" name="remote_path" type="text" required
+                 placeholder="/data/cubes/abc.fits"
+                 class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-xs" />
+        </div>
+        <div>
+          <label for="access_endpoint" class="block text-xs text-slate-500 mb-1">Access endpoint</label>
+          <input id="access_endpoint" name="access_endpoint" type="url" required
+                 placeholder="http://host/data/cubes/abc.fits"
+                 class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-xs" />
+        </div>
+      </div>
+      <div class="flex items-center justify-between">
+        <label class="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" name="is_public" checked
+                 class="rounded border-slate-300 text-brand focus:ring-brand" />
+          Public
+        </label>
+        <button type="submit"
+                class="bg-brand hover:bg-brandDark text-white rounded px-4 py-2 text-sm">
+          Add replica
+        </button>
+      </div>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}
