@@ -192,7 +192,9 @@ SKAVA is. Scale-out options when one process isn't enough:
 
 * Add api replicas behind the reverse proxy — SKAVA is stateless
   apart from PostgreSQL.
-* Hand off SODA execution to a worker pool (roadmap).
+* Move SODA cutouts off the request path with an **async** SODA worker
+  pool (roadmap). Sync `/soda/execute` already runs the cutout on the
+  node's co-located VisIVO backend, so SKAVA only proxies the result.
 * Use read replicas for discovery if you saturate the primary.
 
 ## 10. Disaster recovery test

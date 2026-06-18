@@ -27,6 +27,28 @@ All notable changes to SKAVA. The repository follows
   availability (enabled when a ranked node has a co-located VisIVO backend).
 * Admin UI Phase 3 — audit history viewer with filters + CSV export.
 * Federation fan-out implementation behind ``SKAVA_FEDERATED_SRC_URLS``.
+* **Production deploy hardening** — compose overrides (standalone-TLS / behind
+  existing reverse proxy), container hardening (``no-new-privileges``,
+  ``cap_drop``, ``read_only`` + tmpfs, resource limits), nginx ``/metrics``
+  block + ``/admin`` rate limit, and ``SKAVA_RUN_SEED`` to skip demo seeding
+  in production.
+
+### Fixed
+
+* **PostgreSQL migrations** — shortened revision id ``0005_..._support``
+  (33 → 29 chars); the old id overflowed ``alembic_version.version_num``
+  (VARCHAR(32)) and broke ``alembic upgrade`` on real Postgres (SQLite
+  silently allowed it, hiding it in CI).
+* **Admin audit log on SQLite** — ``audit_log.id`` is now
+  ``BigInteger().with_variant(Integer, "sqlite")`` so the PK auto-increments
+  under SQLite (BIGINT PRIMARY KEY is not the rowid alias); previously every
+  admin action that wrote an audit row failed the test/CI suite.
+* **Admin “Add dataset” route** — ``GET /admin/datasets/{dataset_id:int}`` so
+  the dynamic route no longer shadows ``/admin/datasets/new`` (which tried to
+  parse ``"new"`` as an int).
+* **CI test collection** — ``pythonpath = ["."]`` in pytest config so
+  ``from tests.conftest import …`` resolves under plain ``pytest`` (not only
+  ``python -m pytest``).
 
 ### Done
 

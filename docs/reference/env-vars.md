@@ -66,10 +66,27 @@ routing). Sorted alphabetically.
   - URL
   - —
   - Used in DataLink envelope to mint absolute URLs.
+* - ``SKAVA_RUN_SEED``
+  - bool
+  - ``true``
+  - Read by ``docker/entrypoint.sh``. Set ``false`` to skip demo seeding
+    entirely on container start (recommended in production — load real
+    metadata via the ingestion API / publisher instead).
 * - ``SKAVA_SEED_RESET``
   - bool
   - ``false``
-  - Force the destructive seed on container start (wipes user data).
+  - When seeding runs, force the destructive seed (wipes user data).
+    Orthogonal to ``SKAVA_RUN_SEED`` (which gates whether seeding runs).
+* - ``SKAVA_SODA_BACKEND_TIMEOUT_SECONDS``
+  - float
+  - ``120``
+  - Synchronous timeout when ``/soda/execute`` delegates a cutout to a
+    node's co-located VisIVO backend (compute-next-to-data).
+* - ``SKAVA_VISIVO_BACKEND_TOKEN``
+  - str
+  - ``""``
+  - Bearer token forwarded (as ``X-Visivo-Token``) to a node's VisIVO
+    backend on ``/soda/execute`` when that backend requires auth.
 ```
 
 ## Internal API key

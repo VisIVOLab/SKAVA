@@ -57,6 +57,20 @@ Defined in `app/config.py`. All are prefixed `SKAVA_`.
   - float
   - `2.0`
   - Per-sibling timeout when fanning out federation queries.
+* - `SKAVA_VISIVO_BACKEND_TOKEN`
+  - str
+  - `""`
+  - Bearer forwarded to a node's VisIVO backend when `/soda/execute`
+    delegates a cutout (compute-next-to-data) and the backend needs auth.
+* - `SKAVA_SODA_BACKEND_TIMEOUT_SECONDS`
+  - float
+  - `120`
+  - Synchronous timeout for that delegated cutout.
+* - `SKAVA_RUN_SEED`
+  - bool
+  - `true`
+  - Entrypoint flag. Set `false` in production to skip demo seeding;
+    load real metadata via the ingestion API / publisher instead.
 ```
 
 ## Database pool
