@@ -275,7 +275,10 @@ def _load_dataset_or_404(db: Session, dataset_id: int) -> Dataset:
     return ds
 
 
-@router.get("/{dataset_id}")
+# NOTE: ``:int`` path converter so this dynamic route does NOT shadow the
+# static ``/new`` route below (otherwise GET /admin/datasets/new tries to
+# parse "new" as an int → 422). Order-independent fix.
+@router.get("/{dataset_id:int}")
 def detail(
     dataset_id: int,
     request: Request,
