@@ -46,6 +46,56 @@ volumes:
 Production deployments customise this — see
 [production](production).
 
+## Production overrides (ready-made)
+
+The repo ships compose overrides and nginx configs so you don't have to
+hand-roll a production stack. Start from `docker-compose.staging.yml`
+(postgres + api + nginx, internal networks, rate limiting) and layer **one**
+production override on top. First create the secrets file:
+
+```bash
+cp .env.prod.example .env.prod      # fill POSTGRES_PASSWORD, INTERNAL_API_KEY,
+                                    # ADMIN_SESSION_SECRET, SKAVA_PUBLIC_BASE_URL (https)
+```
+
+All overrides set `SKAVA_ENV=production`, harden the containers
+(`no-new-privileges`, `cap_drop`, `read_only` + tmpfs, mem/pids limits) and
+set `SKAVA_RUN_SEED=false` (no demo data — load real metadata via the
+ingestion API / publisher).
+
+```{list-table}
+:header-rows: 1
+:widths: 30 70
+
+* - Override
+  - When to use
+* - `docker-compose.prod.yml`
+  - You terminate TLS with your own front proxy. nginx is published on
+    `127.0.0.1:8080`; put **Caddy** (`docker/Caddyfile`, automatic HTTPS) or
+    any TLS terminator in front. Uses `docker/nginx/nginx.prod.conf`
+    (`/metrics` blocked, `/admin` rate-limited).
+* - `docker-compose.selfhost-tls.yml`
+  - **80/443 are already taken** (e.g. another stack on the host). SKAVA
+    terminates its **own** TLS on a free port (default `8443`) reusing an
+    existing Let's Encrypt cert. Uses `docker/nginx/nginx.tls.conf` + mounts
+    `/etc/letsencrypt` read-only.
+* - `docker-compose.shared-proxy.yml`
+  - Run **behind an existing reverse proxy**. SKAVA publishes no host ports;
+    it joins the proxy's Docker network so the proxy reaches
+    `skava-discovery:8000`. Add the vhost from
+    `docker/nginx/skava.vhost.example.conf` to that proxy.
+```
+
+Example — self-hosted TLS on port 8443:
+
+```bash
+docker compose -f docker-compose.staging.yml -f docker-compose.selfhost-tls.yml \
+    --env-file .env.prod up -d --build
+```
+
+See [production](production) for the full hardening checklist (TLS, secrets,
+backups, monitoring).
+
 ## Dockerfile structure
 
 Two-stage build: a `builder` stage that uses `pip wheel` to compile
