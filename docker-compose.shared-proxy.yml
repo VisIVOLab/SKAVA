@@ -1,0 +1,32 @@
+# Deploy SKAVA BEHIND an existing reverse proxy (e.g. the VisIVO Science
+# Gateway's nginx-proxy that already owns ports 80/443/8000/8080/8081).
+#
+# SKAVA publishes NOTHING to the host: the existing nginx-proxy reaches the
+# app by container name on a shared Docker network, and terminates TLS.
+#
+# Usage (note: start only postgres + skava-discovery, NOT the bundled nginx):
+#   docker compose \
+#       -f docker-compose.staging.yml \
+#       -f docker-compose.prod.yml \
+#       -f docker-compose.shared-proxy.yml \
+#       --env-file .env.prod up -d --build postgres skava-discovery
+#
+# Then add the SKAVA vhost to the existing nginx-proxy (see
+# docker/nginx/skava.vhost.example.conf) and reload it.
+
+services:
+  skava-discovery:
+    # Join BOTH the private SKAVA network (to reach postgres) and the
+    # gateway's network (so nginx-proxy can proxy to skava-discovery:8000).
+    networks:
+      - skava_internal
+      - gateway_net
+
+networks:
+  # The network the existing nginx-proxy is attached to. Find the real name
+  # with:  docker inspect nginx-proxy --format \
+  #          '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+  # then put it below as ``name:``.
+  gateway_net:
+    external: true
+    name: visivosciencegateway_airflow-net

@@ -1,0 +1,25 @@
+# Public TLS terminator for SKAVA — automatic HTTPS via Let's Encrypt.
+#
+# Install on the host:  sudo apt install -y caddy
+# Put this file at:     /etc/caddy/Caddyfile  (edit the domain first)
+# Reload:               sudo systemctl reload caddy
+#
+# It terminates TLS and proxies to the loopback-bound nginx published by
+# docker-compose.prod.yml (127.0.0.1:8080).
+
+skava.example.org {
+    encode gzip
+
+    header {
+        # Caddy speaks HTTPS to the client, so HSTS belongs here.
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        -Server
+    }
+
+    reverse_proxy 127.0.0.1:8080 {
+        header_up X-Forwarded-Proto https
+    }
+}

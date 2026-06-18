@@ -1,0 +1,64 @@
+# Production deploy that terminates its OWN TLS on host port 8443, reusing an
+# existing Let's Encrypt certificate (same hostname, different port). No new
+# DNS record, no new certificate, and the existing gateway nginx-proxy is left
+# completely untouched.
+#
+# Use this INSTEAD of docker-compose.prod.yml (do not combine them):
+#   cp .env.prod.example .env.prod    # set SKAVA_PUBLIC_BASE_URL=https://<host>:8443
+#   docker compose -f docker-compose.staging.yml -f docker-compose.selfhost-tls.yml \
+#       --env-file .env.prod up -d --build
+#
+# Open the firewall for 8443:  sudo firewall-cmd --add-port=8443/tcp --permanent && sudo firewall-cmd --reload
+#
+# Cert renewal: the host's certbot updates the files in /etc/letsencrypt; after
+# a renewal reload SKAVA's nginx to pick up the new cert:
+#   docker exec skava-nginx-staging nginx -s reload
+
+services:
+  postgres:
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+
+  skava-discovery:
+    restart: unless-stopped
+    environment:
+      SKAVA_ENV: production
+      SKAVA_PUBLIC_BASE_URL: ${SKAVA_PUBLIC_BASE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      SKAVA_ACCESS_TOKENS: ${SKAVA_ACCESS_TOKENS:-}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      ADMIN_SESSION_COOKIE_SECURE: "true"
+      SKAVA_VISIVO_BACKEND_TOKEN: ${SKAVA_VISIVO_BACKEND_TOKEN:-}
+      SKAVA_SODA_BACKEND_TIMEOUT_SECONDS: ${SKAVA_SODA_BACKEND_TIMEOUT_SECONDS:-120}
+      SKAVA_RUN_SEED: "false"
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 1g
+    pids_limit: 256
+
+  reverse-proxy:
+    restart: unless-stopped
+    # Public HTTPS endpoint on the free host port 8443. ``!override`` REPLACES
+    # the staging port list (8080:80) instead of appending to it — otherwise
+    # 8080 would be published and clash with the gateway's nginx-proxy.
+    ports: !override
+      - "8443:443"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    volumes:
+      - ./docker/nginx/nginx.tls.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - skava_nginx_logs:/var/log/nginx

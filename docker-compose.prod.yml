@@ -1,0 +1,64 @@
+# Production override for docker-compose.staging.yml.
+#
+# Usage:
+#   cp .env.prod.example .env.prod   # then fill in the secrets
+#   docker compose -f docker-compose.staging.yml -f docker-compose.prod.yml \
+#       --env-file .env.prod up -d --build
+#
+# What this override adds on top of the staging stack:
+#   * SKAVA_ENV=production (forces https in SKAVA_PUBLIC_BASE_URL)
+#   * the production secrets (internal API key, admin session secret, …)
+#   * SKAVA_RUN_SEED=false so the demo catalogue is NOT seeded
+#   * container hardening (no-new-privileges, cap_drop, read_only, limits)
+#   * nginx bound to 127.0.0.1 only (TLS is terminated by Caddy in front)
+#   * /metrics blocked + /admin rate-limited via nginx.prod.conf
+
+services:
+  postgres:
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+
+  skava-discovery:
+    restart: unless-stopped
+    environment:
+      SKAVA_ENV: production
+      SKAVA_PUBLIC_BASE_URL: ${SKAVA_PUBLIC_BASE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      SKAVA_ACCESS_TOKENS: ${SKAVA_ACCESS_TOKENS:-}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      ADMIN_SESSION_COOKIE_SECURE: "true"
+      SKAVA_VISIVO_BACKEND_TOKEN: ${SKAVA_VISIVO_BACKEND_TOKEN:-}
+      SKAVA_SODA_BACKEND_TIMEOUT_SECONDS: ${SKAVA_SODA_BACKEND_TIMEOUT_SECONDS:-120}
+      # No demo data in production — load real metadata via the internal
+      # ingestion API / publisher instead.
+      SKAVA_RUN_SEED: "false"
+      # Keep astropy/XDG caches on the tmpfs so the rootfs can stay read-only.
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 1g
+    pids_limit: 256
+
+  reverse-proxy:
+    restart: unless-stopped
+    # Publish only on the loopback interface; the public TLS endpoint is
+    # Caddy (or any TLS terminator) proxying to 127.0.0.1:8080.
+    ports:
+      - "127.0.0.1:8080:80"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    volumes:
+      - ./docker/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - skava_nginx_logs:/var/log/nginx

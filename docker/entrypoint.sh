@@ -29,8 +29,15 @@ PY
 echo "Running migrations..."
 alembic upgrade head
 
-echo "Seeding data..."
-python -m app.seed
+# Demo seeding is on by default (dev/staging convenience). Set
+# SKAVA_RUN_SEED=false in production to keep the catalogue clean and load
+# real metadata via the internal ingestion API / publisher instead.
+if [ "${SKAVA_RUN_SEED:-true}" = "true" ]; then
+  echo "Seeding data..."
+  python -m app.seed
+else
+  echo "Skipping demo seed (SKAVA_RUN_SEED=${SKAVA_RUN_SEED})."
+fi
 
 echo "Starting API..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000

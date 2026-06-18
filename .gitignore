@@ -6,3 +6,9 @@ __pycache__/
 /app/__pycache__
 /tools/skava-publisher/skava_publisher.egg-info
 /.venv
+
+# Local secrets / production env (never commit). The *.example template is fine.
+.env
+.env.*
+!.env.example
+!.env.prod.example
