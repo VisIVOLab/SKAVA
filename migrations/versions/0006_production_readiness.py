@@ -1,7 +1,7 @@
 """add production readiness metadata and job tables
 
 Revision ID: 0006_production_readiness
-Revises: 0005_add_scientific_query_support
+Revises: 0005_scientific_query_support
 Create Date: 2026-05-20
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0006_production_readiness"
-down_revision = "0005_add_scientific_query_support"
+down_revision = "0005_scientific_query_support"
 branch_labels = None
 depends_on = None
 

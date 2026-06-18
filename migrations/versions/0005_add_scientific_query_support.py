@@ -1,6 +1,6 @@
 """add scientific query support fields and indexes
 
-Revision ID: 0005_add_scientific_query_support
+Revision ID: 0005_scientific_query_support
 Revises: 0004_add_ingestion_jobs
 Create Date: 2026-03-18
 """
@@ -9,7 +9,10 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0005_add_scientific_query_support"
+# NOTE: kept to <= 32 chars — alembic_version.version_num is VARCHAR(32) and
+# PostgreSQL enforces it (the old 33-char id broke `alembic upgrade` on a real
+# Postgres; SQLite silently allowed it, hiding the bug in tests).
+revision = "0005_scientific_query_support"
 down_revision = "0004_add_ingestion_jobs"
 branch_labels = None
 depends_on = None
