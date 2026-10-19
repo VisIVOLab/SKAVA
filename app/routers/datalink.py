@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.errors import DatasetNotFoundError
 from app.schemas.datalink import DataLinkResponse
-from app.security.internal_api_key import require_access_token
+from app.security.internal_api_key import auth_is_required, require_access_token
 from app.services.datalink_service import DataLinkService
 from app.vo.votable import VOTABLE_MEDIA_TYPE, datalink_to_votable
 
@@ -25,5 +25,6 @@ def datalink(
         raise DatasetNotFoundError(f"Dataset '{obs_id}' not found")
     requested_format = (responseformat or format_value or "json").lower()
     if requested_format in {"votable", "application/x-votable+xml", "application/xml", "xml"}:
-        return Response(content=datalink_to_votable(result), media_type=VOTABLE_MEDIA_TYPE)
+        return Response(content=datalink_to_votable(result, auth_required=auth_is_required()),
+                        media_type=VOTABLE_MEDIA_TYPE)
     return result

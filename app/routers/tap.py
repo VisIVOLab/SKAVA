@@ -43,12 +43,17 @@ def tap_tables() -> Response:
 
 
 def _render_tap_response(result: DiscoverySearchResponse, fmt: str | None) -> DiscoverySearchResponse | Response:
-    requested = (fmt or "votable").lower()
+    # TAP 1.1 RESPONSEFORMAT values as VO clients send them: "votable",
+    # "votable/td", or a MIME type with parameters
+    # ("application/x-votable+xml;serialization=tabledata"). SKAVA always
+    # writes TABLEDATA, so every VOTable variant gets the same document.
+    requested = (fmt or "votable").lower().split(";")[0].strip()
     if requested in {"json", "application/json"}:
         return result
-    if requested in {"votable", "application/x-votable+xml", "application/xml", "xml"}:
+    if requested in {"votable", "votable/td", "application/x-votable+xml", "text/xml",
+                     "application/xml", "xml"}:
         return Response(content=discovery_results_to_votable(result.results), media_type=VOTABLE_MEDIA_TYPE)
-    raise InvalidQueryError("Unsupported FORMAT; use application/json or application/x-votable+xml")
+    raise InvalidQueryError("Unsupported RESPONSEFORMAT; use votable or application/json")
 
 
 @router.get("/sync", response_model=None)
@@ -58,6 +63,7 @@ def tap_sync_get(
     query: str = Query(alias="QUERY"),
     maxrec: int | None = Query(default=None, ge=1, le=1000, alias="MAXREC"),
     fmt: str | None = Query(default=None, alias="FORMAT"),
+    responseformat: str | None = Query(default=None, alias="RESPONSEFORMAT"),
     token: str | None = Depends(require_access_token),
     db: Session = Depends(get_db),
 ) -> DiscoverySearchResponse | Response:
@@ -66,7 +72,7 @@ def tap_sync_get(
     if lang.upper() != "ADQL":
         raise InvalidQueryError("LANG must be ADQL")
     result = TapService(db).sync_query(query=query, maxrec=maxrec)
-    return _render_tap_response(result, fmt)
+    return _render_tap_response(result, responseformat or fmt)
 
 
 @router.post("/sync", response_model=None)
@@ -76,6 +82,7 @@ def tap_sync_post(
     query: str = Form(alias="QUERY"),
     maxrec: int | None = Form(default=None, ge=1, le=1000, alias="MAXREC"),
     fmt: str | None = Form(default=None, alias="FORMAT"),
+    responseformat: str | None = Form(default=None, alias="RESPONSEFORMAT"),
     token: str | None = Depends(require_access_token),
     db: Session = Depends(get_db),
 ) -> DiscoverySearchResponse | Response:
@@ -84,7 +91,7 @@ def tap_sync_post(
     if lang.upper() != "ADQL":
         raise InvalidQueryError("LANG must be ADQL")
     result = TapService(db).sync_query(query=query, maxrec=maxrec)
-    return _render_tap_response(result, fmt)
+    return _render_tap_response(result, responseformat or fmt)
 
 
 @router.post("/async")

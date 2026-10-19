@@ -2,10 +2,12 @@ class SKAVAError(Exception):
     status_code = 500
     code = "internal_error"
 
-    def __init__(self, message: str, details: list[dict] | dict | str | None = None):
+    def __init__(self, message: str, details: list[dict] | dict | str | None = None,
+                 headers: dict[str, str] | None = None):
         super().__init__(message)
         self.message = message
         self.details = details
+        self.headers = headers
 
 
 class InvalidQueryError(SKAVAError):

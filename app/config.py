@@ -18,6 +18,19 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("INTERNAL_API_KEY", "SKAVA_INTERNAL_API_KEY"),
     )
     access_tokens: str | None = None
+    # ── OIDC bearer tokens (SRCNet IAM: INDIGO IAM / Keycloak) ───────────
+    # The issuer's discovery document; the same variable name the SRCNet
+    # architecture uses for its services (IAM_WELLKNOWN_ENDPOINT). When set,
+    # a JWT signed by that issuer is accepted alongside the static tokens.
+    # ``oidc_audience``: the audience SKAVA expects (a token exchanged for
+    # SKAVA, as SRCNet services do via the Auth API); unset = not checked.
+    # ``oidc_jwks_uri``: override the key set location (tests, air-gapped).
+    oidc_wellknown: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("IAM_WELLKNOWN_ENDPOINT", "SKAVA_OIDC_WELLKNOWN"),
+    )
+    oidc_audience: str | None = None
+    oidc_jwks_uri: str | None = None
     federated_src_urls: str | None = None
     federation_timeout_seconds: float = Field(default=2.0, ge=0.1)
 

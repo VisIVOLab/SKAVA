@@ -36,6 +36,10 @@ dependencies = [
   # to the api image); acceptable cost for a feature that prevents
   # operators having to copy/paste 15 fields from FITS headers by hand.
   "astropy>=6.1",
+  # OIDC bearer tokens from an SRCNet IAM (INDIGO IAM / Keycloak): JWT
+  # signature check against the issuer's JWKS. [crypto] brings RS256/ES256.
+  # See app/security/oidc.py.
+  "PyJWT[crypto]>=2.8",
 ]
 
 [project.optional-dependencies]

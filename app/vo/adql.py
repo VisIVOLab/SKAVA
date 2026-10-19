@@ -59,12 +59,15 @@ _NUMERIC_COLUMNS = {
     "spatial_index_order",
 }
 
-# ``1 = CONTAINS(...)`` or ``CONTAINS(...) = 1`` cone search. The POINT must
-# reference the dataset's own position columns (s_ra, s_dec); the CIRCLE
-# carries the literal centre + radius (degrees).
+# ``1 = CONTAINS(...)`` or ``CONTAINS(...) = 1`` cone search. The first
+# argument is the dataset's position: either the ObsTAP point built from
+# (s_ra, s_dec), or the ObsCore geometry column ``s_pos`` — the form the
+# SRCNet architecture uses in its example query,
+# ``CONTAINS(obscore.s_pos, CIRCLE('ICRS',202,47,1))=1``. The CIRCLE carries
+# the literal centre + radius (degrees). Table qualifiers are stripped first.
 _CONTAINS_RE = re.compile(
     r"(?:1\s*=\s*)?CONTAINS\s*\(\s*"
-    r"POINT\s*\(\s*'[^']*'\s*,\s*s_ra\s*,\s*s_dec\s*\)\s*,\s*"
+    r"(?:POINT\s*\(\s*'[^']*'\s*,\s*s_ra\s*,\s*s_dec\s*\)|s_pos)\s*,\s*"
     r"CIRCLE\s*\(\s*'[^']*'\s*,\s*"
     r"([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*\)\s*\)"
     r"(?:\s*=\s*1)?",
@@ -115,6 +118,23 @@ def _build_condition(col: str, op: str, raw: str):
     return _apply_op(column, op, value)
 
 
+# A table name or alias in front of a column (``obscore.s_ra``,
+# ``ivoa.obscore.t_min``, ``o.obs_id``). Only removed where a known column or
+# ``s_pos`` follows, so a number such as ``1.4e-6`` is never touched (it does
+# not start with a letter) and an unknown column still fails loudly below.
+_QUALIFIED_COLUMN_RE = None
+
+
+def strip_qualifiers(text: str) -> str:
+    """``obscore.s_ra`` → ``s_ra``; ``ivoa.obscore.t_min`` → ``t_min``."""
+    global _QUALIFIED_COLUMN_RE
+    if _QUALIFIED_COLUMN_RE is None:
+        names = "|".join(sorted(_STRING_COLUMNS | _NUMERIC_COLUMNS | {"s_pos"}, key=len, reverse=True))
+        _QUALIFIED_COLUMN_RE = re.compile(
+            rf"\b(?:[A-Za-z_][A-Za-z0-9_]*\.)+(?=(?:{names})\b)", re.IGNORECASE)
+    return _QUALIFIED_COLUMN_RE.sub("", text)
+
+
 def parse_where(where_clause: str) -> tuple[CirclePos | None, list]:
     """Parse an ADQL WHERE clause into (CirclePos|None, [SQLAlchemy conditions]).
 
@@ -124,6 +144,7 @@ def parse_where(where_clause: str) -> tuple[CirclePos | None, list]:
     # Strip ORDER BY / GROUP BY tails — ordering is not part of filtering and
     # SKAVA returns a deterministic obs_id order anyway.
     where_clause = re.split(r"\b(?:ORDER|GROUP)\s+BY\b", where_clause, flags=re.IGNORECASE)[0]
+    where_clause = strip_qualifiers(where_clause)
 
     if re.search(r"\bOR\b", where_clause, re.IGNORECASE):
         raise InvalidQueryError("OR is not supported in the TAP WHERE clause; use AND")

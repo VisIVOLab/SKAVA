@@ -57,6 +57,11 @@ _DATALINK_FIELDS = [
     ('description', 'char', 'meta.note', None),
     ('content_type', 'char', 'meta.code.mime', None),
     ('content_length', 'long', 'phys.size;meta.file', 'byte'),
+    # DataLink 1.1 §3.2.9-10, which the SRCNet DataLink also carries:
+    # whether the link needs authentication ("false" | "optional" | "true")
+    # and whether the caller of this response is authorized for it.
+    ('link_auth', 'char', 'meta.code', None),
+    ('link_authorized', 'boolean', 'meta.code', None),
     ('node_id', 'char', 'meta.id', None),
 ]
 
@@ -72,7 +77,7 @@ def _datalink_field(name: str, datatype: str, ucd: str, unit: str | None) -> str
 
 def _datalink_row(
     *, oid, access_url, service_def, semantics, description, content_type,
-    content_length, node_id,
+    content_length, node_id, link_auth=None, link_authorized=None,
 ) -> str:
     return (
         "<TR>"
@@ -84,12 +89,14 @@ def _datalink_row(
         + _cell(description)
         + _cell(content_type)
         + _cell(content_length)
+        + _cell(link_auth)
+        + _cell(None if link_authorized is None else ("true" if link_authorized else "false"))
         + _cell(node_id)
         + "</TR>"
     )
 
 
-def datalink_to_votable(datalink: DataLinkResponse) -> str:
+def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False) -> str:
     """Serialise a DataLink response as a conformant IVOA DataLink VOTable.
 
     Emits the standard ``{links}`` results table plus a service-descriptor
@@ -99,6 +106,14 @@ def datalink_to_votable(datalink: DataLinkResponse) -> str:
     """
     oid = datalink.dataset.obs_id
     rows: list[str] = []
+    base_url = settings.public_base_url.rstrip("/")
+    # SKAVA's own links need what SKAVA itself requires; the caller passed that
+    # check to get this response, so it is authorized for them. A replica on a
+    # node's storage is the node's business: unknown here, left null.
+    own_auth = "true" if auth_required else "false"
+
+    def own(url: str | None) -> bool:
+        return bool(url) and url.startswith(base_url)
 
     # One {links} row per access link (download / preview / alternates).
     for link in datalink.links:
@@ -109,6 +124,11 @@ def datalink_to_votable(datalink: DataLinkResponse) -> str:
         # cutout", so the stub stays in the JSON envelope only. The real
         # cutout is the service-descriptor row below.
         if link.rel in ("soda-sync", "soda-async"):
+            continue
+        # "self" / "datalink" point back at this DataLink document (as JSON):
+        # in a DataLink VOTable "#this" means the dataset itself, so a client
+        # would take them for copies of the file.
+        if link.rel in ("self", "datalink"):
             continue
         semantics = _SEMANTICS_BY_REL.get(link.rel, "#this")
         content_length = (
@@ -126,6 +146,8 @@ def datalink_to_votable(datalink: DataLinkResponse) -> str:
                 content_type=link.content_type,
                 content_length=content_length,
                 node_id=link.node_id,
+                link_auth=own_auth if own(link.href) else None,
+                link_authorized=True if own(link.href) else None,
             )
         )
 
@@ -151,6 +173,7 @@ def datalink_to_votable(datalink: DataLinkResponse) -> str:
                 content_type="application/json",
                 content_length=None,
                 node_id=desc.node_code,
+                link_auth="true" if desc.requires_auth else "false",
             )
         )
 
@@ -169,6 +192,8 @@ def datalink_to_votable(datalink: DataLinkResponse) -> str:
                 content_type="application/fits",
                 content_length=None,
                 node_id=None,
+                link_auth=own_auth,
+                link_authorized=True,
             )
         )
 
@@ -176,7 +201,6 @@ def datalink_to_votable(datalink: DataLinkResponse) -> str:
         _datalink_field(name, dt, ucd, unit) for name, dt, ucd, unit in _DATALINK_FIELDS
     )
     row_xml = "\n          ".join(rows)
-    base_url = settings.public_base_url.rstrip("/")
     cutout_resource = _cutout_service_resource(base_url) if cutout else ""
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -211,40 +235,32 @@ def _cutout_service_resource(base_url: str) -> str:
   </RESOURCE>"""
 
 
+# ObsCore content type that tells a VO client "access_url is a DataLink
+# document, follow it" (ObsCore 1.1 §3.3 / DataLink §3.2).
+DATALINK_ACCESS_FORMAT = "application/x-votable+xml;content=datalink"
+
+
 def discovery_results_to_votable(results: list[DiscoveryResult]) -> str:
-    fields = [
-        ("obs_id", "char"),
-        ("obs_collection", "char"),
-        ("dataproduct_type", "char"),
-        ("s_ra", "double"),
-        ("s_dec", "double"),
-        ("t_min", "double"),
-        ("t_max", "double"),
-        ("em_min", "double"),
-        ("em_max", "double"),
-        ("access_url", "char"),
+    # The ObsCore columns SKAVA holds, by their standard names. access_url is
+    # the dataset's DataLink document (with access_format saying so), the
+    # ObsCore convention for datasets whose access needs a resolution step —
+    # here, which node and which replica.
+    meta_fields = [
+        ("obs_id", "char"), ("obs_collection", "char"), ("obs_title", "char"),
+        ("dataproduct_type", "char"), ("calib_level", "int"),
+        ("target_name", "char"), ("facility_name", "char"), ("instrument_name", "char"),
+        ("s_ra", "double"), ("s_dec", "double"), ("s_fov", "double"),
+        ("t_min", "double"), ("t_max", "double"), ("em_min", "double"), ("em_max", "double"),
     ]
+    fields = meta_fields + [("access_url", "char"), ("access_format", "char")]
+    base = settings.public_base_url.rstrip("/")
     rows = []
     for result in results:
         metadata = result.metadata
-        rows.append(
-            "<TR>"
-            + "".join(
-                [
-                    _cell(metadata.obs_id),
-                    _cell(metadata.obs_collection),
-                    _cell(metadata.dataproduct_type),
-                    _cell(metadata.s_ra),
-                    _cell(metadata.s_dec),
-                    _cell(metadata.t_min),
-                    _cell(metadata.t_max),
-                    _cell(metadata.em_min),
-                    _cell(metadata.em_max),
-                    _cell(result.access_url),
-                ]
-            )
-            + "</TR>"
-        )
+        cells = [_cell(getattr(metadata, name, None)) for name, _ in meta_fields]
+        cells.append(_cell(f"{base}/datalink/{metadata.obs_id}?RESPONSEFORMAT=votable"))
+        cells.append(_cell(DATALINK_ACCESS_FORMAT))
+        rows.append("<TR>" + "".join(cells) + "</TR>")
 
     field_xml = "\n".join(_field(name, datatype) for name, datatype in fields)
     row_xml = "\n".join(rows)
