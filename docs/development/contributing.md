@@ -7,7 +7,7 @@ the roadmap but external contributions are welcome.
 ## Dev environment
 
 ```bash
-git clone https://github.com/VisIVOLab/SKAVA.git
+git clone https://github.com/fvitello/SKAVA.git
 cd SKAVA
 
 python3 -m venv .venv

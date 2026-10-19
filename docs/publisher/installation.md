@@ -11,7 +11,7 @@ same image. See [Apptainer image](apptainer) for the full recipe.
 Short version:
 
 ```bash
-git clone https://github.com/VisIVOLab/SKAVA.git
+git clone https://github.com/fvitello/SKAVA.git
 cd SKAVA/tools/skava-publisher
 
 apptainer build --fakeroot publisher.sif apptainer/publisher.def
@@ -76,12 +76,23 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-## Path 3 — pip from GitHub directly
+## Path 3 — pip from a local checkout (most robust)
 
-For sites that want to install without cloning:
+If you already have a SKAVA checkout (and especially when the repo is
+private or the node is air-gapped from GitHub), install from the local
+path — no repo credentials, no network for the repo:
 
 ```bash
-pip install "git+https://github.com/VisIVOLab/SKAVA.git#subdirectory=tools/skava-publisher"
+pip install /path/to/SKAVA/tools/skava-publisher
+```
+
+## Path 4 — pip from GitHub directly
+
+For sites that want to install without cloning (needs access to the
+repo; prompts for credentials if private):
+
+```bash
+pip install "git+https://github.com/fvitello/SKAVA.git#subdirectory=tools/skava-publisher"
 ```
 
 This is the right choice when the publisher is one of many

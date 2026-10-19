@@ -56,7 +56,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # Show "Edit on GitHub" link.
 html_context = {
     "display_github": True,
-    "github_user":    "VisIVOLab",
+    "github_user":    "fvitello",
     "github_repo":    "SKAVA",
     "github_version": "main",
     "conf_py_path":   "/docs/",
@@ -83,7 +83,7 @@ html_theme_options = {
     "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/VisIVOLab/SKAVA",
+            "url": "https://github.com/fvitello/SKAVA",
             "html": "",
             "class": "fa-brands fa-github",
         },

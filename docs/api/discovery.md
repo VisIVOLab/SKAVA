@@ -124,7 +124,7 @@ Response (truncated):
       "datalink_descriptor": {
         "service": "https://skava.inaf.it/access/power9-3a7f1b2c0e5d4986",
         "standard_hint": "DataLink/SODA precursor",
-        "operations": ["download", "cutout:TBD", "band_subset:TBD", "time_subset:TBD"]
+        "operations": ["download", "cutout", "band_subset"]
       }
     }
   ],

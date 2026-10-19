@@ -38,9 +38,17 @@ apptainer run \
 
 ### pip
 
+From a local SKAVA checkout (most robust — no repo access needed):
+
 ```bash
-pip install git+https://github.com/VisIVOLab/SKAVA.git#subdirectory=tools/skava-publisher
+pip install /path/to/SKAVA/tools/skava-publisher
 skava-publisher --version
+```
+
+Or directly from the repo (needs access; prompts for credentials if private):
+
+```bash
+pip install "git+https://github.com/fvitello/SKAVA.git#subdirectory=tools/skava-publisher"
 ```
 
 ## Configuration

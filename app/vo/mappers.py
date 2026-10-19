@@ -51,9 +51,32 @@ def build_datalink_url(obs_id: str) -> str:
     return f"{settings.public_base_url.rstrip('/')}/datalink/{obs_id}"
 
 
-def build_datalink_descriptor(access_url: str) -> DatalinkDescriptor:
+def soda_cutout_available(ranked_replicas) -> bool:
+    """Whether /soda/execute can really cut this dataset: some ranked replica
+    is a file:// copy on a node that runs a co-located VisIVO backend. The one
+    rule shared by DataLink, /access and discovery, and the same condition
+    SodaExecutionService delegates on — otherwise it only records a staging job."""
+    return any(
+        getattr(rep.node, "visivo_backend_url", None)
+        and (rep.access_endpoint or "").startswith("file://")
+        for rep in ranked_replicas
+    )
+
+
+def supported_operations(cutout_available: bool) -> list[str]:
+    """Operations this deployment can perform on a dataset — never placeholders."""
+    ops = ["download"]
+    if cutout_available:
+        # Spatial (POS) and spectral (BAND) only: the node's cutout engine
+        # accepts TIME but does not slice in time, so a time subset is not
+        # offered until it does.
+        ops += ["cutout", "band_subset"]
+    return ops
+
+
+def build_datalink_descriptor(access_url: str, cutout_available: bool = False) -> DatalinkDescriptor:
     return DatalinkDescriptor(
         service=access_url,
         standard_hint="DataLink/SODA precursor",
-        operations=["download", "cutout:TBD", "band_subset:TBD", "time_subset:TBD"],
+        operations=supported_operations(cutout_available),
     )

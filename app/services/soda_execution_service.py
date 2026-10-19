@@ -73,22 +73,23 @@ class SodaExecutionService:
         if not datalink:
             return None
 
-        access_url = datalink.primary_access.access_url
-        best_code = datalink.routing.best_node
-        node = self.db.scalar(select(Node).where(Node.code == best_code))
-
-        # Delegation is only possible when the chosen node runs a backend
-        # AND its replica is a file:// URL the backend can open in place.
-        if not node or not node.visivo_backend_url:
+        # The first replica, in ranking order, that a node backend can cut in
+        # place: a file:// copy on a node running a co-located VisIVO backend.
+        # Same rule DataLink uses to advertise the cutout (soda_cutout_available),
+        # so what is advertised is what runs.
+        node = None
+        access_url = ""
+        for rep in datalink.routing.replicas:
+            if not (rep.access_endpoint or "").startswith("file://"):
+                continue
+            candidate = self.db.scalar(select(Node).where(Node.code == rep.code))
+            if candidate and candidate.visivo_backend_url:
+                node, access_url = candidate, rep.access_endpoint
+                break
+        if node is None:
             logger.info(
                 "soda_exec_no_backend",
-                extra={"dataset": dataset_id, "node": best_code},
-            )
-            return None
-        if not access_url.startswith("file://"):
-            logger.info(
-                "soda_exec_non_file_replica",
-                extra={"dataset": dataset_id, "node": best_code, "scheme": access_url.split(":", 1)[0]},
+                extra={"dataset": dataset_id, "node": datalink.routing.best_node},
             )
             return None
 
@@ -114,13 +115,13 @@ class SodaExecutionService:
             )
         except httpx.HTTPError as exc:
             raise BackendExecutionError(
-                f"VisIVO backend at node '{best_code}' is unreachable: {exc}"
+                f"VisIVO backend at node '{node.code}' is unreachable: {exc}"
             ) from exc
 
         if resp.status_code != 200:
             detail = _safe_detail(resp)
             raise BackendExecutionError(
-                f"VisIVO backend at node '{best_code}' returned "
+                f"VisIVO backend at node '{node.code}' returned "
                 f"HTTP {resp.status_code}: {detail}"
             )
 
@@ -128,7 +129,7 @@ class SodaExecutionService:
             "soda_exec_delegated",
             extra={
                 "dataset": dataset_id,
-                "node": best_code,
+                "node": node.code,
                 "bytes": len(resp.content),
                 "applied": resp.headers.get("X-Soda-Applied", ""),
             },
@@ -138,7 +139,7 @@ class SodaExecutionService:
             media_type=resp.headers.get("content-type", "application/fits"),
             filename=_filename_from(resp, dataset_id),
             applied=resp.headers.get("X-Soda-Applied", ""),
-            node_code=best_code,
+            node_code=node.code,
         )
 
 

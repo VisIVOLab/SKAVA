@@ -12,7 +12,13 @@ from app.models.replica import DatasetReplica
 from app.ranking.default import DefaultRankingPolicy
 from app.schemas.discovery import DiscoveryResult, DiscoverySearchResponse
 from app.services.discovery_filters import apply_band_filter, apply_pos_filter, apply_time_filter
-from app.vo.mappers import build_access_url, build_datalink_descriptor, to_dataset_metadata, to_node_replica
+from app.vo.mappers import (
+    build_access_url,
+    build_datalink_descriptor,
+    soda_cutout_available,
+    to_dataset_metadata,
+    to_node_replica,
+)
 from app.vo.query_params import CirclePos, NumericInterval
 
 logger = logging.getLogger("skava.discovery")
@@ -48,7 +54,7 @@ class DiscoveryService:
             replicas=[to_node_replica(rep) for rep in eligible],
             best_node=best.node.code,
             access_url=access_url,
-            datalink_descriptor=build_datalink_descriptor(access_url),
+            datalink_descriptor=build_datalink_descriptor(access_url, soda_cutout_available(ranked)),
         )
 
         logger.info(

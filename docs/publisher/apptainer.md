@@ -10,7 +10,7 @@ the host.
 From a host with `apptainer` (≥ 1.1) installed:
 
 ```bash
-git clone https://github.com/VisIVOLab/SKAVA.git
+git clone https://github.com/fvitello/SKAVA.git
 cd SKAVA/tools/skava-publisher
 
 apptainer build --fakeroot publisher.sif apptainer/publisher.def

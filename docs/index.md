@@ -202,5 +202,5 @@ Coding conventions, tests, and how to add a new extractor.
 ## License
 
 SKAVA is released under the MIT license. See the
-[LICENSE](https://github.com/VisIVOLab/SKAVA/blob/main/LICENSE) file in
+[LICENSE](https://github.com/fvitello/SKAVA/blob/main/LICENSE) file in
 the repository root.

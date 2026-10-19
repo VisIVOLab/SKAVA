@@ -55,13 +55,9 @@ def build_access_links(
             title="SODA sync endpoint",
             description="SODA sync stub endpoint with request validation and routing orchestration.",
         ),
-        LinkDescriptor(
-            rel="soda-async",
-            href=f"{settings.public_base_url.rstrip('/')}/soda/async",
-            content_type="application/json",
-            title="SODA async placeholder",
-            description="SODA async endpoint placeholder.",
-        ),
+        # No soda-async link: the endpoint does not exist yet, and a link a
+        # client can follow must not lead to a 404. The disabled service
+        # descriptor below still records that it is planned.
     ]
 
     for replica in ranked_replicas:

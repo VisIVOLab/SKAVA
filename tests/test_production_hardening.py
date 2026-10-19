@@ -47,8 +47,11 @@ def test_datalink_votable_response(client):
     assert 'name="access_url"' in resp.text
     assert 'name="semantics"' in resp.text
     assert "#this" in resp.text
-    assert 'utype="adhoc:service"' in resp.text
-    assert "ivo://ivoa.net/std/SODA#sync-1.0" in resp.text
+    # dataset-3 has no node able to cut it: no cutout row, no SODA resource,
+    # and no link to the not-yet-existing async endpoint.
+    assert "#cutout" not in resp.text
+    assert 'utype="adhoc:service"' not in resp.text
+    assert "/soda/async" not in resp.text
 
 
 def test_tap_sync_json_profile(client):

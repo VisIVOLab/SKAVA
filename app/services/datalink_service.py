@@ -11,7 +11,7 @@ from app.models.replica import DatasetReplica
 from app.ranking.default import DefaultRankingPolicy
 from app.schemas.datalink import DataLinkResponse, DatasetDescriptor, PrimaryAccessDescriptor, RoutingDescriptor
 from app.vo.datalink import build_access_links, build_capabilities, build_service_descriptors
-from app.vo.mappers import build_datalink_url, to_node_replica
+from app.vo.mappers import soda_cutout_available, build_datalink_url, to_node_replica
 
 logger = logging.getLogger("skava.datalink")
 
@@ -78,9 +78,7 @@ class DataLinkService:
         # SODA execution is available for this dataset when at least one
         # ranked node runs a co-located VisIVO backend that /soda/execute
         # can delegate the byte-level cutout to (compute-next-to-data).
-        soda_execution_available = any(
-            getattr(rep.node, "visivo_backend_url", None) for rep in ranked
-        )
+        soda_execution_available = soda_cutout_available(ranked)
 
         response = DataLinkResponse(
             dataset=DatasetDescriptor(

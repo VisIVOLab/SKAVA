@@ -222,7 +222,7 @@ beat ``fits`` lexically.
 ## Sharing back
 
 If your extractor is general-purpose (not site-specific), open a PR
-against ``VisIVOLab/SKAVA`` proposing inclusion as a built-in. We
+against ``fvitello/SKAVA`` proposing inclusion as a built-in. We
 prefer plugins that:
 
 * handle a widely-used format

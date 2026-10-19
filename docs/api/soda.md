@@ -6,8 +6,9 @@
 ```{note}
 `/soda/sync` **validates and routes** a SODA request and returns a JSON
 descriptor. `/soda/execute` **performs a real byte-level FITS cutout**:
-when the dataset's best node runs a co-located VisIVO backend serving a
-`file://` replica, SKAVA delegates the cutout to that backend
+when a node holding the dataset runs a co-located VisIVO backend and its
+replica is a `file://` copy (the first such node in ranking order), SKAVA
+delegates the cutout to that backend
 (`/v1/datasets/cutout`), which computes it in place (compute-next-to-data)
 and streams the FITS back. Otherwise `/soda/execute` falls back to a
 metadata-cache staging handoff.
@@ -28,9 +29,9 @@ metadata-cache staging handoff.
     Does not stream pixels.
 * - ``POST /soda/execute``
   - real cutout / fallback
-  - Streams ``application/fits`` when the best node has a co-located
-    VisIVO backend + ``file://`` replica; otherwise returns a staging
-    handoff JSON job.
+  - Streams ``application/fits`` when a node holding the dataset has a
+    co-located VisIVO backend + ``file://`` replica (first in ranking
+    order); otherwise returns a staging handoff JSON job.
 * - ``POST /soda/async``
   - placeholder (disabled)
   - Reserved for the future async job interface. Advertised via
@@ -49,8 +50,10 @@ curl -s -X POST \
 #   X-Soda-Executed-On: POWER9
 ```
 
-Delegation requires the best node to have ``visivo_backend_url`` set and
-the replica to be a ``file://`` URL. A reachable backend that fails the
+Delegation goes to the first replica, in ranking order, whose node has
+``visivo_backend_url`` set and whose access URL is ``file://`` — the same rule
+DataLink uses to advertise the cutout, so an advertised cutout is one that
+runs. A reachable backend that fails the
 cutout returns ``502 backend_execution_failed``. See
 [SODA execution](../soda_execution) for the design.
 
@@ -119,9 +122,10 @@ curl -s -X POST "https://skava.inaf.it/soda/sync" \
 
 ### `/soda/execute` execution flow
 
-1. SKAVA resolves the dataset and its best node.
-2. If the node has a co-located VisIVO backend **and** a `file://` replica,
-   SKAVA POSTs the cutout request to the node's `/v1/datasets/cutout`.
+1. SKAVA resolves the dataset and its ranked replicas.
+2. The first replica that is a `file://` copy on a node with a co-located
+   VisIVO backend is chosen; SKAVA POSTs the cutout request to that node's
+   `/v1/datasets/cutout`. `X-Soda-Executed-On` names the node.
 3. The backend opens the FITS locally, applies `POS`/`BAND` with astropy,
    and returns the subset; SKAVA streams it back as `application/fits`
    with `X-Soda-Applied` / `X-Soda-Executed-On` headers.

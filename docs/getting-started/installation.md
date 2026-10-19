@@ -16,7 +16,7 @@ deployments are covered in [Deployment / production](../deployment/production).
 ## Clone and start
 
 ```bash
-git clone https://github.com/VisIVOLab/SKAVA.git
+git clone https://github.com/fvitello/SKAVA.git
 cd SKAVA
 
 docker compose -f docker-compose.yml up -d --build

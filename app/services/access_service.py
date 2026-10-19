@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.access import AccessResponse
 from app.services.datalink_service import DataLinkService
+from app.vo.mappers import supported_operations
 
 
 class AccessService:
@@ -13,13 +14,14 @@ class AccessService:
         if not datalink:
             return None
 
+        caps = datalink.capabilities
         return AccessResponse(
             obs_id=obs_id,
             best_node=datalink.routing.best_node,
             access_url=datalink.primary_access.access_url,
             access_mode="remote-routing",
-            supported_operations=["download", "cutout:TBD", "band_subset:TBD", "time_subset:TBD"],
-            supports_soda=True,
+            supported_operations=supported_operations(bool(caps.supports_cutout)),
+            supports_soda=bool(caps.supports_cutout),
             supports_datalink=datalink.capabilities.supports_datalink,
             dataset=datalink.dataset,
             routing=datalink.routing,

@@ -85,7 +85,8 @@ def test_access_backward_compatibility_fields_present(client):
     assert data["access_url"].startswith("https://")
     assert data["access_mode"] == "remote-routing"
     assert isinstance(data["supported_operations"], list)
-    assert data["supports_soda"] is True
+    # No node holding dataset-3 runs a VisIVO backend: download only, no SODA.
+    assert data["supports_soda"] is False
     assert data["supports_datalink"] is True
 
 

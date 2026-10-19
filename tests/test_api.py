@@ -158,9 +158,11 @@ def test_access_returns_precursor_contract(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["best_node"] == "B"
-    assert data["supports_soda"] is True
     assert data["supports_datalink"] is True
-    assert "cutout:TBD" in data["supported_operations"]
+    # Operations are what this deployment can do, never placeholders.
+    assert data["supported_operations"] == ["download"]
+    assert data["supports_soda"] is False
+    assert not any(op.endswith(":TBD") for op in data["supported_operations"])
 
 
 def test_access_fallback_to_next_candidate(client):

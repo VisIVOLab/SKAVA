@@ -34,18 +34,29 @@ compute-next-to-data.
 
 ```{mermaid}
 flowchart TD
-    A[For each visivo-backend descriptor in DataLink]
-    A --> B{Find registered backend with<br/>URL == descriptor.endpoint?}
-    B -- yes --> M1[Pick that backend]
-    B -- no --> C{Find registered backend with<br/>srcCode == descriptor.node_code?}
-    C -- yes --> M2[Pick that backend]
-    C -- no --> A
-    M1 --> S[Use openSkavaDataset on chosen backend]
-    M2 --> S
-    A -- exhausted --> F[Fallback to download via local backend]
+    A[For each visivo-backend descriptor in DataLink, in ranking order]
+    A --> B{Registered backend with<br/>URL == descriptor.endpoint<br/>or srcCode == node_code?}
+    B -- no --> A
+    B -- yes --> K{Backend serves this<br/>dataproduct_type?<br/>supports_kinds}
+    K -- no --> A
+    K -- yes --> T{requires_auth and<br/>no token registered?}
+    T -- yes --> A
+    T -- no --> R{SKAVA lists a replica<br/>on that node?}
+    R -- no --> A
+    R -- yes --> S[Open that node's replica on that backend]
+    A -- exhausted --> F{Primary access<br/>http or file?}
+    F -- http --> D[Download via the local backend]
+    F -- file --> P[Explain, offer to register<br/>the advertised backend, retry]
 ```
 
-* Stop as soon as a match is found.
+* Stop at the first usable descriptor.
+* **The access URL travels with the node.** The desktop opens
+  `routing.replicas[node_code].access_endpoint` on the chosen backend — the
+  `primary_access.access_url` belongs to the best node only, and another
+  node's copy of the file lives at another path.
+* A `file://` replica is opened in place (`/v1/datasets/open_skava`); an
+  http(s) replica is fetched by that node's own backend
+  (`/v1/datasets/open_url`), next to the data.
 * Match by URL has higher priority than match by ``srcCode`` —
   letting an operator override the node-level routing for a single
   client without changing SKAVA.
@@ -73,23 +84,30 @@ flowchart TD
 
 ## Trim before compare
 
-URL match trims one trailing ``/``:
+URL match trims trailing ``/`` and treats the names of the machine's own
+loopback as one host:
 
 ```
-http://pleiadi-gpu/        ==  http://pleiadi-gpu
+http://pleiadi-gpu/                ==  http://pleiadi-gpu
+http://host.docker.internal:8001   ==  http://127.0.0.1:8001  ==  http://localhost:8001
 ```
 
-But is otherwise byte-for-byte. Mismatches in port number, case, or
-trailing path segments → no match.
+The second line is what makes the Docker demo work out of the box: SKAVA in
+a container reaches the desktop's backend as `host.docker.internal`, the
+desktop registers it as `127.0.0.1`. Anything else — port, path, another
+host — must match exactly.
 
 `srcCode` match is case-sensitive and exact.
 
 ## What happens after the match
 
 ```cpp
-BackendClient client(chosen.url, chosen.token);
-const auto opened = client.openSkavaDataset(obsId, datalink.primaryAccessUrl);
+const SkavaRoute route = routeSkavaDataset(settings, datalink);   // node + that node's replica
+BackendClient client(route.node.url, route.node.token);
+const auto opened = client.openSkavaDataset(obsId, route.accessUrl);
 ```
+
+The open runs off the UI thread behind a cancellable progress dialog.
 
 The desktop sends both:
 
@@ -103,11 +121,16 @@ and opens the file.
 
 ## Fallback path
 
-When no descriptor matches a registered backend:
+When no descriptor is usable:
 
-```cpp
-client.openDatasetFromUrl(datalink.primaryAccessUrl, obsId);
-```
+* an **http(s)** primary access URL is downloaded by the local backend,
+  forwarding the SKAVA token to the storage node
+  (`openDatasetFromUrl(url, obsId, skavaToken)`);
+* a **file://** one exists only on its node's disk, so nothing local can read
+  it. The desktop says why each descriptor was passed over and, when SKAVA
+  advertises a backend for a node that has no registered counterpart, offers
+  **Register backend…** (asking for a token if `requires_auth`), then retries
+  through it.
 
 This calls ``/v1/datasets/open_url`` on the local backend, which:
 
@@ -163,12 +186,14 @@ This makes Recent Datasets resilient to:
   - Earliest descriptor wins.
 * - One descriptor, but ``requires_auth=true`` and the registered
     backend has empty token
-  - The desktop tries the call anyway. Backend returns 401; the
-    desktop falls back to download.
+  - The descriptor is skipped, with the reason shown to the user.
 * - Descriptor's ``supports_kinds`` doesn't include the dataset's
     ``dataproduct_type``
-  - Currently ignored by the matcher. Roadmap: pre-filter
-    descriptors against the dataset's kind.
+  - The descriptor is skipped (a `timeseries` / dynamic spectrum counts
+    as `dynspec`).
+* - The matched node lists no replica of the dataset
+  - The descriptor is skipped: the desktop never hands one node's path
+    to another node's backend.
 * - The matched backend is offline
   - Open call fails; desktop shows the error message in a dialog
     and badge stays whichever was set before the click.

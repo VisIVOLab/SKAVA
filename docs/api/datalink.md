@@ -161,7 +161,7 @@ DataLink-style; for each link:
 
 * - ``rel``
   - ``#this`` \| ``preview`` \| ``metadata`` \| ``datalink`` \|
-    ``soda-sync`` \| ``soda-async`` \| ``direct-download``
+    ``soda-sync`` \| ``direct-download``
   - IVOA semantics. ``#this`` is the canonical self-link.
 ```
 
@@ -177,10 +177,20 @@ JSON is the default. Request `RESPONSEFORMAT=application/x-votable+xml`
   (`ID, access_url, service_def, error_message, semantics, description,
   content_type, content_length`, plus the SKAVA `node_id` extension) with
   the spec UCDs;
-- IVOA semantics vocabulary terms (`#this`, `#preview`, `#cutout`, …);
-- a service-descriptor `RESOURCE` (`utype="adhoc:service"`,
-  `standardID = SODA#sync-1.0`) for the cutout, with an `inputParams`
-  `GROUP` (`ID` ref + `POS`/`BAND`/`TIME`) pointing at `/soda/execute`.
+- IVOA semantics vocabulary terms (`#this`, `#preview`, `#auxiliary`, `#cutout`);
+- one `#auxiliary` row per **VisIVO backend** co-located with a replica,
+  best node first, so VO clients see where the dataset can be analysed in
+  place: `access_url` is the backend's status/capacity document
+  (`<backend>/v1/health`, `application/json`, behind the node backend's token
+  when `requires_auth`), `node_id` the node code;
+- **only when a cutout can actually run** (a `file://` replica on a node with
+  a VisIVO backend): a `#cutout` row and a service-descriptor `RESOURCE`
+  (`utype="adhoc:service"`, `standardID = SODA#sync-1.0`) with an
+  `inputParams` `GROUP` (`ID` ref + `POS`/`BAND`/`TIME`) pointing at
+  `/soda/execute`.
+
+The `soda-sync` stub (validation + routing, no data) appears in the JSON
+envelope only, and there is no `soda-async` link until that endpoint exists.
 
 This is what Aladin / TOPCAT consume as a DataLink document; the JSON
 descriptor is what the VisIVO desktop reads via `service_descriptors`.
