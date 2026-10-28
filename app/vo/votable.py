@@ -11,7 +11,7 @@ VOTABLE_MEDIA_TYPE = "application/x-votable+xml"
 # so the VOTable is consumable by pyvo / TOPCAT as a real DataLink document.
 # Path, under a co-located VisIVO backend's base URL, of the document the
 # DataLink row for that backend points at (status, workers, capacity; JSON).
-VISIVO_BACKEND_STATUS_PATH = "/v1/health"
+VISIVO_BACKEND_STATUS_PATH = "/v1/node/status"
 
 _SEMANTICS_BY_REL = {
     "self": "#this",
@@ -24,9 +24,7 @@ _SEMANTICS_BY_REL = {
     "soda-async": "#cutout",
 }
 
-# The service descriptor RESOURCE id referenced by the {links} service_def
-# column for the SODA cutout operation.
-_CUTOUT_SERVICE_ID = "skava_soda_cutout"
+# The ID of the PARAM holding the dataset identifier in the {links} table.
 _PRIMARY_ID_REF = "primaryID"
 
 
@@ -35,7 +33,8 @@ def _cell(value: object | None) -> str:
 
 
 def _attr(value: object | None) -> str:
-    return escape(str(value)) if value is not None else ""
+    # Attribute values are double-quoted: escape the quote too.
+    return escape(str(value), {'"': "&quot;"}) if value is not None else ""
 
 
 def _field(name: str, datatype: str) -> str:
@@ -177,23 +176,24 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
             )
         )
 
-    # The SODA cutout row and its service RESOURCE only when a cutout can
-    # actually run for this dataset (a node with a VisIVO backend serving a
-    # file:// replica): advertising an operation that 502s helps nobody.
-    cutout = bool(datalink.capabilities.supports_cutout)
-    if cutout:
+    # The node's own SODA services (cutout sync and async) and the processing
+    # operations it offers (moment, PV), each a row pointing at a service
+    # descriptor RESOURCE: only when a node can process this dataset in place,
+    # and with the node's own access rule (its backend's token, not SKAVA's).
+    services = [d for d in datalink.service_descriptors
+                if d.service_type in _NODE_SERVICES and d.enabled and d.input_params]
+    for desc in services:
         rows.append(
             _datalink_row(
                 oid=oid,
                 access_url=None,
-                service_def=_CUTOUT_SERVICE_ID,
-                semantics="#cutout",
-                description="Server-side SODA cutout (compute-next-to-data).",
+                service_def=desc.service_id,
+                semantics=_NODE_SERVICES[desc.service_type],
+                description=desc.description,
                 content_type="application/fits",
                 content_length=None,
-                node_id=None,
-                link_auth=own_auth,
-                link_authorized=True,
+                node_id=desc.node_code,
+                link_auth="true" if desc.requires_auth else "false",
             )
         )
 
@@ -201,7 +201,7 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
         _datalink_field(name, dt, ucd, unit) for name, dt, ucd, unit in _DATALINK_FIELDS
     )
     row_xml = "\n          ".join(rows)
-    cutout_resource = _cutout_service_resource(base_url) if cutout else ""
+    service_resources = "".join(_service_resource(desc) for desc in services)
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.4">
@@ -216,21 +216,48 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
         </TABLEDATA>
       </DATA>
     </TABLE>
-  </RESOURCE>{cutout_resource}
+  </RESOURCE>{service_resources}
 </VOTABLE>
 """
 
 
-def _cutout_service_resource(base_url: str) -> str:
+# Node services published as DataLink service descriptors, with the
+# semantics of their rows: a SODA subset is "#cutout", a computed product
+# (moment map, PV diagram) is "#proc".
+_NODE_SERVICES = {
+    "node-soda-sync": "#cutout",
+    "node-soda-async": "#cutout",
+    "visivo-moment": "#proc",
+    "visivo-pv": "#proc",
+}
+
+# UCDs of the free input parameters, where the standard has one.
+_PARAM_UCD = {"POS": "phys.angArea;obs", "CIRCLE": "phys.angArea;obs", "POLYGON": "phys.angArea;obs",
+              "BAND": "em.wl", "TIME": "time.interval"}
+
+
+def _service_resource(desc) -> str:
+    """A DataLink service descriptor RESOURCE for one node service.
+
+    Fixed parameters (the replica's ID on that node, the OPERATION) carry their
+    value; the others are left for the caller to fill.
+    """
+    params = []
+    for name in desc.supported_parameters:
+        if name == "RESPONSEFORMAT":
+            continue
+        value = (desc.input_params or {}).get(name, "")
+        ucd = f' ucd="{_PARAM_UCD[name]}"' if name in _PARAM_UCD and not value else ""
+        params.append(f'<PARAM name="{name}" datatype="char" arraysize="*" value="{_attr(value)}"{ucd}/>')
+    standard = (f'\n    <PARAM name="standardID" datatype="char" arraysize="*" value="{_attr(desc.standard_id)}"/>'
+                if desc.standard_id else "")
+    inputs = "\n      ".join(params)
     return f"""
-  <RESOURCE type="meta" ID="{_CUTOUT_SERVICE_ID}" utype="adhoc:service">
-    <PARAM name="standardID" datatype="char" arraysize="*" value="ivo://ivoa.net/std/SODA#sync-1.0"/>
-    <PARAM name="accessURL" datatype="char" arraysize="*" value="{base_url}/soda/execute"/>
+  <RESOURCE type="meta" ID="{_attr(desc.service_id)}" utype="adhoc:service">{standard}
+    <PARAM name="accessURL" datatype="char" arraysize="*" value="{_attr(desc.access_url)}"/>
+    <DESCRIPTION>{escape(desc.description or "")}</DESCRIPTION>
     <GROUP name="inputParams">
-      <PARAM name="ID" datatype="char" arraysize="*" ref="{_PRIMARY_ID_REF}" value=""/>
-      <PARAM name="POS" datatype="char" arraysize="*" value="" ucd="phys.angArea;obs"/>
-      <PARAM name="BAND" datatype="char" arraysize="*" value="" ucd="em.wl"/>
-      <PARAM name="TIME" datatype="char" arraysize="*" value="" ucd="time.interval"/>
+      {inputs}
     </GROUP>
   </RESOURCE>"""
 

@@ -30,7 +30,8 @@ def to_dataset_metadata(dataset: Dataset) -> DatasetMetadata:
     )
 
 
-def to_node_replica(replica: DatasetReplica) -> NodeReplica:
+def to_node_replica(replica: DatasetReplica, decision=None) -> NodeReplica:
+    """``decision``: the policy's RankedReplica for it, when there is one."""
     return NodeReplica(
         code=replica.node.code,
         name=replica.node.name,
@@ -40,6 +41,10 @@ def to_node_replica(replica: DatasetReplica) -> NodeReplica:
         load_score=replica.node.load_score,
         capability_score=replica.node.capability_score,
         access_endpoint=replica.access_endpoint,
+        rank_reason=decision.reason if decision is not None else None,
+        score=decision.score if decision is not None else None,
+        telemetry_age_s=(round(decision.telemetry_age_s, 1)
+                         if decision is not None and decision.telemetry_age_s is not None else None),
     )
 
 
@@ -61,6 +66,16 @@ def soda_cutout_available(ranked_replicas) -> bool:
         and (rep.access_endpoint or "").startswith("file://")
         for rep in ranked_replicas
     )
+
+
+def node_soda_target(ranked_replicas):
+    """The replica a node can process in place, and its node: the first, in
+    ranking order, that is a file:// copy on a node running a VisIVO backend
+    (the rule of soda_cutout_available). None when there is none."""
+    for rep in ranked_replicas:
+        if getattr(rep.node, "visivo_backend_url", None) and (rep.access_endpoint or "").startswith("file://"):
+            return rep
+    return None
 
 
 def supported_operations(cutout_available: bool) -> list[str]:

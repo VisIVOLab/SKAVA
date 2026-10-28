@@ -1,5 +1,7 @@
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -16,7 +18,7 @@ from app.vo.soda import normalize_interval, normalize_pos, validate_responseform
 router = APIRouter(prefix="/soda", tags=["soda"])
 
 
-@router.get("/sync", response_model=SodaSyncResponse)
+@router.get("/sync", response_model=SodaSyncResponse, responses={303: {"description": "Redirect to the node's SODA service"}})
 def soda_sync(
     dataset_id: str | None = Query(default=None, alias="ID"),
     pos: str | None = Query(default=None, alias="POS"),
@@ -25,9 +27,24 @@ def soda_sync(
     responseformat: str | None = Query(default=None, alias="RESPONSEFORMAT"),
     _: str | None = Depends(require_access_token),
     db: Session = Depends(get_db),
-) -> SodaSyncResponse:
+) -> SodaSyncResponse | RedirectResponse:
     if not dataset_id:
         raise InvalidQueryError("ID is required")
+
+    # When a node can cut this dataset in place, the request goes there: SKAVA
+    # answers with a redirect (303) to that node's SODA service, the replica's
+    # own ID substituted, and never handles the bytes. The node validates the
+    # region itself (it accepts more shapes than SKAVA parses).
+    datalink = DataLinkService(db).resolve(dataset_id)
+    target = next((d for d in (datalink.service_descriptors if datalink else [])
+                   if d.service_type == "node-soda-sync" and d.enabled and d.input_params), None)
+    if target is not None:
+        query = {"ID": target.input_params["ID"]}
+        for name, value in (("POS", pos), ("BAND", band), ("TIME", time_value),
+                            ("RESPONSEFORMAT", responseformat)):
+            if value:
+                query[name] = value
+        return RedirectResponse(f"{target.access_url}?{urlencode(query)}", status_code=303)
 
     svc = SodaService(DataLinkService(db))
     result = svc.resolve_sync_stub(

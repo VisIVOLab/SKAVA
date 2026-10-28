@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.schemas.common import NodeReplica
+from app.schemas.common import ExcludedReplica, NodeReplica
 
 
 class DatasetDescriptor(BaseModel):
@@ -12,6 +12,10 @@ class DatasetDescriptor(BaseModel):
 class RoutingDescriptor(BaseModel):
     best_node: str
     replicas: list[NodeReplica]
+    # The ranking policy that decided ("static" or "resource_aware") and the
+    # replicas it set aside, with why.
+    policy: str | None = None
+    excluded: list[ExcludedReplica] = []
 
 
 class PrimaryAccessDescriptor(BaseModel):
@@ -48,6 +52,10 @@ class ServiceDescriptor(BaseModel):
     node_code: str | None = None
     requires_auth: bool | None = None
     supports_kinds: list[str] | None = None
+    # Parameters whose value is fixed for this dataset and descriptor: for a
+    # node's SODA service the ``ID`` is the replica's own identifier on that
+    # node, and an operation descriptor fixes ``OPERATION``.
+    input_params: dict[str, str] | None = None
 
 
 class CapabilitiesDescriptor(BaseModel):

@@ -1,4 +1,4 @@
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 REQUEST_COUNT = Counter(
     "skava_http_requests_total",
@@ -31,6 +31,19 @@ DB_ERRORS = Counter(
 )
 
 
+NODE_PROBES = Counter(
+    "skava_node_probes_total",
+    "Probes of node backends by outcome",
+    ["node", "outcome"],
+)
+
+NODE_RTT = Gauge(
+    "skava_node_rtt_ms",
+    "Median round trip of the node backend's /v1/ping at the last probe",
+    ["node"],
+)
+
+
 def metrics_payload() -> tuple[bytes, str]:
     return generate_latest(), CONTENT_TYPE_LATEST
 
@@ -50,3 +63,9 @@ def record_fallback_event(reason: str) -> None:
 
 def record_db_error(operation: str) -> None:
     DB_ERRORS.labels(operation=operation).inc()
+
+
+def record_probe(node: str, ok: bool, rtt_ms: float | None) -> None:
+    NODE_PROBES.labels(node=node, outcome="ok" if ok else "failed").inc()
+    if ok and rtt_ms is not None:
+        NODE_RTT.labels(node=node).set(rtt_ms)

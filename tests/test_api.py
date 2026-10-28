@@ -52,6 +52,15 @@ def test_discovery_dataset_3_best_node_by_policy(client):
     assert data["best_node"] == "B"
 
 
+def test_discovery_lists_replicas_in_ranking_order(client):
+    # dataset-3 is stored on A first, but B ranks better: the list must follow
+    # the ranking, with the best node first, as DataLink's does.
+    data = client.get("/discovery/dataset/dataset-3").json()
+    assert [r["code"] for r in data["replicas"]] == ["B", "A"]
+    datalink = client.get("/datalink/dataset-3").json()
+    assert [r["code"] for r in datalink["routing"]["replicas"]] == ["B", "A"]
+
+
 def test_discovery_search_collection_and_dptype(client):
     resp = client.get("/discovery/search", params={"COLLECTION": "skava-demo", "DPTYPE": "image"})
     assert resp.status_code == 200

@@ -12,3 +12,7 @@ __pycache__/
 .env.*
 !.env.example
 !.env.prod.example
+
+# Testbed: generated data and experiment output
+/testbed/data/
+/testbed/results/

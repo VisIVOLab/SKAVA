@@ -10,6 +10,19 @@ class NodeReplica(BaseModel):
     load_score: float | None = None
     capability_score: float | None = None
     access_endpoint: str
+    # Why the ranking policy put this replica where it is, its cost under the
+    # policy (lower is better; None for the static policy) and how old the node
+    # telemetry it used was.
+    rank_reason: str | None = None
+    score: float | None = None
+    telemetry_age_s: float | None = None
+
+
+class ExcludedReplica(BaseModel):
+    """A replica the policy set aside, with the reason."""
+
+    code: str
+    reason: str
 
 
 class DatalinkDescriptor(BaseModel):

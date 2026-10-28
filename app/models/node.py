@@ -1,4 +1,7 @@
-from sqlalchemy import Boolean, Float, String
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import JSON, Boolean, DateTime, Float, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -28,5 +31,16 @@ class Node(Base):
             String(256), nullable=True)
     visivo_backend_requires_auth: Mapped[bool] = mapped_column(
             Boolean, server_default="false", nullable=False)
+
+    # ── Measured state of the node's backend (telemetry_service) ─────────
+    # Written by SKAVA's prober, read by the resource-aware ranking policy:
+    # ``probe_ok`` whether the backend answered the last probe, ``probe_rtt_ms``
+    # the median round trip of its /v1/ping, ``telemetry_json`` its
+    # /v1/node/status document, ``telemetry_at`` when that was taken (UTC).
+    probe_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    probe_rtt_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    probe_error: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    telemetry_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    telemetry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
 
     replicas = relationship("DatasetReplica", back_populates="node", cascade="all, delete-orphan")

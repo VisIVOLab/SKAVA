@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 import logging
 
@@ -24,6 +26,7 @@ from app.routers.system import router as system_router
 from app.routers.internal_ingestion import router as internal_ingestion_router
 from app.routers.soda import router as soda_router
 from app.routers.tap import router as tap_router
+from app.routers.telemetry import router as telemetry_router
 from app.schemas.error import ErrorBody, ErrorResponse
 
 logger = logging.getLogger("skava.app")
@@ -33,7 +36,19 @@ logger = logging.getLogger("skava.app")
 async def lifespan(_: FastAPI):
     # Fail fast with clear startup error when DB configuration/connectivity is invalid.
     wait_for_db()
-    yield
+    prober = None
+    if settings.telemetry_interval_seconds > 0:
+        from app.db import SessionLocal
+        from app.services.telemetry_service import run_prober
+
+        prober = asyncio.create_task(run_prober(SessionLocal, settings.telemetry_interval_seconds))
+    try:
+        yield
+    finally:
+        if prober is not None:
+            prober.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await prober
 
 
 def create_app() -> FastAPI:
@@ -91,6 +106,7 @@ def create_app() -> FastAPI:
 
     app.include_router(system_router)
     app.include_router(internal_ingestion_router)
+    app.include_router(telemetry_router)
     app.include_router(discovery_router)
     app.include_router(datalink_router)
     app.include_router(soda_router)

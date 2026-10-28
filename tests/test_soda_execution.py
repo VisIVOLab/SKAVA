@@ -113,17 +113,25 @@ def test_access_and_votable_advertise_cutout_when_executable(client):
     cells = [[td.text or "" for td in tr.findall("v:TD", ns)] for tr in root.findall(".//v:TR", ns)]
     assert cells and all(len(c) == len(names) for c in cells)   # before zip, which would drop extras
     rows = [dict(zip(names, c)) for c in cells]
+    # The node's own SODA services: sync and async cutouts, and the moment/PV
+    # operations, each a row pointing at its service descriptor.
     cutout = [r for r in rows if r["semantics"] == "#cutout"]
-    assert len(cutout) == 1 and cutout[0]["service_def"]
-    service = root.find(f".//v:RESOURCE[@ID='{cutout[0]['service_def']}']", ns)
-    assert service is not None and service.get("utype") == "adhoc:service"
-    params = {p.get("name"): p.get("value") for p in service.findall("v:PARAM", ns)}
-    assert params["standardID"] == "ivo://ivoa.net/std/SODA#sync-1.0"
-    backend = [r for r in rows if r["access_url"].startswith("http://node-backend:8000")]
-    assert backend and all(r["semantics"] == "#auxiliary" for r in backend)
-    assert all(r["access_url"].endswith("/v1/health") and r["content_type"] == "application/json"
-               for r in backend)
-    assert not any("/soda/async" in r["access_url"] for r in rows)
+    proc = [r for r in rows if r["semantics"] == "#proc"]
+    assert len(cutout) == 2 and len(proc) == 2
+    standards = set()
+    for row in cutout + proc:
+        service = root.find(f".//v:RESOURCE[@ID='{row['service_def']}']", ns)
+        assert service is not None and service.get("utype") == "adhoc:service"
+        params = {p.get("name"): p.get("value") for p in service.findall("v:PARAM", ns)}
+        assert params["accessURL"].startswith("http://node-backend:8000/soda/")
+        inputs = {p.get("name"): p.get("value") for p in service.findall("v:GROUP/v:PARAM", ns)}
+        assert inputs["ID"] == "file:///data/dataset-3.fits"      # the replica's ID on that node
+        standards.add(params.get("standardID"))
+    assert {"ivo://ivoa.net/std/SODA#sync-1.0", "ivo://ivoa.net/std/SODA#async-1.0"} <= standards
+    assert not any(r["access_url"].endswith("/soda/execute") for r in rows)   # the proxy is not SODA
+    backend = [r for r in rows if r["semantics"] == "#auxiliary"]
+    assert backend and all(r["access_url"].endswith("/v1/node/status") and r["content_type"] == "application/json"
+                           for r in backend)
 
 
 def test_soda_execute_uses_first_executable_replica(client, monkeypatch):
@@ -188,3 +196,46 @@ def test_soda_execute_prefers_the_higher_ranked_executable_replica(client, monke
     assert captured["url"].startswith(f"http://backend-{best}:8000")
     assert captured["json"]["access_url"] == f"file:///copy-{best}.fits"
     assert resp.headers.get("X-Soda-Executed-On") == best
+
+
+def _decisions() -> float:
+    from app.metrics import RANKING_DECISIONS
+
+    return sum(s.value for metric in RANKING_DECISIONS.collect()
+               for s in metric.samples if s.name.endswith("_total"))
+
+
+def test_soda_execute_counts_one_ranking_decision(client, monkeypatch):
+    # One request is one decision, on the delegated path and on the staging one.
+    _enable_backend_on_best_node()
+    monkeypatch.setattr(
+        "app.services.soda_execution_service.httpx.post",
+        lambda *a, **kw: httpx.Response(200, content=b"SIMPLE", headers={"content-type": "application/fits"}),
+    )
+    before = _decisions()
+    assert client.post("/soda/execute", params={"ID": "dataset-3"}).status_code == 200
+    assert _decisions() - before == 1
+
+
+def test_soda_execute_staging_counts_one_ranking_decision(client):
+    before = _decisions()
+    assert client.post("/soda/execute", params={"ID": "dataset-3"}).status_code == 200
+    assert _decisions() - before == 1
+
+
+def test_soda_sync_redirects_to_the_node_that_can_cut(client):
+    from urllib.parse import parse_qs, urlparse
+
+    _enable_backend_on_best_node()
+    resp = client.get("/soda/sync", params={"ID": "dataset-3", "POS": "CIRCLE 103 -23 0.05"},
+                      follow_redirects=False)
+    assert resp.status_code == 303
+    target = urlparse(resp.headers["location"])
+    assert f"{target.scheme}://{target.netloc}{target.path}" == "http://node-backend:8000/soda/sync"
+    query = parse_qs(target.query)
+    assert query["ID"] == ["file:///data/dataset-3.fits"] and query["POS"] == ["CIRCLE 103 -23 0.05"]
+
+
+def test_soda_sync_stays_a_routing_answer_without_a_node(client):
+    resp = client.get("/soda/sync", params={"ID": "dataset-3"}, follow_redirects=False)
+    assert resp.status_code == 200 and resp.json()["mode"] == "soda-sync-stub"

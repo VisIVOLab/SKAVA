@@ -42,6 +42,27 @@ class Settings(BaseSettings):
     visivo_backend_token: str | None = None
     soda_backend_timeout_seconds: float = Field(default=120.0, ge=1.0)
 
+    # ── Routing: ranking policy and node telemetry ───────────────────────
+    # ``static`` ranks by the scores declared on each node; ``resource_aware``
+    # ranks by what the nodes' backends report (see app/ranking/resource_aware.py).
+    # The prober runs every ``telemetry_interval_seconds`` (0 = never: the
+    # telemetry is then only refreshed through POST /internal/telemetry/probe);
+    # a measurement older than ``telemetry_ttl_seconds`` is not trusted.
+    ranking_policy: Literal["static", "resource_aware"] = "static"
+    telemetry_interval_seconds: float = Field(default=0.0, ge=0.0)
+    telemetry_ttl_seconds: float = Field(default=60.0, gt=0.0)
+    telemetry_timeout_seconds: float = Field(default=3.0, gt=0.0)
+    telemetry_ping_samples: int = Field(default=3, ge=1, le=20)
+    # Resource-aware cost, in millisecond-equivalents per unit of each term:
+    # round trip (per ms), CPU pressure (per %), queued+running tasks per
+    # worker, and the share of the node's free memory the dataset would take.
+    ranking_weight_rtt: float = Field(default=1.0, ge=0.0)
+    ranking_weight_cpu: float = Field(default=1.0, ge=0.0)
+    ranking_weight_queue: float = Field(default=20.0, ge=0.0)
+    ranking_weight_memory: float = Field(default=50.0, ge=0.0)
+    # Memory a dataset needs on the node, as a multiple of its size.
+    ranking_memory_factor: float = Field(default=1.0, ge=0.0)
+
     db_pool_size: int = Field(default=10, ge=1)
     db_max_overflow: int = Field(default=20, ge=0)
     db_pool_timeout: int = Field(default=30, ge=1)

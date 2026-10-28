@@ -84,18 +84,24 @@ def test_datalink_votable_has_link_auth_columns(client):
             assert r["link_auth"] == "" and r["link_authorized"] == ""
 
 
-def test_datalink_link_auth_true_when_skava_requires_tokens(client, monkeypatch):
-    # SKAVA's own link in the VOTable is the SODA cutout row (service_def):
-    # make it executable, then require tokens.
+def test_node_service_rows_carry_the_nodes_own_auth(client, monkeypatch):
+    # The SODA rows point at the node's services: their link_auth is the node's
+    # rule (its backend's token), whatever SKAVA itself requires.
+    from app.models.node import Node
+    from app.main import app
     from tests.test_soda_execution import _enable_backend_on_best_node
     _enable_backend_on_best_node()
     monkeypatch.setattr(settings, "access_tokens", "secret-token")
     _, rows = _rows(client, {"Authorization": "Bearer secret-token"})
-    cutout = [r for r in rows if r["semantics"] == "#cutout"]
-    assert len(cutout) == 1
-    assert cutout[0]["link_auth"] == "true" and cutout[0]["link_authorized"] == "true"
-    backend = [r for r in rows if r["semantics"] == "#auxiliary"]
-    assert backend and all(r["link_auth"] == "false" for r in backend)   # node backend: no auth here
+    services = [r for r in rows if r["semantics"] in ("#cutout", "#proc")]
+    assert services and all(r["link_auth"] == "false" for r in services)
+    with app.state.testing_session_local() as db:
+        for node in db.query(Node).all():
+            node.visivo_backend_requires_auth = True
+        db.commit()
+    _, rows = _rows(client, {"Authorization": "Bearer secret-token"})
+    services = [r for r in rows if r["semantics"] in ("#cutout", "#proc")]
+    assert services and all(r["link_auth"] == "true" for r in services)
 
 
 def test_datalink_votable_has_no_self_rows(client):

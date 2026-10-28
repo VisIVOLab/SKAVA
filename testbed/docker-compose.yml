@@ -1,0 +1,172 @@
+# SKAVA testbed: one catalogue, four simulated SRC nodes.
+#
+# Each node is a VisIVO backend with its own data, its own cgroup limits and
+# its own shaped link, so the routing policy has real differences to act on:
+#
+#   node-big    plenty of memory and CPU, nearby
+#   node-small  little memory: cannot serve the large cube
+#   node-far    behind a slow, high-latency link (netem)
+#   node-busy   CPU saturated by background work
+#
+# The node image is built from the VisIVO Visual Analytics repository, found
+# next to this one by default (override with VISIVO_REPO). Ports listen on
+# 127.0.0.1 only (TESTBED_BIND to change it): the credentials below are
+# development values. See README.md.
+
+x-node: &node
+  image: skava-testbed-node
+  build:
+    context: ${VISIVO_REPO:-../../VisIVO-next}
+    dockerfile: benchmark/remote/Dockerfile
+  cap_add: [NET_ADMIN]
+  entrypoint: ["/testbed/node/entrypoint.sh"]
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/v1/health', headers={'X-Visivo-Token': os.environ['VISIVO_TOKEN']}), timeout=2)"]
+    interval: 3s
+    timeout: 3s
+    retries: 40
+
+x-node-env: &node-env
+  VISIVO_TOKEN: ${TESTBED_BACKEND_TOKEN:-testbed-backend-token}
+  VISIVO_DATA_ROOTS: /data
+  VISIVO_DATA_ROOT: /data
+  VISIVO_WORKERS: "2"
+
+x-publisher: &publisher
+  image: skava-testbed-publisher
+  build:
+    context: ..
+    dockerfile: testbed/publisher/Dockerfile
+  command: ["-c", "/etc/skava-publisher.yaml", "publish", "--yes"]
+  profiles: ["seed"]
+  depends_on:
+    skava:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: skava
+      POSTGRES_USER: skava
+      POSTGRES_PASSWORD: skava
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:${TESTBED_DB_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skava -d skava"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  skava:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      SKAVA_ENV: dev
+      SKAVA_DATABASE_URL: postgresql+psycopg://skava:skava@db:5432/skava
+      SKAVA_PUBLIC_BASE_URL: http://localhost:${TESTBED_SKAVA_PORT:-18000}
+      SKAVA_LOG_LEVEL: INFO
+      SKAVA_RUN_SEED: "false"
+      INTERNAL_API_KEY: ${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}
+      SKAVA_VISIVO_BACKEND_TOKEN: ${TESTBED_BACKEND_TOKEN:-testbed-backend-token}
+      # Routing: the resource-aware policy fed by a probe every 10 s
+      # (TESTBED_POLICY=static to compare with the declared scores).
+      SKAVA_RANKING_POLICY: ${TESTBED_POLICY:-resource_aware}
+      SKAVA_TELEMETRY_INTERVAL_SECONDS: ${TESTBED_PROBE_INTERVAL:-10}
+      SKAVA_TELEMETRY_TTL_SECONDS: ${TESTBED_TELEMETRY_TTL:-30}
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:${TESTBED_SKAVA_PORT:-18000}:8000"
+    volumes:
+      - ./seed_nodes.py:/testbed/seed_nodes.py:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/availability', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  node-big:
+    <<: *node
+    mem_limit: ${BIG_MEM:-8g}
+    memswap_limit: ${BIG_MEM:-8g}
+    cpus: ${BIG_CPUS:-4}
+    environment:
+      <<: *node-env
+      VISIVO_NODE_CODE: BIG
+    volumes:
+      - ./node/entrypoint.sh:/testbed/node/entrypoint.sh:ro
+      - ./data/big:/data:ro
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:18101:8000"
+
+  node-small:
+    <<: *node
+    mem_limit: ${SMALL_MEM:-2g}
+    memswap_limit: ${SMALL_MEM:-2g}
+    cpus: ${SMALL_CPUS:-1}
+    environment:
+      <<: *node-env
+      VISIVO_NODE_CODE: SMALL
+      VISIVO_WORKERS: "1"
+    volumes:
+      - ./node/entrypoint.sh:/testbed/node/entrypoint.sh:ro
+      - ./data/small:/data:ro
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:18102:8000"
+
+  node-far:
+    <<: *node
+    mem_limit: ${FAR_MEM:-4g}
+    memswap_limit: ${FAR_MEM:-4g}
+    cpus: ${FAR_CPUS:-2}
+    environment:
+      <<: *node-env
+      VISIVO_NODE_CODE: FAR
+      NETEM_DELAY: ${FAR_DELAY:-80ms}
+      NETEM_RATE: ${FAR_RATE:-100mbit}
+    volumes:
+      - ./node/entrypoint.sh:/testbed/node/entrypoint.sh:ro
+      - ./data/far:/data:ro
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:18103:8000"
+
+  node-busy:
+    <<: *node
+    mem_limit: ${BUSY_MEM:-4g}
+    memswap_limit: ${BUSY_MEM:-4g}
+    cpus: ${BUSY_CPUS:-2}
+    environment:
+      <<: *node-env
+      VISIVO_NODE_CODE: BUSY
+      BUSY_WORKERS: ${BUSY_WORKERS:-4}
+    volumes:
+      - ./node/entrypoint.sh:/testbed/node/entrypoint.sh:ro
+      - ./data/busy:/data:ro
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:18104:8000"
+
+  # One-shot publishers (profile "seed"): each reads ITS node's files in place
+  # and posts only metadata to SKAVA. Run by `make seed`.
+  publisher-big:
+    <<: *publisher
+    environment: {NODE_CODE: BIG, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
+    volumes: ["./data/big:/data:ro", "./publisher/config.yaml:/etc/skava-publisher.yaml:ro"]
+
+  publisher-small:
+    <<: *publisher
+    environment: {NODE_CODE: SMALL, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
+    volumes: ["./data/small:/data:ro", "./publisher/config.yaml:/etc/skava-publisher.yaml:ro"]
+
+  publisher-far:
+    <<: *publisher
+    environment: {NODE_CODE: FAR, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
+    volumes: ["./data/far:/data:ro", "./publisher/config.yaml:/etc/skava-publisher.yaml:ro"]
+
+  publisher-busy:
+    <<: *publisher
+    environment: {NODE_CODE: BUSY, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
+    volumes: ["./data/busy:/data:ro", "./publisher/config.yaml:/etc/skava-publisher.yaml:ro"]

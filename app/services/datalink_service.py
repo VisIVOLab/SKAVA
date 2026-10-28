@@ -8,10 +8,11 @@ from app.errors import NoAvailableNodesError
 from app.metrics import record_fallback_event, record_ranking_decision
 from app.models.dataset import Dataset
 from app.models.replica import DatasetReplica
-from app.ranking.default import DefaultRankingPolicy
+from app.ranking import get_policy
+from app.schemas.common import ExcludedReplica
 from app.schemas.datalink import DataLinkResponse, DatasetDescriptor, PrimaryAccessDescriptor, RoutingDescriptor
 from app.vo.datalink import build_access_links, build_capabilities, build_service_descriptors
-from app.vo.mappers import soda_cutout_available, build_datalink_url, to_node_replica
+from app.vo.mappers import build_datalink_url, node_soda_target, soda_cutout_available, to_node_replica
 
 logger = logging.getLogger("skava.datalink")
 
@@ -19,7 +20,7 @@ logger = logging.getLogger("skava.datalink")
 class DataLinkService:
     def __init__(self, db: Session):
         self.db = db
-        self.policy = DefaultRankingPolicy()
+        self.policy = get_policy()
 
     # Allowed URL schemes for a replica to be considered "healthy"
     # (and therefore selectable). SKAVA is scheme-agnostic at the
@@ -35,7 +36,13 @@ class DataLinkService:
             and replica.access_endpoint.startswith(cls._HEALTHY_SCHEMES)
         )
 
-    def resolve(self, obs_id: str) -> DataLinkResponse | None:
+    def resolve(self, obs_id: str, *, record_decision: bool = True) -> DataLinkResponse | None:
+        """Resolve a dataset to its routed DataLink answer.
+
+        ``record_decision=False`` is for internal callers that resolve on the
+        way to another public answer (``/soda/execute``), so one request is
+        counted as one ranking decision.
+        """
         start = time.perf_counter()
         dataset = self.db.scalar(select(Dataset).where(Dataset.obs_id == obs_id))
         if not dataset:
@@ -49,13 +56,16 @@ class DataLinkService:
             ).all()
         )
 
-        ranked = self.policy.rank(replicas)
+        decisions = self.policy.explain(replicas, estsize_kb=dataset.access_estsize)
+        by_replica = {id(d.replica): d for d in decisions}
+        ranked = [d.replica for d in decisions if d.eligible]
         if not ranked:
             raise NoAvailableNodesError(f"No available nodes for dataset '{obs_id}'")
 
         selected = ranked[0]
         if not self._replica_access_healthy(selected):
-            record_fallback_event("primary_endpoint_unhealthy")
+            if record_decision:
+                record_fallback_event("primary_endpoint_unhealthy")
             logger.warning(
                 "datalink_fallback",
                 extra={
@@ -72,13 +82,15 @@ class DataLinkService:
         if not selected:
             raise NoAvailableNodesError(f"No available nodes for dataset '{obs_id}'")
 
-        record_ranking_decision(selected.node.code)
+        if record_decision:
+            record_ranking_decision(selected.node.code)
         datalink_url = build_datalink_url(obs_id)
 
         # SODA execution is available for this dataset when at least one
         # ranked node runs a co-located VisIVO backend that /soda/execute
         # can delegate the byte-level cutout to (compute-next-to-data).
         soda_execution_available = soda_cutout_available(ranked)
+        node_soda = node_soda_target(ranked)
 
         response = DataLinkResponse(
             dataset=DatasetDescriptor(
@@ -88,7 +100,10 @@ class DataLinkService:
             ),
             routing=RoutingDescriptor(
                 best_node=selected.node.code,
-                replicas=[to_node_replica(rep) for rep in ranked],
+                replicas=[to_node_replica(rep, by_replica.get(id(rep))) for rep in ranked],
+                policy=self.policy.name,
+                excluded=[ExcludedReplica(code=d.replica.node.code, reason=d.reason)
+                          for d in decisions if not d.eligible],
             ),
             primary_access=PrimaryAccessDescriptor(
                 access_url=selected.access_endpoint,
@@ -104,8 +119,9 @@ class DataLinkService:
             service_descriptors=build_service_descriptors(
                     obs_id,
                     nodes=[rep.node for rep in ranked],
-                    soda_execution_available=soda_execution_available),
-            capabilities=build_capabilities(soda_execution_available),
+                    soda_execution_available=soda_execution_available,
+                    node_soda=node_soda),
+            capabilities=build_capabilities(soda_execution_available, node_soda is not None),
         )
 
         logger.info(

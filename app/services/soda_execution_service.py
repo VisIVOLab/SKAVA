@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.errors import BackendExecutionError
+from app.metrics import record_ranking_decision
 from app.models.node import Node
 from app.services.datalink_service import DataLinkService
 from app.vo.query_params import CirclePos, NumericInterval
@@ -69,7 +70,7 @@ class SodaExecutionService:
         can fall back to the staging handoff. Returns ``None`` for a
         missing dataset too — the caller maps that to 404 as before.
         """
-        datalink = self.datalink_service.resolve(dataset_id)
+        datalink = self.datalink_service.resolve(dataset_id, record_decision=False)
         if not datalink:
             return None
 
@@ -92,6 +93,9 @@ class SodaExecutionService:
                 extra={"dataset": dataset_id, "node": datalink.routing.best_node},
             )
             return None
+
+        # The decision that counts is the node that actually executes.
+        record_ranking_decision(node.code)
 
         payload = {
             "obs_id": dataset_id,

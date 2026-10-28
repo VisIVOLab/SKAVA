@@ -1,5 +1,5 @@
 from app.models.replica import DatasetReplica
-from app.ranking.base import RankingPolicy
+from app.ranking.base import RankedReplica, RankingPolicy, static_exclusion
 
 
 def _score(value: float | None, default: float) -> float:
@@ -7,31 +7,32 @@ def _score(value: float | None, default: float) -> float:
 
 
 class DefaultRankingPolicy(RankingPolicy):
-    def eligible(self, replicas: list[DatasetReplica]) -> list[DatasetReplica]:
-        return [
-            rep
-            for rep in replicas
-            if getattr(rep, "status", "available") == "available"
-            and getattr(rep, "is_public", True)
-            and rep.node.is_enabled
-            and rep.node.is_available
-        ]
+    """Rank by the scores declared on each node: latency, then load, then capability."""
 
-    def rank(self, replicas: list[DatasetReplica]) -> list[DatasetReplica]:
-        eligible = self.eligible(replicas)
-        if not eligible:
-            return []
-        return sorted(
-            eligible,
+    name = "static"
+
+    def explain(self, replicas: list[DatasetReplica], *,
+                estsize_kb: int | None = None) -> list[RankedReplica]:
+        eligible = [rep for rep in replicas if static_exclusion(rep) is None]
+        eligible.sort(
             key=lambda r: (
                 _score(getattr(r.node, "latency_score", None), float("inf")),
                 _score(getattr(r.node, "load_score", None), float("inf")),
                 -_score(getattr(r.node, "capability_score", None), float("-inf")),
             ),
         )
-
-    def choose(self, replicas: list[DatasetReplica]) -> DatasetReplica:
-        ranked = self.rank(replicas)
-        if not ranked:
-            raise ValueError("No eligible replicas available")
-        return ranked[0]
+        out = [
+            RankedReplica(
+                replica=rep,
+                eligible=True,
+                reason=(f"declared latency {getattr(rep.node, 'latency_score', None)}, "
+                        f"load {getattr(rep.node, 'load_score', None)}, "
+                        f"capability {getattr(rep.node, 'capability_score', None)}"),
+            )
+            for rep in eligible
+        ]
+        out += [
+            RankedReplica(replica=rep, eligible=False, reason=static_exclusion(rep))
+            for rep in replicas if static_exclusion(rep) is not None
+        ]
+        return out

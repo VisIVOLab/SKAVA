@@ -9,7 +9,7 @@ from app.errors import NoAvailableNodesError
 from app.metrics import record_ranking_decision
 from app.models.dataset import Dataset
 from app.models.replica import DatasetReplica
-from app.ranking.default import DefaultRankingPolicy
+from app.ranking import get_policy
 from app.schemas.discovery import DiscoveryResult, DiscoverySearchResponse
 from app.services.discovery_filters import apply_band_filter, apply_pos_filter, apply_time_filter
 from app.vo.mappers import (
@@ -27,7 +27,7 @@ logger = logging.getLogger("skava.discovery")
 class DiscoveryService:
     def __init__(self, db: Session):
         self.db = db
-        self.policy = DefaultRankingPolicy()
+        self.policy = get_policy()
 
     def _fetch_replicas(self, dataset_id: int) -> list[DatasetReplica]:
         stmt: Select[tuple[DatasetReplica]] = (
@@ -40,18 +40,19 @@ class DiscoveryService:
     def _build_result(self, dataset: Dataset, replicas: list[DatasetReplica] | None = None) -> DiscoveryResult:
         start = time.perf_counter()
         replicas = replicas if replicas is not None else self._fetch_replicas(dataset.id)
-        eligible = self.policy.eligible(replicas)
-        if not eligible:
+        decisions = self.policy.explain(replicas, estsize_kb=dataset.access_estsize)
+        by_replica = {id(d.replica): d for d in decisions}
+        ranked = [d.replica for d in decisions if d.eligible]
+        if not ranked:
             raise NoAvailableNodesError(f"No available nodes for dataset '{dataset.obs_id}'")
 
-        ranked = self.policy.rank(eligible)
         best = ranked[0]
         record_ranking_decision(best.node.code)
 
         access_url = build_access_url(dataset.obs_id)
         result = DiscoveryResult(
             metadata=to_dataset_metadata(dataset),
-            replicas=[to_node_replica(rep) for rep in eligible],
+            replicas=[to_node_replica(rep, by_replica.get(id(rep))) for rep in ranked],
             best_node=best.node.code,
             access_url=access_url,
             datalink_descriptor=build_datalink_descriptor(access_url, soda_cutout_available(ranked)),
@@ -61,7 +62,7 @@ class DiscoveryService:
             "discovery_selection",
             extra={
                 "selected_dataset": dataset.obs_id,
-                "replicas": [rep.node.code for rep in eligible],
+                "replicas": [rep.node.code for rep in ranked],
                 "chosen_node": best.node.code,
                 "execution_time_ms": round((time.perf_counter() - start) * 1000, 3),
             },

@@ -17,7 +17,8 @@ POWER9_URL="${1:-pleiadi-gpu.oact.inaf.it:8000}"
 OBS_ID="${2:-power9-test-001}"
 ACCESS_URL="${3:-http://${POWER9_URL}/data/test.fits}"
 
-COMPOSE="docker compose -f docker-compose.local.yml"
+# The compose project running SKAVA (services `db` and `api`).
+COMPOSE="docker compose -f ${SKAVA_COMPOSE_FILE:-docker-compose.yml}"
 
 echo "[1/4] Upsert Node POWER9 (visivo_backend_url=http://${POWER9_URL})"
 $COMPOSE exec -T db psql -U skava -d skava <<EOF

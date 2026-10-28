@@ -81,6 +81,7 @@ def build_service_descriptors(
     obs_id: str,
     nodes: list[Node] | None = None,
     soda_execution_available: bool = False,
+    node_soda=None,
 ) -> list[ServiceDescriptor]:
     """Build the service_descriptors[] array for the DataLink response.
 
@@ -111,7 +112,11 @@ def build_service_descriptors(
             standard_id="ivo://ivoa.net/std/SODA#sync-1.0",
             supported_parameters=["ID", "POS", "BAND", "TIME", "RESPONSEFORMAT"],
             enabled=True,
-            description="Operational SODA sync stub endpoint (validation/orchestration only, no server-side subsetting execution yet).",
+            description=("Validates a SODA request and redirects it (HTTP 303) to the SODA service "
+                         "of the node holding the selected replica."
+                         if node_soda is not None else
+                         "Validates a SODA request and answers with its routing; no node can "
+                         "process this dataset in place."),
         ),
         ServiceDescriptor(
             service_type="soda-async",
@@ -120,24 +125,62 @@ def build_service_descriptors(
             standard_id="ivo://ivoa.net/std/SODA#async-1.0",
             supported_parameters=["ID", "POS", "BAND", "TIME"],
             enabled=False,
-            description="Planned asynchronous SODA subset service.",
+            description=("SKAVA runs no jobs itself: asynchronous SODA is the node's service "
+                         "(node-soda-async)."),
         ),
         ServiceDescriptor(
             service_type="cutout",
             service_id="skava-cutout",
             access_url=f"{base_url}/soda/execute",
-            standard_id="ivo://ivoa.net/std/SODA#sync-1.0",
+            # Not a SODA endpoint (POST, query parameters, JSON fallback): the
+            # standard service is the node's own, advertised below.
+            standard_id=None,
             supported_parameters=["ID", "POS", "BAND", "TIME"],
             enabled=soda_execution_available,
             description=(
-                "Server-side SODA cutout executed on the node's co-located "
-                "VisIVO backend (compute-next-to-data)."
+                "SKAVA's proxy to the node's cutout (POST); standard clients use node-soda-sync."
                 if soda_execution_available
                 else "Cutout/subset execution requires a node with a co-located "
                 "VisIVO backend serving a file:// replica."
             ),
         ),
     ]
+
+    # The SODA service of the node that holds the selected replica: the file
+    # is processed where it is, and only the subset or product travels.
+    if node_soda is not None:
+        node = node_soda.node
+        soda = node.visivo_backend_url.rstrip("/") + "/soda"
+        common = dict(node_code=node.code, requires_auth=bool(node.visivo_backend_requires_auth),
+                      enabled=node.is_enabled and node.is_available)
+        fixed = {"ID": node_soda.access_endpoint}
+        descriptors += [
+            ServiceDescriptor(
+                service_type="node-soda-sync", service_id=f"soda-sync-{node.code.lower()}",
+                access_url=f"{soda}/sync", standard_id="ivo://ivoa.net/std/SODA#sync-1.0",
+                supported_parameters=["ID", "POS", "CIRCLE", "POLYGON", "BAND", "TIME", "RESPONSEFORMAT"],
+                description=f"SODA cutout on node {node.code}, next to the data.",
+                input_params=fixed, **common),
+            ServiceDescriptor(
+                service_type="node-soda-async", service_id=f"soda-async-{node.code.lower()}",
+                access_url=f"{soda}/async", standard_id="ivo://ivoa.net/std/SODA#async-1.0",
+                supported_parameters=["ID", "POS", "CIRCLE", "POLYGON", "BAND", "TIME", "RESPONSEFORMAT"],
+                description=f"SODA cutout as an asynchronous (UWS) job on node {node.code}.",
+                input_params=fixed, **common),
+            ServiceDescriptor(
+                service_type="visivo-moment", service_id=f"moment-{node.code.lower()}",
+                access_url=f"{soda}/async", standard_id=None,
+                supported_parameters=["ID", "OPERATION", "MOMENT", "CHANNELS", "THRESHOLD"],
+                description=f"Moment map computed on node {node.code} (SODA async job, OPERATION=MOMENT).",
+                input_params={**fixed, "OPERATION": "MOMENT"}, **common),
+            ServiceDescriptor(
+                service_type="visivo-pv", service_id=f"pv-{node.code.lower()}",
+                access_url=f"{soda}/async", standard_id=None,
+                supported_parameters=["ID", "OPERATION", "PVPATH", "PVWIDTH"],
+                description=(f"Position-velocity diagram computed on node {node.code} "
+                             "(SODA async job, OPERATION=PV)."),
+                input_params={**fixed, "OPERATION": "PV"}, **common),
+        ]
 
     # Per-node VisIVO backend descriptors (distributed-backend pattern).
     for node in (nodes or []):
@@ -162,7 +205,8 @@ def build_service_descriptors(
     return descriptors
 
 
-def build_capabilities(soda_execution_available: bool = False) -> CapabilitiesDescriptor:
+def build_capabilities(soda_execution_available: bool = False,
+                       node_soda_available: bool = False) -> CapabilitiesDescriptor:
     """Build the DataLink capability flags for a dataset.
 
     ``soda_execution_available`` is True when at least one ranked node for
@@ -174,11 +218,11 @@ def build_capabilities(soda_execution_available: bool = False) -> CapabilitiesDe
     return CapabilitiesDescriptor(
         supports_datalink=True,
         supports_soda_sync=soda_execution_available,
-        supports_soda_async=False,
+        supports_soda_async=node_soda_available,
         supports_cutout=soda_execution_available,
         supports_preview=False,
         supports_soda_sync_endpoint=True,
         supports_soda_sync_execution=soda_execution_available,
-        supports_soda_async_endpoint=False,
-        supports_soda_async_execution=False,
+        supports_soda_async_endpoint=node_soda_available,
+        supports_soda_async_execution=node_soda_available,
     )

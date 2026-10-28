@@ -1,0 +1,31 @@
+# Publisher configuration shared by every testbed node; the node code comes
+# from the environment of each publisher service.
+skava:
+  api_url: http://skava:8000
+  internal_api_key: ${SKAVA_INTERNAL_API_KEY}
+  timeout_seconds: 60.0
+  verify_tls: false
+
+node:
+  code: ${NODE_CODE}
+  # The node backend opens file:// URLs inside its data root (/data).
+  file_serve_url_pattern: "file:///data/{relpath}"
+
+scan:
+  roots:
+    - /data
+  include:
+    - "*.fits"
+  compute_checksum: true
+
+defaults:
+  obs_collection: skava-testbed
+  license: CC-BY-4.0
+  is_public: true
+  publisher_label: skava-publisher@testbed
+
+state:
+  db_path: /tmp/skava-publisher-state.db
+
+watch:
+  enabled: false
