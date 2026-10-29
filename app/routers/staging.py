@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.errors import DatasetNotFoundError, InvalidQueryError
-from app.security.internal_api_key import require_access_token
+from app.security.internal_api_key import require_access_token, token_reference
 from app.services.staging_service import StagingService
 
 router = APIRouter(prefix="/staging", tags=["staging"])
@@ -21,7 +21,7 @@ def submit_staging_job(
     job = StagingService(db).submit_metadata_stage(
         obs_id=obs_id,
         request={"ID": obs_id, "mode": mode},
-        requested_by=token,
+        requested_by=token_reference(token),
     )
     if not job:
         raise DatasetNotFoundError(f"Dataset '{obs_id}' not found")

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.errors import DatasetNotFoundError, InvalidQueryError
 from app.schemas.soda import SodaSyncResponse
-from app.security.internal_api_key import require_access_token
+from app.security.internal_api_key import require_access_token, token_reference
 from app.services.datalink_service import DataLinkService
 from app.services.soda_execution_service import SodaExecutionService
 from app.services.soda_service import SodaService
@@ -22,6 +22,8 @@ router = APIRouter(prefix="/soda", tags=["soda"])
 def soda_sync(
     dataset_id: str | None = Query(default=None, alias="ID"),
     pos: str | None = Query(default=None, alias="POS"),
+    circle: str | None = Query(default=None, alias="CIRCLE"),
+    polygon: str | None = Query(default=None, alias="POLYGON"),
     band: str | None = Query(default=None, alias="BAND"),
     time_value: str | None = Query(default=None, alias="TIME"),
     responseformat: str | None = Query(default=None, alias="RESPONSEFORMAT"),
@@ -30,6 +32,9 @@ def soda_sync(
 ) -> SodaSyncResponse | RedirectResponse:
     if not dataset_id:
         raise InvalidQueryError("ID is required")
+    spatial = [name for name, value in (("POS", pos), ("CIRCLE", circle), ("POLYGON", polygon)) if value]
+    if len(spatial) > 1:
+        raise InvalidQueryError(f"give one spatial constraint, not {' and '.join(spatial)}")
 
     # When a node can cut this dataset in place, the request goes there: SKAVA
     # answers with a redirect (303) to that node's SODA service, the replica's
@@ -40,11 +45,20 @@ def soda_sync(
                    if d.service_type == "node-soda-sync" and d.enabled and d.input_params), None)
     if target is not None:
         query = {"ID": target.input_params["ID"]}
-        for name, value in (("POS", pos), ("BAND", band), ("TIME", time_value),
-                            ("RESPONSEFORMAT", responseformat)):
+        for name, value in (("POS", pos), ("CIRCLE", circle), ("POLYGON", polygon), ("BAND", band),
+                            ("TIME", time_value), ("RESPONSEFORMAT", responseformat)):
             if value:
                 query[name] = value
         return RedirectResponse(f"{target.access_url}?{urlencode(query)}", status_code=303)
+
+    # No node processes this dataset in place: the stub validates what it can
+    # parse. A CIRCLE is the POS form it knows; a POLYGON is refused rather
+    # than silently dropped.
+    if polygon:
+        raise InvalidQueryError("POLYGON is only served by a node SODA service, and no node can "
+                                "process this dataset in place")
+    if circle:
+        pos = f"CIRCLE {circle}"
 
     svc = SodaService(DataLinkService(db))
     result = svc.resolve_sync_stub(
@@ -116,7 +130,7 @@ def soda_execute(
         "RESPONSEFORMAT": validated_format,
         "mode": "soda-subset-handoff",
     }
-    job = StagingService(db).submit_metadata_stage(obs_id=dataset_id, request=request, requested_by=token)
+    job = StagingService(db).submit_metadata_stage(obs_id=dataset_id, request=request, requested_by=token_reference(token))
     if not job:
         raise DatasetNotFoundError(f"Dataset '{dataset_id}' not found")
     payload = StagingService.to_dict(job)

@@ -1,0 +1,50 @@
+{
+  "realm": "srcnet",
+  "displayName": "SKAVA testbed IAM",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 28800,
+  "ssoSessionMaxLifespan": 86400,
+  "clients": [
+    {
+      "clientId": "visivo",
+      "name": "VisIVO Visual Analytics",
+      "description": "The desktop client and the testbed's scripted client: a public client (no secret) signing in with the authorization code flow, or with its password at the token endpoint for scripts.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["vlva://callback", "http://localhost/*", "http://127.0.0.1/*"],
+      "webOrigins": ["+"],
+      "protocolMappers": [
+        {
+          "name": "skava audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "skava",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "astronomer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Testbed",
+      "lastName": "Astronomer",
+      "email": "astronomer@testbed.invalid",
+      "credentials": [{"type": "password", "value": "testbed", "temporary": false}]
+    }
+  ]
+}

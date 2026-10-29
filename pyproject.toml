@@ -46,6 +46,8 @@ dependencies = [
 dev = [
   "pytest>=8.2.0",
   "httpx>=0.27.0",
+  # The VO client the conformance checks read SKAVA with (testbed/conformance).
+  "pyvo>=1.6",
 ]
 
 [tool.setuptools.packages.find]

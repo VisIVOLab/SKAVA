@@ -35,8 +35,12 @@ The service is production-hardened and aligned with IVOA concepts.
 
 - ObsCore metadata naming and discovery behavior: aligned.
 - DataLink: JSON descriptor + conformant IVOA DataLink VOTable serialisation.
-- SODA: `/soda/sync` validation; `/soda/execute` real cutout via node-local delegation
-  (compute-next-to-data). Async SODA and full POLYGON geometry are planned.
+- SODA: `/soda/sync` redirects (303) to the SODA service of the node that holds the
+  dataset in place, with the replica's own ID (a validation descriptor when no node
+  can); `/soda/execute` is the non-standard proxy cutout. The SODA services
+  themselves (sync with CIRCLE, RANGE, POLYGON, BAND, TIME; async as a UWS job list
+  with MOMENT and PV operations) run on the nodes, in the VisIVO backend, and are
+  advertised in DataLink.
 - TAP/ObsTAP endpoint: minimal sync profile implemented; full TAP async and broad ADQL coverage planned.
 
 ## Compute-next-to-data

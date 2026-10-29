@@ -10,6 +10,7 @@ import httpx
 
 from app.main import app
 from app.models.dataset import Dataset
+from app.models.node import Node
 from app.models.replica import DatasetReplica
 
 
@@ -18,6 +19,7 @@ def _enable_backend_on_best_node(file_url: str = "file:///data/dataset-3.fits") 
     with app.state.testing_session_local() as db:
         dataset = db.query(Dataset).filter(Dataset.obs_id == "dataset-3").one()
         replicas = db.query(DatasetReplica).filter(DatasetReplica.dataset_id == dataset.id).all()
+        dataset.dataproduct_type = "cube"       # moments and PV are cube operations
         for replica in replicas:
             replica.access_endpoint = file_url
             replica.status = "available"
@@ -106,7 +108,7 @@ def test_access_and_votable_advertise_cutout_when_executable(client):
     assert access["supported_operations"] == ["download", "cutout", "band_subset"]
 
     from xml.etree import ElementTree as ET
-    ns = {"v": "http://www.ivoa.net/xml/VOTable/v1.4"}
+    ns = {"v": "http://www.ivoa.net/xml/VOTable/v1.3"}
     vot = client.get("/datalink/dataset-3", params={"RESPONSEFORMAT": "votable"}).text
     root = ET.fromstring(vot)                      # well-formed
     names = [f.get("name") for f in root.findall(".//v:TABLE/v:FIELD", ns)]
@@ -239,3 +241,97 @@ def test_soda_sync_redirects_to_the_node_that_can_cut(client):
 def test_soda_sync_stays_a_routing_answer_without_a_node(client):
     resp = client.get("/soda/sync", params={"ID": "dataset-3"}, follow_redirects=False)
     assert resp.status_code == 200 and resp.json()["mode"] == "soda-sync-stub"
+
+
+def _votable(client):
+    from xml.etree import ElementTree as ET
+
+    ns = {"v": "http://www.ivoa.net/xml/VOTable/v1.3"}
+    root = ET.fromstring(client.get("/datalink/dataset-3", params={"RESPONSEFORMAT": "votable"}).text)
+    names = [f.get("name") for f in root.findall(".//v:TABLE/v:FIELD", ns)]
+    rows = [dict(zip(names, [td.text or "" for td in tr.findall("v:TD", ns)]))
+            for tr in root.findall(".//v:TR", ns)]
+    return root, rows, ns
+
+
+def test_service_params_are_typed_and_description_comes_first(client):
+    _enable_backend_on_best_node()
+    root, rows, ns = _votable(client)
+    sync = next(r for r in rows if r["semantics"] == "#cutout")
+    service = root.find(f".//v:RESOURCE[@ID='{sync['service_def']}']", ns)
+    assert service[0].tag == f"{{{ns['v']}}}DESCRIPTION"            # schema order
+    params = {p.get("name"): p for p in service.findall("v:GROUP/v:PARAM", ns)}
+    assert params["BAND"].get("datatype") == "double" and params["BAND"].get("xtype") == "interval"
+    assert params["BAND"].get("arraysize") == "2" and params["BAND"].get("unit") == "m"
+    assert params["CIRCLE"].get("xtype") == "circle" and params["POLYGON"].get("xtype") == "polygon"
+    assert params["ID"].get("value") == "file:///data/dataset-3.fits"
+
+
+def test_operations_declare_the_async_protocol_and_only_for_cubes(client):
+    _enable_backend_on_best_node()
+    root, rows, ns = _votable(client)
+    procs = [r for r in rows if r["semantics"] == "#proc"]
+    assert len(procs) == 2
+    for row in procs:
+        service = root.find(f".//v:RESOURCE[@ID='{row['service_def']}']", ns)
+        params = {p.get("name"): p.get("value") for p in service.findall("v:PARAM", ns)}
+        assert params["standardID"] == "ivo://ivoa.net/std/SODA#async-1.0"
+        inputs = {p.get("name"): p.get("value") for p in service.findall("v:GROUP/v:PARAM", ns)}
+        assert inputs["OPERATION"] in ("MOMENT", "PV")
+    # A 2-D image has no spectral axis: no moment or PV operations.
+    with app.state.testing_session_local() as db:
+        db.query(Dataset).filter(Dataset.obs_id == "dataset-3").one().dataproduct_type = "image"
+        db.commit()
+    _, rows, _ = _votable(client)
+    assert not [r for r in rows if r["semantics"] == "#proc"]
+    assert len([r for r in rows if r["semantics"] == "#cutout"]) == 2
+    json_types = [d["service_type"] for d in client.get("/datalink/dataset-3").json()["service_descriptors"]]
+    assert "visivo-moment" not in json_types and "node-soda-sync" in json_types
+
+
+def test_status_rows_say_a_token_is_in_play(client):
+    _enable_backend_on_best_node()
+    with app.state.testing_session_local() as db:
+        for node in db.query(Node).all():
+            node.visivo_backend_requires_auth = True
+        db.commit()
+    _, rows, _ = _votable(client)
+    status = [r for r in rows if r["semantics"] == "#auxiliary"]
+    assert status and all(r["link_auth"] == "optional" for r in status)
+
+
+def test_soda_sync_forwards_circle_and_refuses_polygon_without_a_node(client):
+    from urllib.parse import parse_qs, urlparse
+
+    stub = client.get("/soda/sync", params={"ID": "dataset-3", "POLYGON": "1 2 3 4 5 6"}, follow_redirects=False)
+    assert stub.status_code == 400
+    as_circle = client.get("/soda/sync", params={"ID": "dataset-3", "CIRCLE": "103 -23 0.05"}, follow_redirects=False)
+    assert as_circle.status_code == 200 and as_circle.json()["mode"] == "soda-sync-stub"
+    both = client.get("/soda/sync", params={"ID": "dataset-3", "POS": "CIRCLE 1 2 3", "CIRCLE": "1 2 3"},
+                      follow_redirects=False)
+    assert both.status_code == 400
+
+    _enable_backend_on_best_node()
+    resp = client.get("/soda/sync", params={"ID": "dataset-3", "CIRCLE": "103 -23 0.05", "BAND": "0.2 0.22"},
+                      follow_redirects=False)
+    assert resp.status_code == 303
+    query = parse_qs(urlparse(resp.headers["location"]).query)
+    assert query["CIRCLE"] == ["103 -23 0.05"] and query["BAND"] == ["0.2 0.22"]
+
+
+def test_service_inputs_parse_as_fillable_values(client):
+    # A VO client fills the inputParams in from what astropy parsed: an empty
+    # input must come back as an (empty) value, never as None.
+    import io
+
+    from astropy.io.votable import parse
+
+    _enable_backend_on_best_node()
+    raw = client.get("/datalink/dataset-3", params={"RESPONSEFORMAT": "votable"}).content
+    votable = parse(io.BytesIO(raw))
+    services = [r for r in votable.resources if r.type == "meta" and r.utype == "adhoc:service"]
+    assert len(services) == 4
+    for service in services:
+        for group in service.groups:
+            for param in group.entries:
+                assert param.value is not None, (service.ID, param.name)

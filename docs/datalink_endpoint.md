@@ -41,17 +41,28 @@ returns a **conformant IVOA DataLink VOTable**:
 
 - a `{links}` results table with the standard columns
   (`ID, access_url, service_def, error_message, semantics, description, content_type,
-  content_length`, plus the SKAVA `node_id` extension) and their spec UCDs;
-- semantics expressed with the IVOA vocabulary terms (`#this`, `#preview`, `#cutout`, …);
-- a service-descriptor `RESOURCE` (`utype="adhoc:service"`) for the SODA cutout, with an
-  `inputParams` `GROUP` (`ID` ref + `POS`/`BAND`/`TIME`) pointing at `/soda/execute`.
+  content_length, link_auth, link_authorized`) and their spec UCDs, plus the SKAVA
+  extensions `node_id`, `rank_reason` and `score` (the routing decision, on the `#this`
+  rows);
+- semantics expressed with the IVOA vocabulary terms (`#this`, `#preview`, `#auxiliary`,
+  `#cutout`, `#proc`);
+- a service-descriptor `RESOURCE` (`utype="adhoc:service"`) for each service of the node
+  that holds the selected replica (its SODA cutout, synchronous and as a UWS job; the
+  moment-map and PV operations for a cube), with an `inputParams` `GROUP` of typed
+  parameters and `ID` fixed to the replica's identifier on that node.
 
-The JSON descriptor remains the default response and is what the VisIVO desktop consumes
-(via `service_descriptors`); the VOTable targets VO tools (pyvo/TOPCAT).
+The JSON descriptor remains the default response; the VisIVO desktop reads either form
+(`service_descriptors` in the JSON, the rows and `RESOURCE`s in the VOTable) and VO
+tools (pyvo/TOPCAT) the VOTable. See [api/datalink](api/datalink.md) for the details.
 
 ## SODA
 
-- `/soda/sync` validates SODA requests and returns a routing descriptor.
+- `/soda/sync` validates a SODA request (`ID`, `POS` or `CIRCLE`/`POLYGON`, `BAND`,
+  `TIME`) and, when the node holding the selected replica advertises a SODA service,
+  answers `303 See Other` to that node's `/soda/sync` with the request's parameters
+  and `ID` replaced by the replica's identifier there; a standard client follows it
+  and gets the cutout from the node. Without such a node service it answers the
+  routing descriptor as JSON (the stub behaviour) — see [SODA sync](soda_sync.md).
 - `/soda/execute` performs a real cutout (node-local delegation) with staging fallback —
   see [SODA execution](soda_execution.md).
 

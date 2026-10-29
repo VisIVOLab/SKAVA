@@ -107,6 +107,7 @@ api/soda
 api/tap
 api/ingestion
 api/auth
+api/federation
 ```
 
 ```{toctree}

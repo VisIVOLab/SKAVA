@@ -93,20 +93,29 @@ sequenceDiagram
 ObsCore-aligned, so generic VO tools (TOPCAT, Aladin, …) read SKAVA
 the same way they read any IVOA-compliant archive.
 
-## Federation (planned)
+## Federation
 
 ```{mermaid}
 flowchart TB
-    Client --> SKAVA_IT
+    Client -->|"/federation/search + bearer token"| SKAVA_IT
     subgraph fed["Federated query"]
         SKAVA_IT[(SKAVA INAF)]
         SKAVA_ZA[(SKAVA SARAO)]
         SKAVA_AU[(SKAVA AusSRC)]
     end
-    SKAVA_IT -->|fan-out| SKAVA_ZA
-    SKAVA_IT -->|fan-out| SKAVA_AU
-    SKAVA_IT -- merged result --> Client
+    SKAVA_IT -->|"/discovery/search, the caller's token"| SKAVA_ZA
+    SKAVA_IT -->|"/discovery/search, the caller's token"| SKAVA_AU
+    SKAVA_IT -- "merged on obs_id, local first; also_at per sibling" --> Client
 ```
+
+The instance asked answers from its own catalogue and asks every configured
+sibling's `/discovery/search` concurrently, with the caller's token (one IAM
+across SRCNet). The answers are merged on the logical dataset identity: a
+dataset the local catalogue lists keeps the local decision, and a sibling that
+also lists it appears under `also_at` with its own best node and access URL; a
+dataset only a sibling has is listed with that sibling as its `source`. A
+sibling that fails, times out or refuses the token is reported per source and
+does not fail the search. See [Federation API](../api/federation).
 
 A future federation router will let one SKAVA instance fan a query
 out to sibling instances, merge results, and present them under a

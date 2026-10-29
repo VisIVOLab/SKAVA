@@ -98,7 +98,7 @@ def test_tap_tables_vosi(client):
 
 
 def test_tap_capabilities_advertise_geometry_and_columns(client):
-    caps = client.get("/tap/capabilities").json()
+    caps = client.get("/tap/capabilities", headers={"Accept": "application/json"}).json()
     assert caps["tables_endpoint"] == "/tap/tables"
     assert any("CONTAINS" in g for g in caps["supported_geometry"])
     assert "s_ra" in caps["queryable_columns"]

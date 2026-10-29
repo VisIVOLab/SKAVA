@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     )
     oidc_audience: str | None = None
     oidc_jwks_uri: str | None = None
+    # ``oidc_issuer``: the issuer the tokens carry, when it is not the one the
+    # discovery document reports (an IAM reached by the service on a private
+    # name but by the users on its public one). ``oidc_public_wellknown``: the
+    # discovery URL told to clients in the ivoa_bearer challenge, when the
+    # service itself fetches it elsewhere; defaults to ``oidc_wellknown``.
+    oidc_issuer: str | None = None
+    oidc_public_wellknown: str | None = None
     federated_src_urls: str | None = None
     federation_timeout_seconds: float = Field(default=2.0, ge=0.1)
 

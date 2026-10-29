@@ -37,7 +37,7 @@ Public, no auth required by default.
   - For TOPCAT compatibility.
 * - ``MAXREC=N``
   - ✓
-  - Cap on returned rows (default 1000, max 100 000).
+  - Cap on returned rows (default 100, maximum 1000).
 * - ``REQUEST=doQuery``
   - ✓
   - Accepted; default behaviour.
@@ -46,7 +46,8 @@ Public, no auth required by default.
   - Roadmap.
 * - VOSI capabilities
   - ✓
-  - At ``/vosi/capabilities``.
+  - At ``/tap/capabilities``: the VOSI XML document (pyvo's ``TAPService.capabilities``
+    reads it); ``FORMAT=json`` or ``Accept: application/json`` gives the service's JSON summary.
 ```
 
 ## ADQL subset (sync)
@@ -167,7 +168,7 @@ auto-detect the sync endpoint.
 
 ## Limits
 
-* `MAXREC` defaults to 1000; can be raised to 100 000.
+* `MAXREC` defaults to 100 and cannot exceed 1000 (the capabilities document says so).
 * No per-query timeout enforced today; the reverse proxy timeout
   applies.
 * Connection pool exhaustion under high QPS — set `SKAVA_DB_POOL_SIZE`
@@ -176,6 +177,6 @@ auto-detect the sync endpoint.
 ## See also
 
 * [VOSI capabilities](https://www.ivoa.net/documents/VOSI/) — SKAVA
-  exposes them at ``/vosi/capabilities``.
+  exposes them at ``/tap/capabilities`` (and the tableset at ``/tap/tables``).
 * [Discovery API](discovery) — non-TAP path for the same data with
   proper cone search support.

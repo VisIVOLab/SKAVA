@@ -8,16 +8,25 @@
 #   node-far    behind a slow, high-latency link (netem)
 #   node-busy   CPU saturated by background work
 #
+# Two catalogues make a federation: `skava` (:18000) knows all four nodes and
+# is open, as SKAVA is by default; `skava-2` (:18001) is a second site that
+# catalogues the far and busy nodes only and requires the IAM's tokens
+# (`keycloak`, :18300), as an SRCNet site would. Each lists the other as a
+# federated source, so a search on either merges both.
+#
 # The node image is built from the VisIVO Visual Analytics repository, found
 # next to this one by default (override with VISIVO_REPO). Ports listen on
 # 127.0.0.1 only (TESTBED_BIND to change it): the credentials below are
 # development values. See README.md.
 
 x-node: &node
+  # The VisIVO backend image plus SoFiA-2 (node/Dockerfile), built on the base
+  # image `make node-base` builds from the VisIVO repository.
   image: skava-testbed-node
   build:
-    context: ${VISIVO_REPO:-../../VisIVO-next}
-    dockerfile: benchmark/remote/Dockerfile
+    context: ./node
+    args:
+      BASE: skava-testbed-node-base
   cap_add: [NET_ADMIN]
   entrypoint: ["/testbed/node/entrypoint.sh"]
   restart: unless-stopped
@@ -29,7 +38,11 @@ x-node: &node
 
 x-node-env: &node-env
   VISIVO_TOKEN: ${TESTBED_BACKEND_TOKEN:-testbed-backend-token}
-  VISIVO_DATA_ROOTS: /data
+  # The products a node makes (SODA cutouts and moments, finder masks and
+  # catalogues) go to its workspace; it is inside the roots the backend may
+  # serve, so a product opens in place like the data it was made from.
+  VISIVO_EXPORTS_DIR: /workspace
+  VISIVO_DATA_ROOTS: /data:/workspace
   VISIVO_DATA_ROOT: /data
   VISIVO_WORKERS: "2"
 
@@ -43,6 +56,36 @@ x-publisher: &publisher
   depends_on:
     skava:
       condition: service_healthy
+    skava-2:
+      condition: service_healthy
+
+x-skava-env: &skava-env
+  SKAVA_ENV: dev
+  SKAVA_LOG_LEVEL: INFO
+  SKAVA_RUN_SEED: "false"
+  INTERNAL_API_KEY: ${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}
+  SKAVA_VISIVO_BACKEND_TOKEN: ${TESTBED_BACKEND_TOKEN:-testbed-backend-token}
+  # Routing: the resource-aware policy fed by a probe every 10 s
+  # (TESTBED_POLICY=static to compare with the declared scores).
+  SKAVA_RANKING_POLICY: ${TESTBED_POLICY:-resource_aware}
+  SKAVA_TELEMETRY_INTERVAL_SECONDS: ${TESTBED_PROBE_INTERVAL:-10}
+  SKAVA_TELEMETRY_TTL_SECONDS: ${TESTBED_TELEMETRY_TTL:-30}
+  SKAVA_FEDERATION_TIMEOUT_SECONDS: ${TESTBED_FEDERATION_TIMEOUT:-2}
+
+x-skava: &skava
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+  volumes:
+    - ./seed_nodes.py:/testbed/seed_nodes.py:ro
+  depends_on:
+    db:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/availability', timeout=2)"]
+    interval: 3s
+    timeout: 3s
+    retries: 40
 
 services:
   db:
@@ -53,41 +96,77 @@ services:
       POSTGRES_PASSWORD: skava
     ports:
       - "${TESTBED_BIND:-127.0.0.1}:${TESTBED_DB_PORT:-15432}:5432"
+    volumes:
+      # The second catalogue's database, on a fresh volume (an existing one
+      # gets it from `make db-ready`).
+      - ./db/init.sql:/docker-entrypoint-initdb.d/10-skava2.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U skava -d skava"]
       interval: 3s
       timeout: 3s
       retries: 20
 
-  skava:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+  # The IAM: Keycloak with the realm `keycloak/realm.json` (a public client
+  # `visivo` for the desktop and the scripts, a user `astronomer`). The issuer
+  # every token carries is the address the host reaches it at; the services
+  # reach it inside the network, on its backchannel.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    command: ["start-dev", "--import-realm"]
     environment:
-      SKAVA_ENV: dev
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${TESTBED_KEYCLOAK_ADMIN_PASSWORD:-testbed-admin}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: http://localhost:${TESTBED_KEYCLOAK_PORT:-18300}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:${TESTBED_KEYCLOAK_PORT:-18300}:8080"
+    mem_limit: 1g
+    healthcheck:
+      # The image has bash and nothing else: the management port, by hand.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && while read -r line <&3; do [[ \"$$line\" == *'\"status\": \"UP\"'* ]] && exit 0; done; exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  # The first site: all four nodes, open (no token required, as SKAVA is by
+  # default); a search here also asks the second site.
+  skava:
+    <<: *skava
+    environment:
+      <<: *skava-env
       SKAVA_DATABASE_URL: postgresql+psycopg://skava:skava@db:5432/skava
       SKAVA_PUBLIC_BASE_URL: http://localhost:${TESTBED_SKAVA_PORT:-18000}
-      SKAVA_LOG_LEVEL: INFO
-      SKAVA_RUN_SEED: "false"
-      INTERNAL_API_KEY: ${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}
-      SKAVA_VISIVO_BACKEND_TOKEN: ${TESTBED_BACKEND_TOKEN:-testbed-backend-token}
-      # Routing: the resource-aware policy fed by a probe every 10 s
-      # (TESTBED_POLICY=static to compare with the declared scores).
-      SKAVA_RANKING_POLICY: ${TESTBED_POLICY:-resource_aware}
-      SKAVA_TELEMETRY_INTERVAL_SECONDS: ${TESTBED_PROBE_INTERVAL:-10}
-      SKAVA_TELEMETRY_TTL_SECONDS: ${TESTBED_TELEMETRY_TTL:-30}
+      SKAVA_FEDERATED_SRC_URLS: http://skava-2:8000
     ports:
       - "${TESTBED_BIND:-127.0.0.1}:${TESTBED_SKAVA_PORT:-18000}:8000"
-    volumes:
-      - ./seed_nodes.py:/testbed/seed_nodes.py:ro
+
+  # The second site: the far and busy nodes, and the IAM's tokens required
+  # (a request without one gets the ivoa_bearer challenge naming the IAM).
+  # It fetches the IAM's discovery document inside the network; the issuer
+  # the tokens carry, and the discovery URL told to the clients, are the
+  # IAM's public address.
+  skava-2:
+    <<: *skava
+    environment:
+      <<: *skava-env
+      SKAVA_DATABASE_URL: postgresql+psycopg://skava:skava@db:5432/skava2
+      SKAVA_PUBLIC_BASE_URL: http://localhost:${TESTBED_SKAVA2_PORT:-18001}
+      SKAVA_FEDERATED_SRC_URLS: http://skava:8000
+      IAM_WELLKNOWN_ENDPOINT: http://keycloak:8080/realms/srcnet/.well-known/openid-configuration
+      SKAVA_OIDC_PUBLIC_WELLKNOWN: http://localhost:${TESTBED_KEYCLOAK_PORT:-18300}/realms/srcnet/.well-known/openid-configuration
+      SKAVA_OIDC_ISSUER: http://localhost:${TESTBED_KEYCLOAK_PORT:-18300}/realms/srcnet
+      SKAVA_OIDC_AUDIENCE: skava
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:${TESTBED_SKAVA2_PORT:-18001}:8000"
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/availability', timeout=2)"]
-      interval: 3s
-      timeout: 3s
-      retries: 40
+      keycloak:
+        condition: service_healthy
 
   node-big:
     <<: *node
@@ -149,8 +228,34 @@ services:
     ports:
       - "${TESTBED_BIND:-127.0.0.1}:18104:8000"
 
+  # The Computing Broker stand-in: batch finder jobs placed through SKAVA and
+  # run on the node that holds the data (broker_mock/app.py).
+  broker:
+    build:
+      context: ..
+      dockerfile: testbed/broker_mock/Dockerfile
+    environment:
+      BROKER_SKAVA_URL: http://skava:8000
+      BROKER_BACKEND_TOKEN: ${TESTBED_BACKEND_TOKEN:-testbed-backend-token}
+      BROKER_POLL_SECONDS: "1"
+    ports:
+      - "${TESTBED_BIND:-127.0.0.1}:18200:8000"
+    # Time for the broker to stop its jobs' tasks on the nodes when it goes
+    # down: a submission in flight and then the stop, two requests of up to
+    # BROKER_HTTP_TIMEOUT (30 s) each, plus a margin.
+    stop_grace_period: 90s
+    depends_on:
+      skava:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/info', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   # One-shot publishers (profile "seed"): each reads ITS node's files in place
-  # and posts only metadata to SKAVA. Run by `make seed`.
+  # and posts only metadata to a catalogue. Run by `make seed`. The far and
+  # busy nodes are published to the second site too (publisher/config-2.yaml).
   publisher-big:
     <<: *publisher
     environment: {NODE_CODE: BIG, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
@@ -170,3 +275,13 @@ services:
     <<: *publisher
     environment: {NODE_CODE: BUSY, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
     volumes: ["./data/busy:/data:ro", "./publisher/config.yaml:/etc/skava-publisher.yaml:ro"]
+
+  publisher-far-2:
+    <<: *publisher
+    environment: {NODE_CODE: FAR, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
+    volumes: ["./data/far:/data:ro", "./publisher/config-2.yaml:/etc/skava-publisher.yaml:ro"]
+
+  publisher-busy-2:
+    <<: *publisher
+    environment: {NODE_CODE: BUSY, SKAVA_INTERNAL_API_KEY: "${TESTBED_INTERNAL_API_KEY:-testbed-internal-api-key}"}
+    volumes: ["./data/busy:/data:ro", "./publisher/config-2.yaml:/etc/skava-publisher.yaml:ro"]

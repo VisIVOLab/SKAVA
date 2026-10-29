@@ -120,7 +120,8 @@ class DataLinkService:
                     obs_id,
                     nodes=[rep.node for rep in ranked],
                     soda_execution_available=soda_execution_available,
-                    node_soda=node_soda),
+                    node_soda=node_soda,
+                    dataproduct_type=dataset.dataproduct_type),
             capabilities=build_capabilities(soda_execution_available, node_soda is not None),
         )
 

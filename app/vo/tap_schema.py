@@ -13,6 +13,8 @@ VO clients.
 """
 from __future__ import annotations
 
+from xml.sax.saxutils import escape
+
 from html import escape
 
 TABLESET_MEDIA_TYPE = "application/xml"
@@ -73,4 +75,58 @@ def obscore_tableset() -> str:
     </table>
   </schema>
 </vosi:tableset>
+"""
+
+
+CAPABILITIES_MEDIA_TYPE = "application/xml"
+# The row limits the sync query applies (TapService._parse_limit and the
+# routes' MAXREC bound): what the capabilities document advertises.
+TAP_DEFAULT_ROWS = 100
+TAP_MAX_ROWS = 1000
+
+
+def tap_capabilities_xml(base_url: str) -> str:
+    """The VOSI capabilities document of the TAP service: what a VO client
+    (pyvo's ``TAPService.capabilities``, TOPCAT) reads at ``/tap/capabilities``
+    to learn the service's standard, its interface and its query language."""
+    base = escape(base_url.rstrip("/"))
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<vosi:capabilities
+    xmlns:vosi="http://www.ivoa.net/xml/VOSICapabilities/v1.0"
+    xmlns:vs="http://www.ivoa.net/xml/VODataService/v1.1"
+    xmlns:tr="http://www.ivoa.net/xml/TAPRegExt/v1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <capability standardID="ivo://ivoa.net/std/TAP" xsi:type="tr:TableAccess">
+    <interface xsi:type="vs:ParamHTTP" role="std" version="1.1">
+      <accessURL use="base">{base}/tap</accessURL>
+    </interface>
+    <language>
+      <name>ADQL</name>
+      <version ivo-id="ivo://ivoa.net/std/ADQL#v2.1">2.1</version>
+      <description>ADQL 2.1, the ObsCore profile: equality and range predicates on the queryable columns and a CONTAINS(POINT, CIRCLE) cone</description>
+    </language>
+    <outputFormat>
+      <mime>application/x-votable+xml</mime>
+      <alias>votable</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>application/json</mime>
+      <alias>json</alias>
+    </outputFormat>
+    <outputLimit>
+      <default unit="row">{TAP_DEFAULT_ROWS}</default>
+      <hard unit="row">{TAP_MAX_ROWS}</hard>
+    </outputLimit>
+  </capability>
+  <capability standardID="ivo://ivoa.net/std/VOSI#capabilities">
+    <interface xsi:type="vs:ParamHTTP" role="std">
+      <accessURL use="full">{base}/tap/capabilities</accessURL>
+    </interface>
+  </capability>
+  <capability standardID="ivo://ivoa.net/std/VOSI#tables">
+    <interface xsi:type="vs:ParamHTTP" role="std">
+      <accessURL use="full">{base}/tap/tables</accessURL>
+    </interface>
+  </capability>
+</vosi:capabilities>
 """

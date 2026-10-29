@@ -1,20 +1,103 @@
-from fastapi import APIRouter, Depends, Form, Query, Response
+import re
+
+from fastapi import APIRouter, Depends, Form, Query, Request, Response
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.db import get_db
 from app.errors import InvalidQueryError
 from app.schemas.discovery import DiscoverySearchResponse
-from app.security.internal_api_key import require_access_token
+from app.security.internal_api_key import require_access_token, token_reference
 from app.services.tap_service import TapService
 from app.vo.adql import QUERYABLE_COLUMNS
-from app.vo.tap_schema import TABLESET_MEDIA_TYPE, obscore_tableset
+from app.vo.tap_schema import (CAPABILITIES_MEDIA_TYPE, TABLESET_MEDIA_TYPE, TAP_MAX_ROWS, obscore_tableset,
+                               tap_capabilities_xml)
 from app.vo.votable import VOTABLE_MEDIA_TYPE, discovery_results_to_votable
 
 router = APIRouter(prefix="/tap", tags=["tap"])
 
 
-@router.get("/capabilities")
-def tap_capabilities() -> dict:
+_QVALUE = re.compile(r"^(0(\.[0-9]{0,3})?|1(\.0{0,3})?)$", re.ASCII)
+# What the route serves: the JSON summary, or the VOSI document as application/xml.
+_JSON, _XML = ("application", "json"), ("application", "xml")
+
+
+def _split_unquoted(text: str, separator: str) -> list[str]:
+    """``text`` split at ``separator`` outside double-quoted strings (a media
+    parameter may be a quoted string holding commas or semicolons)."""
+    parts, current, quoted, escaped = [], [], False, False
+    for char in text:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\" and quoted:
+            current.append(char)
+            escaped = True
+        elif char == '"':
+            quoted = not quoted
+            current.append(char)
+        elif char == separator and not quoted:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+    return parts
+
+
+def _prefers_json(accept: str) -> bool:
+    """Whether an Accept header asks for the JSON summary over the XML
+    document the route otherwise serves (RFC 9110 12.5.1): each of the two
+    takes the quality of the most specific media range that matches it
+    (``application/json`` before ``application/*`` before ``*/*``); a range
+    whose quality value is malformed is ignored; ties and an empty header
+    leave the default, XML."""
+    ranges: list[tuple[str, str, float]] = []
+    for item in _split_unquoted(accept, ","):
+        parts = [p.strip() for p in _split_unquoted(item, ";")]
+        media = parts[0].lower()
+        if media.count("/") != 1:
+            continue
+        weight = 1.0
+        for param in parts[1:]:
+            name, _eq, value = param.partition("=")
+            if name.strip().lower() == "q":
+                if not _QVALUE.match(value.strip()):
+                    weight = None
+                    break
+                weight = float(value.strip())
+        if weight is None:
+            continue
+        kind, subtype = media.split("/", 1)
+        ranges.append((kind, subtype, weight))
+
+    def quality(kind: str, subtype: str) -> float:
+        best, best_specificity = 0.0, 0
+        for r_kind, r_subtype, weight in ranges:
+            if (r_kind, r_subtype) == (kind, subtype):
+                specificity = 3
+            elif r_kind == kind and r_subtype == "*":
+                specificity = 2
+            elif (r_kind, r_subtype) == ("*", "*"):
+                specificity = 1
+            else:
+                continue
+            if specificity > best_specificity or (specificity == best_specificity and weight > best):
+                best, best_specificity = weight, specificity
+        return best
+
+    return quality(*_JSON) > quality(*_XML)
+
+
+@router.get("/capabilities", response_model=None)
+def tap_capabilities(request: Request,
+                     fmt: str | None = Query(default=None, alias="FORMAT")) -> dict | Response:
+    """The VOSI capabilities document (XML), as VO clients read it; the
+    service's own JSON summary with ``FORMAT=json`` or an ``Accept`` header
+    that prefers ``application/json``."""
+    if (fmt or "").lower() != "json" and not _prefers_json(request.headers.get("accept", "")):
+        base = settings.public_base_url or str(request.base_url).rstrip("/")
+        return Response(content=tap_capabilities_xml(base), media_type=CAPABILITIES_MEDIA_TYPE)
     return {
         "standard_id": "ivo://ivoa.net/std/TAP",
         "profile": "TAP sync ObsCore compatibility profile",
@@ -23,7 +106,7 @@ def tap_capabilities() -> dict:
         "tables": ["ivoa.ObsCore"],
         "tables_endpoint": "/tap/tables",
         "output_formats": ["application/json", VOTABLE_MEDIA_TYPE],
-        "limits": {"MAXREC": 1000},
+        "limits": {"MAXREC": TAP_MAX_ROWS},
         "supported_operators": ["=", "!=", "<>", "<", "<=", ">", ">="],
         "supported_geometry": [
             "1 = CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', ra, dec, radius))"
@@ -108,7 +191,8 @@ def tap_async_submit(
         raise InvalidQueryError("REQUEST must be doQuery")
     if lang.upper() != "ADQL":
         raise InvalidQueryError("LANG must be ADQL")
-    job = TapService(db).submit_async_job(query=query, maxrec=maxrec, fmt=fmt, submitted_by=token)
+    job = TapService(db).submit_async_job(query=query, maxrec=maxrec, fmt=fmt,
+                                          submitted_by=token_reference(token))
     return TapService.job_to_dict(job)
 
 

@@ -82,6 +82,7 @@ def build_service_descriptors(
     nodes: list[Node] | None = None,
     soda_execution_available: bool = False,
     node_soda=None,
+    dataproduct_type: str | None = None,
 ) -> list[ServiceDescriptor]:
     """Build the service_descriptors[] array for the DataLink response.
 
@@ -169,18 +170,21 @@ def build_service_descriptors(
                 input_params=fixed, **common),
             ServiceDescriptor(
                 service_type="visivo-moment", service_id=f"moment-{node.code.lower()}",
-                access_url=f"{soda}/async", standard_id=None,
+                access_url=f"{soda}/async", standard_id="ivo://ivoa.net/std/SODA#async-1.0",
                 supported_parameters=["ID", "OPERATION", "MOMENT", "CHANNELS", "THRESHOLD"],
                 description=f"Moment map computed on node {node.code} (SODA async job, OPERATION=MOMENT).",
                 input_params={**fixed, "OPERATION": "MOMENT"}, **common),
             ServiceDescriptor(
                 service_type="visivo-pv", service_id=f"pv-{node.code.lower()}",
-                access_url=f"{soda}/async", standard_id=None,
+                access_url=f"{soda}/async", standard_id="ivo://ivoa.net/std/SODA#async-1.0",
                 supported_parameters=["ID", "OPERATION", "PVPATH", "PVWIDTH"],
                 description=(f"Position-velocity diagram computed on node {node.code} "
                              "(SODA async job, OPERATION=PV)."),
                 input_params={**fixed, "OPERATION": "PV"}, **common),
         ]
+        # Moments and PV diagrams need a spectral axis: only a cube gets them.
+        if (dataproduct_type or "").strip().lower() != "cube":
+            descriptors = [d for d in descriptors if d.service_type not in ("visivo-moment", "visivo-pv")]
 
     # Per-node VisIVO backend descriptors (distributed-backend pattern).
     for node in (nodes or []):

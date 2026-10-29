@@ -1,3 +1,5 @@
+import hashlib
+
 from fastapi import Header
 
 from app.config import settings
@@ -28,9 +30,10 @@ def _challenge() -> dict[str, str]:
     # RFC 6750 Bearer, plus the IVOA SSO "ivoa_bearer" challenge SRCNet
     # services return, pointing the client at the IAM to get a token from.
     value = 'Bearer realm="SKAVA"'
-    if settings.oidc_wellknown:
+    wellknown = settings.oidc_public_wellknown or settings.oidc_wellknown
+    if wellknown:
         value += (', ivoa_bearer standard_id="ivo://ivoa.net/sso#BearerToken", '
-                  f'access_url="{settings.oidc_wellknown}"')
+                  f'access_url="{wellknown}"')
     return {"WWW-Authenticate": value}
 
 
@@ -39,15 +42,13 @@ async def require_access_token(
     x_skava_access_token: str | None = Header(default=None),
 ) -> str | None:
     """A static access token (SKAVA_ACCESS_TOKENS) or an OIDC access token from
-    the configured IAM. Open when neither is configured."""
+    the configured IAM. Open when neither is configured (None, whatever the
+    caller presented: see ``presented_token`` for what forwards a token)."""
     configured = settings.access_token_set
     if not configured and not oidc_configured():
         return None
 
-    token = x_skava_access_token
-    if not token and authorization and authorization.lower().startswith("bearer "):
-        token = authorization[7:].strip()
-
+    token = _presented(authorization, x_skava_access_token)
     if token and token in configured:
         return token
     if token and oidc_configured() and token.count(".") == 2:
@@ -57,3 +58,29 @@ async def require_access_token(
         except OIDCValidationError as exc:
             raise UnauthorizedError(f"Invalid access token: {exc}", headers=_challenge()) from exc
     raise UnauthorizedError("Invalid or missing access token", headers=_challenge())
+
+
+def _presented(authorization: str | None, x_skava_access_token: str | None) -> str | None:
+    token = x_skava_access_token
+    if not token and authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    return token or None
+
+
+async def presented_token(
+    authorization: str | None = Header(default=None),
+    x_skava_access_token: str | None = Header(default=None),
+) -> str | None:
+    """The token the caller presented, as presented and unverified, for what
+    forwards it on the caller's behalf (the federated search asks the
+    siblings with it; an open instance has nothing to verify it against, the
+    siblings do). Never store or return it: ``token_reference`` is for that."""
+    return _presented(authorization, x_skava_access_token)
+
+
+def token_reference(token: str | None) -> str | None:
+    """A short, non-reversible name for a token, to record who asked for a
+    job without keeping the credential itself where other callers read it."""
+    if not token:
+        return None
+    return "token:" + hashlib.sha256(token.encode()).hexdigest()[:16]

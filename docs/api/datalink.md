@@ -175,22 +175,31 @@ JSON is the default. Request `RESPONSEFORMAT=application/x-votable+xml`
 
 - the standard `{links}` table columns
   (`ID, access_url, service_def, error_message, semantics, description,
-  content_type, content_length`, plus the SKAVA `node_id` extension) with
-  the spec UCDs;
-- IVOA semantics vocabulary terms (`#this`, `#preview`, `#auxiliary`, `#cutout`);
+  content_type, content_length, link_auth, link_authorized`) with the spec
+  UCDs, plus the SKAVA extensions `node_id` (the node a row belongs to),
+  `rank_reason` and `score` (the routing decision on the `#this` rows: why
+  the policy ranked that replica where it is, and its cost, lower is
+  better, as `routing.replicas[]` has them in the JSON);
+- IVOA semantics vocabulary terms (`#this`, `#preview`, `#auxiliary`,
+  `#cutout`, `#proc`);
+- the `#this` rows are the replicas, best node first;
 - one `#auxiliary` row per **VisIVO backend** co-located with a replica,
   best node first, so VO clients see where the dataset can be analysed in
-  place: `access_url` is the backend's status/capacity document
-  (`<backend>/v1/health`, `application/json`, behind the node backend's token
-  when `requires_auth`), `node_id` the node code;
-- **only when a cutout can actually run** (a `file://` replica on a node with
-  a VisIVO backend): a `#cutout` row and a service-descriptor `RESOURCE`
-  (`utype="adhoc:service"`, `standardID = SODA#sync-1.0`) with an
-  `inputParams` `GROUP` (`ID` ref + `POS`/`BAND`/`TIME`) pointing at
-  `/soda/execute`.
+  place: `access_url` is the backend's status document
+  (`<backend>/v1/node/status`, `application/json`; `link_auth` is
+  `optional` when the backend's API takes a token), `node_id` the node code;
+- **only when the node can process the dataset in place** (a `file://`
+  replica on a node with a VisIVO backend): `#cutout` rows for the node's
+  own SODA (`standardID = SODA#sync-1.0` and `SODA#async-1.0`) and, for a
+  cube, `#proc` rows for the moment-map and PV operations
+  (`SODA#async-1.0` with a fixed `OPERATION`), each with a service-descriptor
+  `RESOURCE` (`utype="adhoc:service"`) whose `inputParams` `GROUP` carries
+  the typed SODA parameters and fixes `ID` to the replica's identifier on
+  that node.
 
-The `soda-sync` stub (validation + routing, no data) appears in the JSON
-envelope only, and there is no `soda-async` link until that endpoint exists.
+The `soda-sync` link (SKAVA's redirecting endpoint) and the `/soda/execute`
+proxy appear in the JSON envelope only: in a VOTable a `#cutout` row means
+"this returns the cutout", which only the node's service does.
 
 This is what Aladin / TOPCAT consume as a DataLink document; the JSON
 descriptor is what the VisIVO desktop reads via `service_descriptors`.

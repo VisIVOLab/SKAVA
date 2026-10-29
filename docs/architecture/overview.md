@@ -26,8 +26,9 @@ A single SKAVA instance handles:
 * **public**: `/discovery/*`, `/datalink/*`, `/access/*`, `/soda/*`,
   `/tap/*`, `/vosi/*`
 * **internal** (API-key auth): `/internal/ingestion/*`
-* **federated** *(planned)*: `/federation/*` for sibling-to-sibling
-  queries
+* **federated**: `/federation/*`, the local catalogue and the configured
+  sibling instances asked together, merged on `obs_id`
+  ([Federation API](../api/federation))
 * **admin** (session auth): `/admin/*` with HTML + HTMX
 
 ## Module layout

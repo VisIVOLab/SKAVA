@@ -62,21 +62,29 @@ _DATALINK_FIELDS = [
     ('link_auth', 'char', 'meta.code', None),
     ('link_authorized', 'boolean', 'meta.code', None),
     ('node_id', 'char', 'meta.id', None),
+    # SKAVA's routing decision on the "#this" rows (the replicas, best node
+    # first): why the policy ranked that replica where it is, and its cost
+    # (lower is better). The JSON envelope carries the same in routing.replicas.
+    ('rank_reason', 'char', 'meta.note', None),
+    # A cost, not an ordinal rank: no UCD word says that.
+    ('score', 'double', None, None),
 ]
 
 
-def _datalink_field(name: str, datatype: str, ucd: str, unit: str | None) -> str:
+def _datalink_field(name: str, datatype: str, ucd: str | None, unit: str | None) -> str:
     arraysize = ' arraysize="*"' if datatype == 'char' else ''
+    ucd_attr = f' ucd="{ucd}"' if ucd else ''
     unit_attr = f' unit="{unit}"' if unit else ''
     return (
         f'<FIELD name="{name}" datatype="{datatype}"{arraysize}'
-        f' ucd="{ucd}"{unit_attr}/>'
+        f'{ucd_attr}{unit_attr}/>'
     )
 
 
 def _datalink_row(
     *, oid, access_url, service_def, semantics, description, content_type,
     content_length, node_id, link_auth=None, link_authorized=None,
+    rank_reason=None, score=None,
 ) -> str:
     return (
         "<TR>"
@@ -91,6 +99,8 @@ def _datalink_row(
         + _cell(link_auth)
         + _cell(None if link_authorized is None else ("true" if link_authorized else "false"))
         + _cell(node_id)
+        + _cell(rank_reason)
+        + _cell(score)
         + "</TR>"
     )
 
@@ -114,6 +124,9 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
     def own(url: str | None) -> bool:
         return bool(url) and url.startswith(base_url)
 
+    # The routing decision, by node: a replica's "#this" row carries it.
+    ranked = {rep.code: rep for rep in datalink.routing.replicas}
+
     # One {links} row per access link (download / preview / alternates).
     for link in datalink.links:
         if not link.href:
@@ -135,6 +148,7 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
             if link.rel == "direct-download"
             else None
         )
+        replica = ranked.get(link.node_id) if semantics == "#this" else None
         rows.append(
             _datalink_row(
                 oid=oid,
@@ -147,6 +161,8 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
                 node_id=link.node_id,
                 link_auth=own_auth if own(link.href) else None,
                 link_authorized=True if own(link.href) else None,
+                rank_reason=replica.rank_reason if replica else None,
+                score=replica.score if replica else None,
             )
         )
 
@@ -160,7 +176,9 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
     for desc in datalink.service_descriptors:
         if desc.service_type != "visivo-backend" or not desc.enabled or not desc.endpoint:
             continue
-        auth = " (requires the node backend's token)" if desc.requires_auth else ""
+        # The status document is public by default on a VisIVO backend and
+        # accepts the backend's token: "optional" where the backend's API
+        # requires one, so a client knows a token is in play for that node.
         rows.append(
             _datalink_row(
                 oid=oid,
@@ -168,11 +186,11 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
                 service_def=None,
                 semantics="#auxiliary",
                 description=f"VisIVO compute backend co-located with node {desc.node_code}: "
-                            f"status and capacity{auth}",
+                            "status and capacity",
                 content_type="application/json",
                 content_length=None,
                 node_id=desc.node_code,
-                link_auth="true" if desc.requires_auth else "false",
+                link_auth="optional" if desc.requires_auth else "false",
             )
         )
 
@@ -204,7 +222,7 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
     service_resources = "".join(_service_resource(desc) for desc in services)
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.4">
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
   <RESOURCE type="results">
     <INFO name="QUERY_STATUS" value="OK"/>
     <TABLE name="datalink">
@@ -231,31 +249,53 @@ _NODE_SERVICES = {
     "visivo-pv": "#proc",
 }
 
-# UCDs of the free input parameters, where the standard has one.
-_PARAM_UCD = {"POS": "phys.angArea;obs", "CIRCLE": "phys.angArea;obs", "POLYGON": "phys.angArea;obs",
-              "BAND": "em.wl", "TIME": "time.interval"}
+# PARAM metadata of the service inputs: the SODA 1.0 parameters as the
+# standard types them (so a VO client sends BAND as two doubles, not as the
+# text of a tuple), and the custom operation inputs in the same style.
+_PARAM_META = {
+    "ID": {"datatype": "char", "arraysize": "*"},
+    "POS": {"datatype": "char", "arraysize": "*", "ucd": "phys.angArea;obs"},
+    "CIRCLE": {"datatype": "double", "arraysize": "3", "xtype": "circle", "unit": "deg",
+               "ucd": "phys.angArea;obs"},
+    "POLYGON": {"datatype": "double", "arraysize": "*", "xtype": "polygon", "unit": "deg",
+                "ucd": "phys.angArea;obs"},
+    "BAND": {"datatype": "double", "arraysize": "2", "xtype": "interval", "unit": "m",
+             "ucd": "em.wl;stat.interval"},
+    "TIME": {"datatype": "double", "arraysize": "2", "xtype": "interval", "unit": "d",
+             "ucd": "time.interval;obs.exposure"},
+    "OPERATION": {"datatype": "char", "arraysize": "*"},
+    # Scalars carry arraysize="1": an empty scalar PARAM parses as a null
+    # value, which VO clients cannot fill in; an empty one-element array does.
+    "MOMENT": {"datatype": "int", "arraysize": "1"},
+    "CHANNELS": {"datatype": "int", "arraysize": "2", "xtype": "interval"},
+    "THRESHOLD": {"datatype": "double", "arraysize": "1"},
+    "PVPATH": {"datatype": "double", "arraysize": "*", "unit": "deg"},
+    "PVWIDTH": {"datatype": "int", "arraysize": "1"},
+}
 
 
 def _service_resource(desc) -> str:
     """A DataLink service descriptor RESOURCE for one node service.
 
     Fixed parameters (the replica's ID on that node, the OPERATION) carry their
-    value; the others are left for the caller to fill.
+    value; the others are left for the caller to fill. Element order follows
+    the VOTable schema: DESCRIPTION first, then the PARAMs and the GROUP.
     """
     params = []
     for name in desc.supported_parameters:
         if name == "RESPONSEFORMAT":
             continue
+        meta = _PARAM_META.get(name, {"datatype": "char", "arraysize": "*"})
+        attrs = "".join(f' {key}="{_attr(value)}"' for key, value in meta.items())
         value = (desc.input_params or {}).get(name, "")
-        ucd = f' ucd="{_PARAM_UCD[name]}"' if name in _PARAM_UCD and not value else ""
-        params.append(f'<PARAM name="{name}" datatype="char" arraysize="*" value="{_attr(value)}"{ucd}/>')
+        params.append(f'<PARAM name="{name}"{attrs} value="{_attr(value)}"/>')
     standard = (f'\n    <PARAM name="standardID" datatype="char" arraysize="*" value="{_attr(desc.standard_id)}"/>'
                 if desc.standard_id else "")
     inputs = "\n      ".join(params)
     return f"""
-  <RESOURCE type="meta" ID="{_attr(desc.service_id)}" utype="adhoc:service">{standard}
+  <RESOURCE type="meta" ID="{_attr(desc.service_id)}" utype="adhoc:service">
+    <DESCRIPTION>{escape(desc.description or "")}</DESCRIPTION>{standard}
     <PARAM name="accessURL" datatype="char" arraysize="*" value="{_attr(desc.access_url)}"/>
-    <DESCRIPTION>{escape(desc.description or "")}</DESCRIPTION>
     <GROUP name="inputParams">
       {inputs}
     </GROUP>
@@ -292,7 +332,7 @@ def discovery_results_to_votable(results: list[DiscoveryResult]) -> str:
     field_xml = "\n".join(_field(name, datatype) for name, datatype in fields)
     row_xml = "\n".join(rows)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.4">
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
   <RESOURCE type="results">
     <INFO name="QUERY_STATUS" value="OK"/>
     <TABLE name="ivoa.ObsCore">

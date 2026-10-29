@@ -21,7 +21,7 @@ from jwt.algorithms import RSAAlgorithm
 from app.config import settings
 from app.security.oidc import validator
 
-NS = {"v": "http://www.ivoa.net/xml/VOTable/v1.4"}
+NS = {"v": "http://www.ivoa.net/xml/VOTable/v1.3"}
 
 
 # ── TAP ─────────────────────────────────────────────────────────────────────
@@ -82,6 +82,57 @@ def test_datalink_votable_has_link_auth_columns(client):
             assert r["link_auth"] == "false" and r["link_authorized"] == "true"
         else:                                           # a node's storage: unknown here
             assert r["link_auth"] == "" and r["link_authorized"] == ""
+
+
+def test_datalink_votable_this_rows_carry_the_routing_decision(client):
+    # The replicas come best node first, each with the policy's reason, as
+    # the JSON envelope's routing.replicas have them.
+    names, rows = _rows(client)
+    assert names.index("node_id") < names.index("rank_reason") < names.index("score")
+    json_replicas = client.get("/datalink/dataset-3").json()["routing"]["replicas"]
+    this_rows = [r for r in rows if r["semantics"] == "#this"]
+    assert [r["node_id"] for r in this_rows] == [rep["code"] for rep in json_replicas]
+    for row, rep in zip(this_rows, json_replicas):
+        assert rep["rank_reason"] and row["rank_reason"] == rep["rank_reason"]
+        assert row["score"] == ("" if rep["score"] is None else str(rep["score"]))
+
+
+def test_datalink_votable_scores_are_doubles_and_other_rows_say_nothing(client):
+    # With costs set (the resource-aware policy's), a VO reader gets them as
+    # float64 on the replica rows, masked on every other row; the FIELDs are
+    # typed as the DataLink VOTable needs them.
+    import io
+    from astropy.io.votable import parse_single_table
+    from app.schemas.datalink import DataLinkResponse
+    from app.vo.votable import datalink_to_votable
+    from tests.test_soda_execution import _enable_backend_on_best_node
+
+    _enable_backend_on_best_node()        # adds #auxiliary, #cutout and #proc rows
+    envelope = DataLinkResponse.model_validate(client.get("/datalink/dataset-3").json())
+    for i, rep in enumerate(envelope.routing.replicas):
+        rep.score = 1.25 + i
+        rep.rank_reason = f"{rep.code}: rtt {i + 1} ms & <measured>"
+    xml = datalink_to_votable(envelope)
+    root = ET.fromstring(xml)
+    fields = {f.get("name"): f for f in root.findall(".//v:TABLE/v:FIELD", NS)}
+    assert fields["score"].get("datatype") == "double" and fields["score"].get("arraysize") is None
+    assert fields["score"].get("ucd") is None          # a cost, not an ordinal rank
+    assert fields["rank_reason"].get("datatype") == "char" and fields["rank_reason"].get("arraysize") == "*"
+    table = parse_single_table(io.BytesIO(xml.encode()), verify="exception").array
+    semantics = [str(s) for s in table["semantics"]]
+    assert "#auxiliary" in semantics and "#cutout" in semantics
+    scores = table["score"]
+    assert scores.dtype.kind == "f"
+    expected = {rep.code: (rep.score, rep.rank_reason) for rep in envelope.routing.replicas}
+    seen = set()
+    for row, sem, masked in zip(table, semantics, scores.mask):
+        if sem == "#this":
+            score, reason = expected[str(row["node_id"])]
+            assert not masked and float(row["score"]) == score and str(row["rank_reason"]) == reason
+            seen.add(str(row["node_id"]))
+        else:
+            assert masked and str(row["rank_reason"]) == ""
+    assert seen == set(expected)
 
 
 def test_node_service_rows_carry_the_nodes_own_auth(client, monkeypatch):
@@ -184,6 +235,59 @@ def test_missing_token_gets_the_ivoa_bearer_challenge(client, iam, monkeypatch):
     assert "iam.example.org/.well-known/openid-configuration" in challenge
 
 
+def test_the_expected_issuer_and_the_public_discovery_url_can_be_set(client, iam, monkeypatch):
+    """An IAM the service reaches on a private name: the tokens carry the
+    public issuer, which SKAVA_OIDC_ISSUER names; the challenge tells the
+    clients the public discovery URL, not the one the service fetches."""
+    monkeypatch.setattr(settings, "oidc_wellknown", "http://keycloak:8080/realms/srcnet/.well-known/openid-configuration")
+    monkeypatch.setattr(settings, "oidc_public_wellknown", "http://localhost:18300/realms/srcnet/.well-known/openid-configuration")
+    monkeypatch.setattr(settings, "oidc_issuer", "http://localhost:18300/realms/srcnet")
+    monkeypatch.setattr("httpx.get", lambda url, timeout: type("R", (), {"json": lambda self: {
+        "issuer": "http://keycloak:8080/realms/srcnet", "jwks_uri": "http://keycloak:8080/jwk"}})())
+    validator.reset()
+    assert _search(client, _token(iam, iss="http://localhost:18300/realms/srcnet")).status_code == 200
+    refused = _search(client, _token(iam, iss="http://keycloak:8080/realms/srcnet"))
+    assert refused.status_code == 401
+    assert "localhost:18300/realms/srcnet/.well-known" in refused.headers["WWW-Authenticate"]
+    assert "keycloak:8080" not in refused.headers["WWW-Authenticate"]
+
+
+def test_the_presented_token_is_separate_from_the_verified_one(client, monkeypatch):
+    """An open instance verifies nothing and its endpoints see no token
+    (None); what forwards a token on the caller's behalf reads it as
+    presented, and what records who asked keeps a reference, not the token."""
+    import asyncio
+
+    from app.security.internal_api_key import presented_token, require_access_token, token_reference
+    assert asyncio.run(require_access_token(authorization="Bearer abc", x_skava_access_token=None)) is None
+    assert asyncio.run(presented_token(authorization="Bearer abc", x_skava_access_token=None)) == "abc"
+    assert asyncio.run(presented_token(authorization=None, x_skava_access_token="xyz")) == "xyz"
+    assert asyncio.run(presented_token(authorization=None, x_skava_access_token=None)) is None
+    assert token_reference(None) is None
+    assert token_reference("abc").startswith("token:") and "abc" not in token_reference("abc")
+    assert token_reference("abc") == token_reference("abc") != token_reference("abd")
+    # A job records a reference to its requester, never the credential (an
+    # instance that verifies tokens; an open one records nothing).
+    secret = "a-bearer-credential"
+    monkeypatch.setattr(settings, "access_tokens", secret)
+    auth = {"Authorization": f"Bearer {secret}"}
+    job = client.post("/staging/jobs", params={"ID": "dataset-3"}, headers=auth).json()
+    shown = client.get(f"/staging/jobs/{job['job_id']}", headers=auth).json()
+    assert shown["requested_by"] == token_reference(secret) and secret not in str(shown)
+    job = client.post("/tap/async", data={"QUERY": "SELECT * FROM ivoa.ObsCore"}, headers=auth).json()
+    shown = client.get(f"/tap/async/{job['job_id']}", headers=auth).json()
+    assert shown["submitted_by"] == token_reference(secret) and secret not in str(shown)
+    # The SODA proxy's staging fallback records the same reference.
+    job = client.post("/soda/execute", params={"ID": "dataset-3"}, headers=auth).json()
+    assert job.get("requested_by") in (None, token_reference(secret)) and secret not in str(job)
+    if job.get("job_id"):
+        shown = client.get(f"/staging/jobs/{job['job_id']}", headers=auth).json()
+        assert shown["requested_by"] == token_reference(secret) and secret not in str(shown)
+    monkeypatch.setattr(settings, "access_tokens", None)
+    job = client.post("/staging/jobs", params={"ID": "dataset-3"}, headers=auth).json()
+    assert client.get(f"/staging/jobs/{job['job_id']}").json()["requested_by"] is None
+
+
 def test_static_tokens_keep_working_next_to_oidc(client, iam, monkeypatch):
     monkeypatch.setattr(settings, "access_tokens", "legacy-token")
     assert _search(client, "legacy-token").status_code == 200
@@ -196,3 +300,60 @@ def test_tap_responseformat_tap11(client, fmt):
                                         "QUERY": "SELECT * FROM obscore WHERE obs_id = 'dataset-3'"})
     assert r.status_code == 200, r.text
     assert "<TABLEDATA>" in r.text
+
+
+def test_tap_capabilities_is_a_vosi_document_that_pyvo_reads(client):
+    """A VO client reads /tap/capabilities as VOSI XML; the JSON summary
+    stays available on request."""
+    import io
+
+    from pyvo.io.vosi import parse_capabilities
+
+    r = client.get("/tap/capabilities")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/xml")
+    caps = parse_capabilities(io.BytesIO(r.content))
+    ids = [str(c.standardid) for c in caps]
+    assert "ivo://ivoa.net/std/TAP" in ids and "ivo://ivoa.net/std/VOSI#tables" in ids
+    tap = next(c for c in caps if str(c.standardid) == "ivo://ivoa.net/std/TAP")
+    assert tap.interfaces[0].accessurls[0].content == "http://testserver/tap"
+    assert [lang.name for lang in tap.languages] == ["ADQL"]
+    assert client.get("/tap/capabilities", params={"FORMAT": "json"}).json()["standard_id"] == "ivo://ivoa.net/std/TAP"
+    assert client.get("/tap/capabilities", headers={"Accept": "application/json"}).json()["languages"]
+
+
+def test_tap_capabilities_negotiation_and_limits(client, monkeypatch):
+    from xml.etree.ElementTree import fromstring
+
+    from app.config import settings
+    from app.vo.tap_schema import TAP_DEFAULT_ROWS, TAP_MAX_ROWS, tap_capabilities_xml
+
+    xml = {"Accept": "application/xml, application/json;q=0"}
+    assert client.get("/tap/capabilities", headers=xml).headers["content-type"].startswith("application/xml")
+    assert client.get("/tap/capabilities", headers={"Accept": "*/*"}).headers["content-type"].startswith("application/xml")
+    assert client.get("/tap/capabilities", headers={"Accept": "text/html"}).headers["content-type"].startswith("application/xml")
+    json_first = {"Accept": "application/json, */*;q=0.1"}
+    assert client.get("/tap/capabilities", headers=json_first).headers["content-type"].startswith("application/json")
+    from app.routers.tap import _prefers_json
+    assert _prefers_json("application/xml;q=0, application/*;q=0.5"), "the specific refusal wins over the wildcard"
+    assert not _prefers_json("application/json;q=0.9, application/xml")
+    assert _prefers_json("APPLICATION/JSON;Q=0.9, APPLICATION/XML;Q=0.1")
+    assert not _prefers_json("application/json;q=2, application/xml"), "a malformed quality value is ignored"
+    assert not _prefers_json("application/json;q=inf, application/xml")
+    assert not _prefers_json("") and not _prefers_json("garbage") and not _prefers_json("text/*")
+    assert _prefers_json("application/json")
+    # Only what the route serves counts: text/xml is not an offer, so JSON wins here.
+    assert _prefers_json("application/json;q=0.9, text/*;q=1")
+    # A quoted parameter may hold the separators.
+    assert not _prefers_json('application/json;profile="a,b";q=0, application/xml;q=0.5')
+    assert _prefers_json('application/xml;note="x;y";q=0.1, application/json')
+    assert not _prefers_json("application/json;q=0.\u0669, application/xml;q=0.5"), "ASCII digits only"
+    assert _prefers_json(" application/json ; Q=0.900 , application/xml ; q=0.100 ")
+    # The advertised limits are the implemented ones, and a base URL with an
+    # ampersand still gives well-formed XML.
+    root = fromstring(client.get("/tap/capabilities").content)
+    ns = {"v": "http://www.ivoa.net/xml/VOSICapabilities/v1.0"}
+    assert root.find("capability/outputLimit/default", ns).text == str(TAP_DEFAULT_ROWS)
+    assert root.find("capability/outputLimit/hard", ns).text == str(TAP_MAX_ROWS)
+    assert client.get("/tap/sync", params={"QUERY": "SELECT * FROM ivoa.ObsCore", "MAXREC": TAP_MAX_ROWS}).status_code == 200
+    assert client.get("/tap/sync", params={"QUERY": "SELECT * FROM ivoa.ObsCore", "MAXREC": TAP_MAX_ROWS + 1}).status_code in (400, 422)
+    fromstring(tap_capabilities_xml("https://example.org/skava&archive"))

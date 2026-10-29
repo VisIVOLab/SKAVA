@@ -80,12 +80,33 @@ CSRF: every form embeds a per-session HMAC token that is validated
 on POST. The header `X-CSRF-Token` is accepted as an alternative
 for HTMX / fetch callers.
 
-## Future: OIDC
+## OIDC bearer tokens (SRCNet IAM)
 
-Phase 5 will add OIDC (Garr AAI, eduGAIN, ORCID) without removing
-the local-password backend. The module path
-``app/admin/auth/oidc.py`` is reserved. Service accounts (publisher
-CLI, automated pipelines) will keep using `INTERNAL_API_KEY`.
+Set ``IAM_WELLKNOWN_ENDPOINT`` (the variable SRCNet services use) to the
+IAM's discovery document and SKAVA accepts, on the public endpoints, an
+access token that IAM issued: the signature is verified against the
+issuer's key set (asymmetric algorithms only), the token must not have
+expired, and it must carry the issuer and, when ``SKAVA_OIDC_AUDIENCE`` is
+set, that audience. Static tokens keep working next to it.
+
+A request without a valid token gets ``401`` with the IVOA SSO challenge:
+
+```
+WWW-Authenticate: Bearer realm="SKAVA", ivoa_bearer standard_id="ivo://ivoa.net/sso#BearerToken", access_url="https://iam.example/.well-known/openid-configuration"
+```
+
+so a client (the VisIVO Visual Analytics desktop does this) can find the
+IAM, sign in and retry. Two settings cover an IAM the service reaches on a
+name other than the public one: ``SKAVA_OIDC_ISSUER`` is the issuer the
+tokens carry, ``SKAVA_OIDC_PUBLIC_WELLKNOWN`` the discovery URL told to the
+clients in the challenge. ``SKAVA_OIDC_JWKS_URI`` overrides where the key
+set is fetched from.
+
+The federated search ([Federation API](federation)) asks the sibling
+instances with the caller's token, so one sign-in covers the federation;
+an instance that requires no token still passes the token it was given
+along. The admin UI keeps its local-password sessions; service accounts
+(publisher CLI, pipelines) keep using `INTERNAL_API_KEY`.
 
 ## What's NOT authenticated
 

@@ -1,17 +1,19 @@
 # SODA API
 
-`GET /soda/sync`, `POST /soda/execute`, and (planned) `POST /soda/async`
-— IVOA SODA-oriented endpoints for server-side operations on data access.
+`GET /soda/sync` and `POST /soda/execute` on SKAVA; the SODA services
+themselves run on the nodes.
 
 ```{note}
-`/soda/sync` **validates and routes** a SODA request and returns a JSON
-descriptor. `/soda/execute` **performs a real byte-level FITS cutout**:
-when a node holding the dataset runs a co-located VisIVO backend and its
-replica is a `file://` copy (the first such node in ranking order), SKAVA
-delegates the cutout to that backend
-(`/v1/datasets/cutout`), which computes it in place (compute-next-to-data)
-and streams the FITS back. Otherwise `/soda/execute` falls back to a
-metadata-cache staging handoff.
+SODA is node-local. The VisIVO backend of a node is a SODA service:
+`/soda/sync` (SODA 1.0: `CIRCLE`, `RANGE` and `POLYGON` positions, `BAND`,
+`TIME`) and `/soda/async`, a UWS 1.1 job list that also runs two operations
+beyond the cutout, selected by `OPERATION=MOMENT` (a moment map) and
+`OPERATION=PV` (a position-velocity diagram). SKAVA never touches the
+bytes: its DataLink advertises the chosen node's services for each dataset
+(`node-soda-sync`, `node-soda-async`, see [DataLink](datalink)), with the
+replica's own `ID`, and SKAVA's own `/soda/sync` **redirects** (303) a
+request to that node's service. `/soda/execute` is a non-standard proxy
+cutout kept for clients that cannot follow the DataLink descriptors.
 ```
 
 ## Endpoints
@@ -24,18 +26,22 @@ metadata-cache staging handoff.
   - Status
   - Notes
 * - ``GET /soda/sync``
-  - validation + routing
-  - Returns a JSON descriptor (parameter validation + routing decision).
-    Does not stream pixels.
+  - redirect / validation
+  - ``303`` to the SODA service of the node that holds the dataset in
+    place (the ranked first with a co-located backend), the replica's own
+    ``ID`` substituted and the request's parameters carried over. When no
+    node can process the dataset in place: a JSON descriptor (parameter
+    validation + routing decision), no pixels.
 * - ``POST /soda/execute``
   - real cutout / fallback
   - Streams ``application/fits`` when a node holding the dataset has a
     co-located VisIVO backend + ``file://`` replica (first in ranking
     order); otherwise returns a staging handoff JSON job.
-* - ``POST /soda/async``
-  - placeholder (disabled)
-  - Reserved for the future async job interface. Advertised via
-    ``capabilities.supports_soda_async`` (false today).
+* - node ``/soda/async``
+  - on the node
+  - The UWS job list of the node's backend (``PHASE=RUN``, ``ABORT``,
+    results, error, destruction), advertised in DataLink as
+    ``node-soda-async``; SKAVA has no job list of its own.
 ```
 
 ## Execute request (real cutout)
@@ -118,7 +124,9 @@ curl -s -X POST "https://skava.inaf.it/soda/sync" \
 }
 ```
 
-`/soda/sync` validates and routes only; use `/soda/execute` to get pixels.
+This is the answer when no node can process the dataset in place; otherwise
+`/soda/sync` redirects to the node's SODA service, which answers with the
+pixels.
 
 ### `/soda/execute` execution flow
 
@@ -132,8 +140,13 @@ curl -s -X POST "https://skava.inaf.it/soda/sync" \
 4. If no co-located backend is available, SKAVA returns a metadata-cache
    staging handoff JSON instead.
 
-Async SODA (`/soda/async`) with a job queue and lifecycle endpoints
-remains future work; the HTTP surface above is stable.
+Asynchronous SODA is the node's: a client that follows the DataLink
+descriptor `node-soda-async` creates a UWS job on the node's backend
+(`POST /soda/async` with the SODA parameters and `PHASE=RUN`), polls its
+phase, and reads the product from its result link; `OPERATION=MOMENT` and
+`OPERATION=PV` run a moment map and a position-velocity diagram the same
+way. The VisIVO Visual Analytics desktop drives these jobs for the
+operations it offers next to the data.
 
 ## Use from VO tools
 

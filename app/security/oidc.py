@@ -4,8 +4,10 @@ SRCNet services authenticate users with OIDC access tokens issued by a
 central IAM (INDIGO IAM, or Keycloak in development) and published through
 the issuer's discovery document (``IAM_WELLKNOWN_ENDPOINT``). SKAVA accepts
 such a token when its signature verifies against the issuer's key set, it has
-not expired, it was issued by that issuer and, when ``SKAVA_OIDC_AUDIENCE`` is
-set, it was issued (or exchanged) for SKAVA.
+not expired, it was issued by that issuer (or by ``SKAVA_OIDC_ISSUER`` when
+the service reaches the IAM on a name other than the public one the tokens
+carry) and, when ``SKAVA_OIDC_AUDIENCE`` is set, it was issued (or exchanged)
+for SKAVA.
 
 The discovery document and the key set are fetched lazily and cached; a key
 rotation is picked up because PyJWT's client refetches the set on an unknown
@@ -55,6 +57,8 @@ class OIDCValidator:
                     raise OIDCValidationError(f"IAM discovery failed: {exc}") from exc
                 issuer = doc.get("issuer")
                 jwks_uri = jwks_uri or doc.get("jwks_uri")
+            if settings.oidc_issuer:
+                issuer = settings.oidc_issuer
             if not jwks_uri:
                 raise OIDCValidationError("IAM discovery document has no jwks_uri")
             self._issuer = issuer

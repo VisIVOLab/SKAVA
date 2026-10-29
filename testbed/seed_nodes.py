@@ -2,12 +2,16 @@
 
 The publisher can only attach replicas to nodes SKAVA already knows, so the
 nodes come first. Each node advertises its co-located VisIVO backend.
+``SEED_NODES`` (a comma-separated list of codes) restricts the registration
+to some of the nodes: the second site catalogues only the nodes it has.
 
 The static ranking inputs are what an operator would declare at registration
 time, before the testbed's conditions are applied: the small node looks close
 and idle, the busy node was idle when it was registered. They are deliberately
 not updated afterwards; that staleness is what the static policy lives with.
 """
+import os
+
 from sqlalchemy import select
 
 from app.db import SessionLocal
@@ -23,8 +27,11 @@ NODES = [
 
 
 def main() -> None:
+    wanted = {code.strip().upper() for code in os.environ.get("SEED_NODES", "").split(",") if code.strip()}
     with SessionLocal() as db:
         for code, host, latency, load, capability in NODES:
+            if wanted and code not in wanted:
+                continue
             node = db.scalar(select(Node).where(Node.code == code)) or Node(code=code)
             node.name = f"Testbed node {code.lower()}"
             node.base_url = f"http://{host}:8000"
