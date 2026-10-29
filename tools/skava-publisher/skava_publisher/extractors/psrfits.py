@@ -38,6 +38,9 @@ def _opt_float(value: Any) -> float | None:
 
 class PsrFitsExtractor(Extractor):
     name = "psrfits"
+    # Before the generic FITS extractor: a PSRFITS file is a .fits file too,
+    # and supports() below tells it apart by its header.
+    priority = 10
 
     # PSRFITS files keep .fits extension but vary; we detect by checking
     # the FITSTYPE keyword in primary header.

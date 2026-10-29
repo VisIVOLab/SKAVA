@@ -46,6 +46,7 @@ cd testbed
 make data            # PROFILE=paper for the large cubes (several GB)
 make up              # build and start: catalogues on :18000 and :18001, IAM on :18300, broker on :18200, nodes on :18101-18104
 make seed            # register the nodes, then publish each node's files in place (far and busy to both sites)
+make admin           # an account for the catalogues' web admin, http://localhost:18000/admin/ (and :18001)
 make status
 make down            # stop and remove everything (make clean: also the data)
 ```
@@ -87,6 +88,10 @@ the public issuer and discovery URL (`SKAVA_OIDC_ISSUER`,
 curl -s -d grant_type=password -d client_id=visivo -d username=astronomer -d password=testbed -d scope=openid \
     http://localhost:18300/realms/srcnet/protocol/openid-connect/token | jq -r .access_token
 ```
+
+Each catalogue also has the web admin SKAVA ships (`/admin/`: dashboard,
+datasets with their replicas, nodes, uploads, audit log), a local account
+separate from the IAM; `make admin` creates it on both sites.
 
 `make conformance` reads the catalogue's TAP and DataLink, a node's SODA
 services and its UWS job list with pyvo, from a container on the testbed's
@@ -150,6 +155,7 @@ file records the host's clock skew so such a run is recognised.
 | `TESTBED_INTERNAL_API_KEY` | `testbed-internal-api-key` | the catalogues' ingestion key |
 | `TESTBED_FEDERATION_TIMEOUT` | `2` | seconds a catalogue waits for a sibling |
 | `TESTBED_KEYCLOAK_ADMIN_PASSWORD` | `testbed-admin` | the IAM's admin console (`http://localhost:18300`, user `admin`) |
+| `TESTBED_ADMIN_USER`, `TESTBED_ADMIN_PASSWORD` | `admin`, `TestbedAdmin1` | the catalogues' web admin (`make admin`; `/admin/` on either site) |
 
 These are development credentials for a local testbed; never reuse them.
 

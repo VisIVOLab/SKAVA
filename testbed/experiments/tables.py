@@ -307,8 +307,8 @@ def table_federation() -> None:
         return
     rows = d["rows"]
     by = {(r["what"], r["case"]): r for r in rows}
-    labels = {"local": "local search (first site)", "federated": "federated search, signed in",
-              "second-site-direct": "second site asked directly, token validated"}
+    labels = {"local": "local search, first site", "federated": "federated search, signed in",
+              "second-site-direct": "second site, asked directly"}
     latency = [(label, by[("latency", case)]) for case, label in labels.items()
                if ("latency", case) in by and by[("latency", case)].get("p50_ms") is not None]
     # A measurement with failed samples is shown as such, never as a plain figure.
@@ -325,18 +325,19 @@ def table_federation() -> None:
         return
     counts = sorted({r["n"] for _l, r in latency})
     per = f"{counts[0]} requests each" if len(counts) == 1 else "a different number of requests each"
-    caption = (f"E6: the federated search next to the local one ({per}, \\texttt{{limit=100}})"
+    caption = (f"E6: the federated search next to the local one ({per}, \\texttt{{limit=100}}; "
+               "the second site validates the caller's token)"
                + (", and the federated search with the second site stopped (the first site answers alone, "
                   "within the federation timeout)." if down else "."))
     ms = lambda v: f"{v:.1f} ms" if v < 1000 else f"{v / 1000:.2f} s"   # noqa: E731
     lines = [r"\begin{table}[t]", r"\centering", r"\caption{" + caption + "}", r"\label{tab:federation}",
-             r"\begin{tabular}{lrr}", r"\hline", r"Request & p50 & p95 \\", r"\hline"]
+             r"\small", r"\begin{tabular}{@{}lrr@{}}", r"\toprule", r"Request & p50 & p95 \\", r"\midrule"]
     for label, r in latency:
         lines.append(f"{tex(label)} & {ms(r['p50_ms'])} & {ms(r['p95_ms'])} \\\\")
     if down:
-        lines.append(f"{tex('federated search, second site down')} & {ms(down['request_ms_p50'])} & "
+        lines.append(f"{tex('federated, second site down')} & {ms(down['request_ms_p50'])} & "
                      f"{ms(down['request_ms_max'])}$^{{*}}$ \\\\")
-    lines += [r"\hline", r"\end{tabular}"]
+    lines += [r"\bottomrule", r"\end{tabular}"]
     if down:
         lines.append(r"\\[2pt]{\footnotesize $^{*}$the slowest of " + str(down["trials"]) + " requests.}")
     lines += [r"\end{table}", ""]

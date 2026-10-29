@@ -129,3 +129,44 @@ def test_ingestion_summary_correctness(client):
     assert summary.inserted_replicas == 1
     assert summary.skipped_records == 1
     assert len(summary.validation_errors) == 1
+
+
+def test_title_facility_and_instrument_are_stored(client):
+    # The publisher's extractors send them; ingestion used to drop all three.
+    record = {
+        "obs_id": "titled-1", "dataproduct_type": "cube", "node_id": "A",
+        "access_url": "https://node-a.example.org/titled-1.fits",
+        "obs_title": "HI survey of field 1", "facility_name": "MeerKAT",
+        "instrument_name": "L-band",
+    }
+    summary = _run_ingestion(client, [record], source_type="manual")
+    assert summary.skipped_records == 0
+    with app.state.testing_session_local() as db:
+        dataset = db.query(Dataset).filter(Dataset.obs_id == "titled-1").one()
+        assert (dataset.obs_title, dataset.facility_name, dataset.instrument_name) == (
+            "HI survey of field 1", "MeerKAT", "L-band")
+
+    # A later record without them keeps what is stored (an operator's edit too).
+    _run_ingestion(client, [{k: v for k, v in record.items()
+                             if k not in ("obs_title", "facility_name", "instrument_name")}],
+                   source_type="manual")
+    with app.state.testing_session_local() as db:
+        dataset = db.query(Dataset).filter(Dataset.obs_id == "titled-1").one()
+        assert dataset.facility_name == "MeerKAT"
+
+
+def test_overlong_values_skip_the_record_not_the_batch(client):
+    # PostgreSQL enforces column widths (SQLite does not): one long value
+    # used to fail the whole run; now only its record is refused.
+    good = {"obs_id": "fits-ok", "dataproduct_type": "cube", "node_id": "A",
+            "access_url": "https://node-a.example.org/ok.fits"}
+    long_target = dict(good, obs_id="too-long-target", target_name="x" * 129)
+    long_url = dict(good, obs_id="too-long-url",
+                    access_url="https://node-a.example.org/" + "x" * 600)
+    summary = _run_ingestion(client, [good, long_target, long_url], source_type="manual")
+    assert summary.skipped_records == 2
+    reasons = {e.index: e.message for e in summary.validation_errors}
+    assert "target_name is longer than 128 characters" in reasons[1]
+    assert "access_url is longer than 512 characters" in reasons[2]
+    with app.state.testing_session_local() as db:
+        assert db.query(Dataset).filter(Dataset.obs_id == "fits-ok").one()

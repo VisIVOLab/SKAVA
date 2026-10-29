@@ -23,14 +23,21 @@ page; on-call browses it the most.
 
 * - Symptom
   - Fix
-* - ``curl /system/health`` → ``Connection refused``
+* - ``curl /health/db`` → ``Connection refused``
   - Container not running. ``docker compose ps``; ``logs api``.
 * - ``Cannot start service api: address already in use``
   - Port 8000 taken on host. ``lsof -i :8000``; stop the conflicting
     process or remap.
 * - ``api`` healthy but external clients can't reach it
   - Reverse proxy / firewall. Test from inside the host first;
-    ``curl http://localhost:8000/system/health``.
+    ``curl http://localhost:8000/health/db``.
+* - ``/health/db`` or ``/availability`` answer 503
+  - The api is up but cannot reach PostgreSQL. Check the DB container
+    and ``SKAVA_DATABASE_URL``.
+* - Container exits at start with ``SKAVA_PUBLIC_BASE_URL must use https://
+    in production``
+  - ``SKAVA_ENV=production`` with an ``http://`` base URL. Fix the URL
+    (or the environment).
 ```
 
 (discovery-anomalies)=
@@ -52,9 +59,26 @@ page; on-call browses it the most.
     returns 404
   - Stale cache somewhere. Curl directly bypassing any CDN; restart
     api if persistent.
-* - ``"unknown node X"`` per record on ingestion
+* - ``Node not found: X`` per record on ingestion
   - The publisher's ``node.code`` doesn't match any Node row in
     SKAVA. Create the Node in admin first.
+* - 401 with an ``ivoa_bearer`` challenge on ``/discovery/search``
+  - Access tokens or OIDC are configured on this instance. Send a
+    token (``Authorization: Bearer …``); for OIDC, get one from the
+    IAM the challenge names.
+* - 401 ``Invalid access token: …`` with an OIDC token
+  - The message says why: expired, wrong issuer (set
+    ``SKAVA_OIDC_ISSUER`` when the service reaches the IAM under
+    another name), wrong audience (``SKAVA_OIDC_AUDIENCE``), or
+    ``IAM discovery failed`` (SKAVA cannot reach
+    ``IAM_WELLKNOWN_ENDPOINT``).
+* - ``/federation/search`` lists a sibling with ``status``
+    ``error``, ``timeout`` or ``unauthorized``
+  - The per-source entry carries the ``error``. Check the sibling's
+    URL in ``SKAVA_FEDERATED_SRC_URLS``, raise
+    ``SKAVA_FEDERATION_TIMEOUT_SECONDS`` if it is just slow, and for
+    ``unauthorized`` call with a token the sibling accepts (it is
+    forwarded).
 * - Cone search returns zero but you know data is in the cone
   - Spatial index possibly not populated. Re-publish; or fix the
     publisher to set ``s_ra`` / ``s_dec`` correctly.
@@ -89,15 +113,12 @@ Header name mismatch. SKAVA expects ``X-Internal-Api-Key``. Older
 publisher releases sent ``X-Internal-Key``. Upgrade the publisher
 to ≥ 0.1.0.
 
-### Build of the Apptainer image fails on ppc64le with `llvmlite`
+### Build of the VisIVO backend Apptainer image fails on ppc64le with `llvmlite`
 
-Known: SKAVA's stack on ppc64le has version-juggling pain with
-LLVM. Either:
-
-* Build the conda-based variant (``backend-conda.def``) which uses
-  pre-compiled wheels from conda-forge.
-* Drop the `numba` requirement from the publisher's
-  ``pyproject.toml`` (the FITS extractor doesn't actually use it).
+Known: the VisIVO backend's stack (``numba``) on ppc64le has
+version-juggling pain with LLVM. Build the conda-based variant
+(``backend-conda.def``), which uses pre-compiled wheels from
+conda-forge. The publisher image does not depend on ``numba``.
 
 (admin-ui-auth)=
 ## Admin UI auth
@@ -134,6 +155,9 @@ browser won't send back the session cookie → CSRF fails →
 * Set ``ADMIN_SESSION_COOKIE_SECURE=false`` for local dev.
 * Run SKAVA behind HTTPS.
 
+The production overrides set ``ADMIN_SESSION_COOKIE_SECURE=true``, so
+reach those stacks over HTTPS only.
+
 (routing-issues)=
 ## Routing issues (desktop client)
 
@@ -154,9 +178,21 @@ browser won't send back the session cookie → CSRF fails →
 * - Backend returns 401
   - Token mismatch. The backend prints its token at startup; copy it
     into Settings → Remote Backends.
-* - Backend returns "Resolved path … outside VISIVO_DATA_ROOT"
-  - The file lives outside the configured jail. Adjust
-    ``VISIVO_DATA_ROOT`` or move the file.
+* - Backend refuses the path (outside ``VISIVO_DATA_ROOT`` /
+    ``VISIVO_DATA_ROOTS``)
+  - The file lives outside the configured jail. Adjust the root(s)
+    or move the file.
+* - Routing always picks the same node although another is idle
+  - The ranking policy is ``static`` (the default): it uses the
+    declared scores. Set ``SKAVA_RANKING_POLICY=resource_aware`` and
+    a ``SKAVA_TELEMETRY_INTERVAL_SECONDS``; check what the nodes
+    report with ``GET /internal/telemetry``.
+* - ``resource_aware`` avoids a node that is up
+  - Its last probe failed or is older than
+    ``SKAVA_TELEMETRY_TTL_SECONDS``. ``GET /internal/telemetry`` shows
+    ``probe_ok`` / ``probe_error``; the node needs a
+    ``visivo_backend_url``, and ``SKAVA_VISIVO_BACKEND_TOKEN`` when it
+    requires auth. ``POST /internal/telemetry/probe`` probes now.
 ```
 
 (5xx)=
@@ -186,8 +222,9 @@ You'll find the exception traceback. Common roots:
 * - Symptom
   - Fix
 * - p95 ``/discovery/search`` > 1 s
-  - Check ``skava_db_pool_connections`` — pool exhausted? Bump
-    ``SKAVA_DB_POOL_SIZE``.
+  - Look for ``QueuePool limit … timed out`` errors in the logs —
+    pool exhausted? Bump ``SKAVA_DB_POOL_SIZE`` /
+    ``SKAVA_DB_MAX_OVERFLOW``.
 * - p95 ``/datalink/{obs_id}`` > 500 ms
   - Probably the replica ranking joining ``nodes`` on every call.
     Cache hits help; if you see this consistently file an issue.
@@ -210,7 +247,7 @@ You'll find the exception traceback. Common roots:
   - Fix
 * - ``Missing required field: <X>``
   - Add it to the manifest. CSV header missing? Re-export.
-* - ``unknown node POWER9``
+* - ``Node not found: POWER9`` (code ``node_not_found``)
   - Create the Node in ``/admin/nodes/`` first.
 * - ``s_ra must be in [0, 360]``
   - Source file has wrong RA; fix the extractor or the manifest.
@@ -234,7 +271,7 @@ them after the fix.
 
 When opening an issue:
 
-* SKAVA version (`/system/health` → `version`)
+* SKAVA version (`/capabilities` → `version`, and the Git commit)
 * publisher CLI version (`skava-publisher --version`)
 * desktop client version (Help → About)
 * curl reproducer (anonymise tokens)

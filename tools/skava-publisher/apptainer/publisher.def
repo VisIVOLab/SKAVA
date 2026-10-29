@@ -22,13 +22,13 @@ From: python:3.12-slim
         --bind /data:/data \\
         --bind /etc/skava-publisher.yaml:/etc/skava-publisher.yaml \\
         --bind /var/lib/skava-publisher:/var/lib/skava-publisher \\
-        publisher.sif scan -c /etc/skava-publisher.yaml -o /tmp/manifest.json
+        publisher.sif -c /etc/skava-publisher.yaml scan -o /tmp/manifest.json
 
     # Publish
-    apptainer run --bind ... publisher.sif publish -c /etc/skava-publisher.yaml -y
+    apptainer run --bind ... publisher.sif -c /etc/skava-publisher.yaml publish -y
 
     # Cron-friendly watch mode
-    apptainer run --bind ... publisher.sif watch -c /etc/skava-publisher.yaml --once
+    apptainer run --bind ... publisher.sif -c /etc/skava-publisher.yaml watch --once
 
     ── Environment ──────────────────────────────────────────────────────
     SKAVA_INTERNAL_API_KEY (required if config references ${SKAVA_INTERNAL_API_KEY})

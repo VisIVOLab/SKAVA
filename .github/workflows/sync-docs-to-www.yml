@@ -60,5 +60,5 @@ jobs:
           fi
           # Reference the source commit so audits can trace mirrors
           # back to their origin.
-          git commit -m "Sync docs from fvitello/SKAVA@${GITHUB_SHA::7}"
+          git commit -m "Sync docs from ${{ github.repository }}@${GITHUB_SHA::7}"
           git push origin HEAD:main

@@ -51,7 +51,7 @@ include = ["skava_publisher_casa*"]
 ```
 
 The entry-point key `casa` is also the resolution priority — see
-the [extractors page](../publisher/extractors#resolution-order).
+the [extractors page](../publisher/extractors.md#resolution-order).
 
 ## Step 2 — the extractor class
 
@@ -88,8 +88,10 @@ class CasaExtractor(Extractor):
             # OBSERVATION subtable carries the most useful header bits.
             with table(str(path / "OBSERVATION")) as obs:
                 obs_row = obs[0]
-                out["facility_name"] = obs_row.get("TELESCOPE_NAME") or None
-                out["instrument_name"] = obs_row.get("PROJECT") or None
+                if obs_row.get("TELESCOPE_NAME"):
+                    out["facility_name"] = obs_row["TELESCOPE_NAME"]
+                if obs_row.get("PROJECT"):
+                    out["instrument_name"] = obs_row["PROJECT"]
                 tmin, tmax = obs_row.get("TIME_RANGE", (None, None))
                 if tmin is not None:
                     # MJD seconds → MJD days
@@ -115,7 +117,10 @@ Rules to follow:
 
 * `supports()` must be fast — extension + ``is_dir()`` check is fine.
 * `extract()` may raise; the publisher catches and records the
-  failure in state.db with the error string.
+  failure in state.db with the error string, and aborts the scan once
+  the failures reach the config's `extract_failure_threshold`.
+* Omit keys that do not apply rather than setting them to `None`:
+  the publisher overlays the result on the config defaults.
 * Lazy import of heavy deps (``casacore``) keeps boot fast.
 * Return plain Python primitives (str, float, int, bool). Never
   ``Quantity`` / ``numpy.ndarray``.
@@ -143,7 +148,7 @@ for e in discover():
 # psrfits
 ```
 
-(Alphabetical order; ``casa`` wins resolution before ``fits``.)
+(By priority, then name: an extractor that sets ``priority`` below 100 is asked before ``fits``.)
 
 ## Step 4 — exercise it
 
@@ -194,35 +199,36 @@ Three options, increasingly automated:
    GitLab Packages). Update the Apptainer recipe to install from
    that index.
 
-For the SKAVA Apptainer image, add the plugin to ``%post``:
+For the SKAVA Apptainer image, add the plugin to ``%post``, after
+the line that installs the publisher itself:
 
 ```bash
 # tools/skava-publisher/apptainer/publisher.def
 %post
-    pip install --no-cache-dir /srv/publisher_src
+    ...
+    pip install --no-cache-dir "$SRC_DIR"
     pip install --no-cache-dir "skava-publisher-casa==0.1.0"
 ```
 
-Rebuild with the plugin baked in.
+Rebuild with the plugin baked in. The recipe's ``%test`` section
+asserts that the built-in ``fits``, ``hdf5`` and ``psrfits``
+extractors are registered; extend it with yours.
 
 ## Resolution order pitfalls
 
 If two plugins claim the same file:
 
-* The entry-point key earliest in lexical order wins (`casa` <
-  `fits`).
-* If you really need priority, name your entry-point with a
-  prefix: ``aa_my_extractor = ...``.
-
-For exclusive ownership (e.g. you want a `.fits` file with a
-specific keyword to go to your extractor, not the built-in), have
-your ``supports()`` peek at the FITS header and your extractor's key
-beat ``fits`` lexically.
+* The extractor with the lower ``priority`` class attribute wins
+  (default 100; the built-in ``psrfits`` uses 10); between equal
+  priorities, the entry-point name earliest in lexical order.
+* For exclusive ownership (a `.fits` file with a specific keyword
+  goes to your extractor, not the built-in), have ``supports()`` peek
+  at the header and set ``priority`` below 100, as ``psrfits`` does.
 
 ## Sharing back
 
 If your extractor is general-purpose (not site-specific), open a PR
-against ``fvitello/SKAVA`` proposing inclusion as a built-in. We
+against ``VisIVOLab/SKAVA`` proposing inclusion as a built-in. We
 prefer plugins that:
 
 * handle a widely-used format
@@ -233,7 +239,7 @@ Niche / site-specific extractors should stay as separate plugins.
 
 ## See also
 
-* [Publisher / extractors](../publisher/extractors) — the plugin
+* [Publisher / extractors](../publisher/extractors.md) — the plugin
   contract reference.
-* [Architecture / components](../architecture/components) for where
+* [Architecture / components](../architecture/components.md) for where
   the publisher sits in the wider SKAVA picture.

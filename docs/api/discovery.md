@@ -21,6 +21,9 @@ public, paginated, ObsCore-aligned.
 
 ## Query parameters
 
+Parameter names follow the IVOA DAL convention (upper case) except for
+`obs_id`, `limit` and `offset`. All filters are combined with AND.
+
 ```{list-table}
 :header-rows: 1
 :widths: 22 14 18 46
@@ -31,55 +34,56 @@ public, paginated, ObsCore-aligned.
   - Meaning
 * - ``limit``
   - int
-  - 50
-  - Max records returned (range 1–500).
+  - 100
+  - Max records returned (range 1-1000).
 * - ``offset``
   - int
   - 0
-  - Pagination cursor.
-* - ``ra`` / ``dec`` / ``radius``
-  - float (deg)
+  - Pagination offset (at most 1 000 000).
+* - ``POS``
+  - ``CIRCLE <ra> <dec> <radius>``
   - —
-  - Cone search. All three required if any is supplied.
-* - ``dataproduct_type``
+  - Cone search, ICRS degrees. RA in [0, 360], Dec in [-90, 90],
+    radius > 0. Only the ``CIRCLE`` form is accepted.
+* - ``BAND``
+  - ``<min> <max>`` (m)
+  - —
+  - Overlap with ``[em_min, em_max]``. ``min/max`` with a slash is
+    also accepted; ``min`` must not exceed ``max``.
+* - ``TIME``
+  - ``<min> <max>`` (MJD)
+  - —
+  - Overlap with ``[t_min, t_max]``. Same syntax as ``BAND``.
+* - ``COLLECTION``
   - str
   - —
-  - Exact match: ``image`` \| ``cube`` \| ``dynspec`` \|
-    ``polarimetric`` \| ``catalog`` \| ``event`` \| …
-* - ``obs_collection``
+  - Exact match on ``obs_collection``.
+* - ``DPTYPE``
   - str
   - —
-  - Exact match against the survey / collection label.
-* - ``calib_level``
-  - int (0-4)
-  - —
-  - Exact match.
-* - ``target_name``
+  - Exact match on ``dataproduct_type`` (``image``, ``cube``,
+    ``dynspec``, …).
+* - ``SPATIAL_CELL``
   - str
   - —
-  - Case-insensitive substring match.
-* - ``em_min_min`` / ``em_min_max`` / ``em_max_min`` / ``em_max_max``
-  - float (m)
-  - —
-  - Range filters on the spectral bounds.
-* - ``t_min_min`` / ``t_min_max`` / ``t_max_min`` / ``t_max_max``
-  - float (MJD)
-  - —
-  - Range filters on the time bounds.
+  - Exact match on ``spatial_index_cell``
+    (e.g. ``order8:ra213:dec85``).
 * - ``obs_id``
   - str
   - —
   - Exact match. Returns at most one record.
 ```
 
-Cone search uses the spatial index (`spatial_index_order` +
-`spatial_index_cell`) for sub-millisecond lookups; brute-force
-fallback if no index entry exists for the dataset.
+The cone filter compares the query circle with each dataset's centre
+(`s_ra`, `s_dec`) widened by half its `s_fov`; it is an approximate
+overlap test (RA wrap-around handled, no `cos(dec)` correction), not a
+full region intersection. `BAND` and `TIME` require both bounds of the
+dataset to be set. Results are ordered by `obs_id`.
 
 ## Example
 
 ```bash
-curl -s "https://skava.inaf.it/discovery/search?ra=83.6&dec=22.0&radius=0.5&dataproduct_type=image&limit=10" | jq
+curl -s "https://skava.inaf.it/discovery/search?POS=CIRCLE%20150.0%20-30.0%200.5&DPTYPE=cube&limit=10" | jq
 ```
 
 Response (truncated):
@@ -89,40 +93,40 @@ Response (truncated):
   "results": [
     {
       "metadata": {
-        "obs_id": "power9-3a7f1b2c0e5d4986",
-        "obs_collection": "inaf-power9-ska",
-        "dataproduct_type": "image",
-        "calib_level": 2,
-        "target_name": "Crab Pulsar",
-        "facility_name": "ASKAP",
-        "instrument_name": "PAF",
-        "s_ra": 83.6331,
-        "s_dec": 22.0145,
-        "s_fov": 0.1,
-        "t_min": 59010.0,
-        "t_max": 59010.5,
-        "em_min": 2.1e-3,
-        "em_max": 2.1e-3,
-        "doi": null,
-        "pid": null,
+        "obs_id": "tb-cube-l",
+        "obs_collection": "skava-testbed",
+        "obs_title": null,
+        "dataproduct_type": "cube",
+        "calib_level": null,
+        "target_name": "Synthetic HI field tb-cube-l",
+        "s_ra": 149.9987,
+        "s_dec": -29.9989,
+        "s_fov": 1.1378,
+        "em_min": 0.21414,
+        "em_max": 0.21633,
+        "spatial_index_order": 8,
+        "spatial_index_cell": "order8:ra213:dec85",
         "license": "CC-BY-4.0"
       },
       "replicas": [
         {
-          "code": "POWER9",
-          "name": "INAF Power9 (Catania)",
+          "code": "BIG",
+          "name": "Testbed node big",
           "is_enabled": true,
           "is_available": true,
           "latency_score": 10.0,
-          "load_score": 0.05,
+          "load_score": 0.2,
           "capability_score": 1.0,
-          "access_endpoint": "http://pleiadi-gpu.oact.inaf.it:8001/data/crab.fits"
+          "access_endpoint": "file:///data/cubes/tb-cube-l.fits",
+          "rank_reason": "rtt 1.2 ms, cpu pressure 0%, 0.0 tasks/worker, needs 3.0 GB of 7.3 GB free",
+          "score": 21.85,
+          "telemetry_age_s": 9.4
         }
       ],
-      "best_node": "POWER9",
-      "access_url": "https://skava.inaf.it/access/power9-3a7f1b2c0e5d4986",
+      "best_node": "BIG",
+      "access_url": "https://skava.inaf.it/access/tb-cube-l",
       "datalink_descriptor": {
-        "service": "https://skava.inaf.it/access/power9-3a7f1b2c0e5d4986",
+        "service": "https://skava.inaf.it/access/tb-cube-l",
         "standard_hint": "DataLink/SODA precursor",
         "operations": ["download", "cutout", "band_subset"]
       }
@@ -144,47 +148,74 @@ Response (truncated):
 * - Field
   - Meaning
 * - ``metadata``
-  - Every ObsCore-shaped column of the dataset.
+  - The ObsCore-shaped columns of the dataset (``obs_id``,
+    ``obs_collection``, ``obs_title``, ``dataproduct_type``,
+    ``calib_level``, ``target_name``, ``facility_name``,
+    ``instrument_name``, ``s_ra``, ``s_dec``, ``s_fov``, ``t_min``,
+    ``t_max``, ``em_min``, ``em_max``, ``spatial_index_order``,
+    ``spatial_index_cell``, ``doi``, ``pid``, ``citation``, ``license``).
 * - ``replicas[]``
-  - Every Replica of the dataset, with the host Node's properties
-    flattened in. Already ranked — index 0 is the best.
+  - The eligible replicas of the dataset, with the host node's
+    properties flattened in, already ranked by the configured policy
+    (``SKAVA_RANKING_POLICY``): index 0 is the best. Replicas the
+    policy set aside are not listed here (DataLink lists them under
+    ``routing.excluded``).
+* - ``replicas[].rank_reason``
+  - Why the policy put the replica there (declared scores for the
+    ``static`` policy; RTT, CPU pressure, tasks per worker and memory
+    for ``resource_aware``).
+* - ``replicas[].score``
+  - The ``resource_aware`` cost (lower is better); ``null`` under the
+    ``static`` policy and for replicas that could not be measured.
+* - ``replicas[].telemetry_age_s``
+  - Age in seconds of the node telemetry the decision used, or
+    ``null``.
 * - ``best_node``
   - Convenience copy of ``replicas[0].code``.
 * - ``access_url``
-  - SKAVA-side short link redirector that 303-redirects to the
-    chosen replica's ``access_endpoint``.
+  - ``{SKAVA_PUBLIC_BASE_URL}/access/{obs_id}``: the access resolver,
+    which returns a JSON routing envelope (best node, replica URL,
+    supported operations, DataLink-style links).
 * - ``datalink_descriptor``
-  - Quick DataLink hint. Use the dedicated ``/datalink/{obs_id}``
-    endpoint for the full envelope.
+  - Quick hint: ``operations`` is ``["download"]``, plus ``cutout``
+    and ``band_subset`` when some ranked replica is a ``file://`` copy
+    on a node with a co-located VisIVO backend. Use
+    ``/datalink/{obs_id}`` for the full envelope.
 ```
+
+A dataset with no eligible replica is left out of the search results
+(it still counts in `total`, so `returned` can be lower than the page
+size); `/discovery/dataset/{obs_id}` answers 503 `no_available_nodes`
+for it.
 
 ## Performance
 
 * Indexed columns: `obs_id` (unique), `obs_collection`,
   `dataproduct_type`, `spatial_index_cell`, `spatial_index_order`.
-* `target_name` is **not** indexed (substring match means LIKE
-  '%...%' which can't use a B-tree). Avoid it as the only filter on
-  large catalogues.
-* Default limit 50 keeps response under a few KB; bump to 500 for
-  bulk pulls.
+* The `POS` filter is evaluated on `s_ra`/`s_dec`/`s_fov`; for very
+  large catalogues, narrow with `COLLECTION`, `DPTYPE` or
+  `SPATIAL_CELL` as well.
+* The default limit of 100 keeps responses small; raise it up to 1000
+  for bulk pulls.
 
 ## Pagination
 
-`limit` + `offset`. Cursor-based pagination is on the roadmap (Phase
-4) for stable iteration over millions of rows.
-
-For now:
+`limit` + `offset`, ordered by `obs_id`. Offsets beyond 1 000 000 are
+refused (400); use narrower filters for deeper scans.
 
 ```bash
-total=$(curl -s "https://skava.inaf.it/discovery/search?obs_collection=...&limit=1" | jq .total)
+total=$(curl -s "https://skava.inaf.it/discovery/search?COLLECTION=...&limit=1" | jq .total)
 echo "Total: $total"
-for offset in $(seq 0 500 $total); do
-    curl -s "https://skava.inaf.it/discovery/search?obs_collection=...&limit=500&offset=$offset" \
+for offset in $(seq 0 1000 $total); do
+    curl -s "https://skava.inaf.it/discovery/search?COLLECTION=...&limit=1000&offset=$offset" \
         | jq -c '.results[].metadata.obs_id'
 done
 ```
 
 ## Errors
+
+Errors use the JSON envelope
+`{"error": {"code", "message", "details"}, "request_id"}`.
 
 ```{list-table}
 :header-rows: 1
@@ -193,14 +224,21 @@ done
 * - Status
   - When
 * - 200
-  - Always for valid query, even when ``returned=0``.
+  - Always for a valid query, even when ``returned=0``.
 * - 400
-  - Malformed parameter (string in ``ra``, ``radius`` without
-    ``ra``+``dec``, etc.). The JSON ``error.details`` lists which
-    fields failed and why.
+  - ``invalid_query``: malformed ``POS``/``BAND``/``TIME``, ``limit``
+    out of range, ``offset`` above 1 000 000. ``error.details`` lists
+    the failing fields for validation errors.
 * - 401
-  - Only if ``SKAVA_ACCESS_TOKENS`` is configured and the request
-    lacks a valid bearer token. Otherwise discovery is open.
+  - Only when static tokens (``SKAVA_ACCESS_TOKENS``) or OIDC
+    (``IAM_WELLKNOWN_ENDPOINT``) are configured and the request lacks
+    a valid token (see [Authentication](auth.md)). Otherwise discovery
+    is open.
+* - 404
+  - ``dataset_not_found`` on ``/discovery/dataset/{obs_id}``.
+* - 503
+  - ``no_available_nodes`` on ``/discovery/dataset/{obs_id}`` when no
+    replica is eligible.
 * - 5xx
   - DB unavailable / unexpected exception. ``request_id`` in the
     response correlates with the structured logs.
@@ -208,6 +246,7 @@ done
 
 ## See also
 
-* [DataLink API](datalink) — resolve a single obs_id with full
+* [DataLink API](datalink.md) — resolve a single obs_id with full
   service descriptors and links.
-* [TAP API](tap) — same data via ADQL for VO tools.
+* [TAP API](tap.md) — same data via ADQL for VO tools.
+* [Federation API](federation.md) — the same filters across sibling SKAVA instances.

@@ -8,7 +8,7 @@ a step disagrees.
 ```{note}
 For the **general** pattern of integrating SKAVA with a SLURM cluster
 + shared filesystem (applicable to any SRC, not just INAF Power9),
-see [SLURM-backed VisIVO backend](../client-integration/slurm-backed-backend).
+see [SLURM-backed VisIVO backend](../client-integration/slurm-backed-backend.md).
 This page is the worked example.
 ```
 
@@ -27,8 +27,8 @@ The runbook assumes:
 docker compose -f ~/Documents/GitHub/SKAVA/docker-compose.yml ps
 # Both db and api should be Up (healthy)
 
-curl -sf http://localhost:8000/system/health | jq
-# {"status": "ok", "version": "0.1.0", ...}
+curl -sf http://localhost:8000/health/db | jq
+# {"status": "ok", "database": "reachable"}
 ```
 
 ```bash
@@ -107,16 +107,23 @@ cd ~/Documents/GitHub/SKAVA
     file:///data/cubes/m87.fits      # adjust to a real FITS on Power9
 ```
 
-Verify in the admin UI:
+The script upserts the `POWER9` node directly in the database, ingests a
+one-row CSV manifest (collection `inaf-power9`) through
+`/internal/ingestion/run` with the api container's `INTERNAL_API_KEY`,
+and prints the `/datalink` answer so you can see the `visivo-backend`
+descriptor. It runs `docker compose` against `docker-compose.yml`
+(`SKAVA_COMPOSE_FILE` to point elsewhere) from the repository root.
+
+Verify:
 
 ```bash
-curl -s "http://localhost:8000/discovery/search?obs_collection=inaf-power9-ska" | jq '.total'
+curl -s "http://localhost:8000/discovery/search?COLLECTION=inaf-power9" | jq '.total'
 # >= 1
 ```
 
 ## 4. Configure the desktop client
 
-In VisIVO desktop:
+In VisIVO Visual Analytics:
 
 ### Settings → SKAVA
 
@@ -144,7 +151,7 @@ In the desktop:
 
 1. Open **SKAVA Discovery** tab.
 2. Type any filter that matches a Power9-published dataset (e.g.
-   `obs_collection: inaf-power9-ska`).
+   the collection `inaf-power9`).
 3. Click **Search**. The table should populate.
 4. Pick a row → **Open in VisIVO**.
 
@@ -176,21 +183,12 @@ Once the dataset is open, exercise heavy compute:
 * **Region stats**: instant.
 * **Channel map mosaic**: O(N) seconds where N = number of channels.
 
-For each, the relevant timing line appears in the backend log:
-
-```
-[moment] dataset_id=ds_xxx order=0 elapsed_ms=842
-```
-
-Compare with the same dataset opened via the local backend on your
-Mac (drag-drop a downloaded copy):
-
-```
-[moment] dataset_id=ds_yyy order=0 elapsed_ms=18450
-```
-
-The 20× speed-up demonstrates the value of compute-next-to-data:
-no file transfer + GPU acceleration on the SRC.
+The backend log shows which engine ran each moment
+(`[moment] backend=… order=… subset_bytes=…`); time the operation in
+the client. Compare with the same dataset opened via the local backend
+on your Mac (drag-drop a downloaded copy). The difference demonstrates
+the value of compute-next-to-data: no file transfer + acceleration on
+the SRC.
 
 ## 7. Tear-down
 
@@ -221,7 +219,7 @@ The state inside the container is ephemeral; no cleanup needed.
 * - Open returns 401 from Power9
   - Token mismatch between desktop Settings and the backend's
     startup log.
-* - Open returns "outside VISIVO_DATA_ROOT"
+* - Open refuses the path (outside ``VISIVO_DATA_ROOT``)
   - The published ``access_url`` points outside ``/data``. Either
     move the file under ``/data`` or change
     ``APPTAINERENV_VISIVO_DATA_ROOT`` to its parent.
@@ -239,7 +237,7 @@ The state inside the container is ephemeral; no cleanup needed.
 Tick each one before declaring the testbed validated:
 
 - [ ] Pre-flight (step 0) — both SKAVA and the Power9 backend respond
-      to `/system/health` and `/v1/health` respectively.
+      to `/health/db` and `/v1/health` respectively.
 - [ ] Discovery (step 3) — at least one dataset visible in the admin
       UI tagged ``node=POWER9``.
 - [ ] Routing (step 5) — desktop badge turns blue on Open, backend

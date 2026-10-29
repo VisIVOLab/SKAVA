@@ -14,14 +14,14 @@ hits SKAVA", high-stakes ingestion.
 skava-publisher -c /etc/skava-publisher.yaml scan -o /tmp/manifest.json
 
 # Output:
-#   ─── Summary ────────────────────────────
-#               scanned: 1003
-#       skipped_unsupported: 0
-#       skipped_unchanged: 0
-#             extracted: 1003
-#       extract_failed: 0
-#   ────────────────────────────────────────
 #   Wrote 1003 records to /tmp/manifest.json
+#   ─── Summary ────────────────────────────
+#                    scanned: 1003
+#          skipped_unchanged: 0
+#        skipped_unsupported: 0
+#                  extracted: 1003
+#             extract_failed: 0
+#   ────────────────────────────────────────
 ```
 
 The state DB is touched (file index is updated) but no record is
@@ -43,16 +43,24 @@ skava-publisher -c /etc/skava-publisher.yaml validate -m /tmp/manifest.json
 # Output:
 #   Validated 1003 records.
 #   {
+#     "job": { "job_id": 41, "dry_run": true, "status": "...", ... },
 #     "summary": {
 #       "processed": 1003,
+#       "inserted_datasets": 1003,
+#       "updated_datasets": 0,
+#       "inserted_replicas": 1003,
+#       "updated_replicas": 0,
 #       "skipped": 0,
 #       "validation_errors": []
 #     }
 #   }
 ```
 
-If validation surfaces errors (e.g. `unknown node POWER9` because
-you forgot to create it in the admin UI), fix and re-validate.
+"Validated" only means SKAVA answered; read `skipped` and
+`validation_errors`. If they are not empty (e.g. `node_not_found`,
+"Node not found: POWER9", because you forgot to create the node in
+the admin UI, or "Missing required field: dataproduct_type"), fix and
+re-validate.
 
 ```bash
 # 4. Real publish
@@ -63,8 +71,10 @@ skava-publisher -c /etc/skava-publisher.yaml publish -m /tmp/manifest.json
 # ✓ Published 1003 record(s).
 ```
 
-State DB rows transition `pending → published` with the assigned
-`obs_id`.
+With `-m` the state DB is not updated: the files the `scan` step
+recorded stay `pending`, so the next `publish` without `-m`
+re-extracts and re-posts them once (harmless, the ingestion is
+idempotent on `obs_id`) and then marks them `published`.
 
 ## Level 2 — Semi-auto
 
@@ -76,17 +86,26 @@ skava-publisher -c /etc/skava-publisher.yaml publish -y
 ```
 
 The `-y` skips the confirmation prompt. The publisher scans, builds
-the manifest, validates internally, POSTs to SKAVA, and updates
+the manifest, POSTs it to SKAVA's `/internal/ingestion/run` (there is
+no separate dry-run step) and records each file's outcome in
 state.db — all in one command.
+
+A file is marked `published` only when SKAVA took its record. A record
+SKAVA skipped (for example `node_not_found`) marks its file `failed`
+with SKAVA's reason, and the next run sends it again; `status` lists
+the failures. `publish -m` records outcomes only for the files the
+manifest describes and that have not changed since it was written
+(the manifest carries each file's path, size and mtime).
 
 Second-day output:
 
 ```
 ─── Summary ────────────────────────────
-        scanned: 1005
-    skipped_unchanged: 1003       ← state.db skips!
-            extracted: 2
-    extract_failed: 0
+                 scanned: 1005
+       skipped_unchanged: 1003       ← state.db skips!
+     skipped_unsupported: 0
+               extracted: 2
+          extract_failed: 0
 ────────────────────────────────────────
 About to publish 2 record(s)…
 ✓ Published 2 record(s).
@@ -104,7 +123,7 @@ When to use: production once the config is stable.
 
 ### Cron-style
 
-```cron
+```text
 # /etc/cron.d/skava-publisher
 0 */6 * * * skava /usr/bin/apptainer run \
     --bind /data:/data \
@@ -112,7 +131,7 @@ When to use: production once the config is stable.
     --bind /var/lib/skava-publisher:/var/lib/skava-publisher \
     --env-file /etc/skava-publisher.env \
     /opt/skava/publisher.sif \
-    watch --once \
+    -c /etc/skava-publisher.yaml watch --once \
     >> /var/log/skava-publisher.log 2>&1
 ```
 
@@ -146,7 +165,7 @@ ExecStart=/usr/bin/apptainer run \
     --bind /data:/data \
     --bind /etc/skava-publisher.yaml:/etc/skava-publisher.yaml \
     --bind /var/lib/skava-publisher:/var/lib/skava-publisher \
-    /opt/skava/publisher.sif watch --once
+    /opt/skava/publisher.sif -c /etc/skava-publisher.yaml watch --once
 ```
 
 `/etc/systemd/system/skava-publisher.timer`:
@@ -156,7 +175,7 @@ ExecStart=/usr/bin/apptainer run \
 Description=Publish to SKAVA every 6h
 
 [Timer]
-OnUnitActiveSec=6h
+OnCalendar=*-*-* 00/6:00:00
 Persistent=true
 
 [Install]
@@ -185,16 +204,18 @@ up at the next boot.
 * - ``validate``
   - write to SKAVA; mark anything ``published``.
 * - ``publish`` (with ``--manifest``)
-  - touch the file system (besides state.db); discover new files
-    on disk.
+  - scan the file system or touch state.db; discover new files on
+    disk.
 * - ``publish`` (without ``--manifest``)
-  - re-publish unchanged files (state.db skips them); fix already-
-    failed records (use ``--force`` for that).
+  - re-publish unchanged ``published`` files (use ``--force`` for
+    that). Files that failed extraction, or stayed ``pending``, are
+    retried automatically.
 * - ``watch``
-  - retry SKAVA when it returns 5xx (each iteration is independent;
-    next iteration will pick up).
+  - retry SKAVA when it returns an error (each iteration is
+    independent; files not marked ``published`` are picked up next
+    time).
 * - ``status``
-  - touch SKAVA or state.db.
+  - contact SKAVA or change any file's status.
 ```
 
 ## Inspecting what's in state.db
@@ -214,7 +235,7 @@ Or read raw:
 
 ```bash
 sqlite3 /var/lib/skava-publisher/state.db \
-    "SELECT obs_id, path FROM files WHERE last_status='failed' LIMIT 5;"
+    "SELECT path, last_error FROM files WHERE last_status='failed' LIMIT 5;"
 ```
 
 ## Forcing a re-publish
@@ -243,7 +264,11 @@ skava-publisher -c /etc/skava-publisher.yaml publish -y
 # .gitlab-ci.yml fragment
 publish-srca:
   stage: deploy
-  image: registry.inaf.it/skava/publisher:0.1.0
+  # An image built from testbed/publisher/Dockerfile; its entrypoint is
+  # skava-publisher, so reset it for the script shell.
+  image:
+    name: <your-registry>/skava-publisher:0.1.0
+    entrypoint: [""]
   script:
     - skava-publisher --config /run/secrets/skava.yaml scan -o manifest.json
     - jq '.records | length' manifest.json

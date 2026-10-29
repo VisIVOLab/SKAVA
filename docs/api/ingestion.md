@@ -1,8 +1,8 @@
 # Internal ingestion API
 
 `/internal/ingestion/*` — authenticated endpoints used by the
-publisher CLI and the (planned) admin UI bulk upload. NOT a public
-API — gated by `X-Internal-Api-Key`.
+publisher CLI and operator scripts. NOT a public API — gated by
+`X-Internal-Api-Key`.
 
 ## Endpoints
 
@@ -21,17 +21,19 @@ API — gated by `X-Internal-Api-Key`.
   - Validate + write. The canonical ingestion call.
 * - ``/internal/ingestion/history``
   - GET
-  - List recent ingestion jobs.
+  - List recent ingestion jobs (``limit`` 1-500, default 50).
 * - ``/internal/ingestion/history/{job_id}``
   - GET
-  - Single job detail including per-record errors.
+  - Single job detail including per-record errors (404
+    ``ingestion_job_not_found`` when unknown).
 ```
 
 ## Authentication
 
 Every call requires the `X-Internal-Api-Key` header. The value must
 match `INTERNAL_API_KEY` (or `SKAVA_INTERNAL_API_KEY`) in the
-api container's environment.
+api container's environment. When no key is configured at all, every
+call is refused with 401 (`Internal API key is not configured`).
 
 ```bash
 curl -fsS -X POST "$SKAVA/internal/ingestion/dry-run" \
@@ -55,7 +57,7 @@ Missing or wrong key → 401 with:
 
 ## Request shape
 
-`multipart/form-data` with three form fields:
+`multipart/form-data` with these form fields:
 
 ```{list-table}
 :header-rows: 1
@@ -68,23 +70,25 @@ Missing or wrong key → 401 with:
 * - ``file``
   - file upload
   - **yes**
-  - CSV or JSON manifest body. Max ~64 MB (configurable in reverse
-    proxy).
+  - CSV or JSON manifest body (UTF-8). An empty file is refused
+    (400). The size limit is the reverse proxy's.
 * - ``format``
   - str
   - no
-  - ``csv`` \| ``json``. Auto-detected from the filename suffix if
-    omitted.
+  - ``csv`` \| ``json``. Detected from the ``.csv`` / ``.json``
+    filename suffix if omitted; 400 when neither gives a format.
 * - ``source_ref``
   - str
   - no
-  - Free-text identifier captured in the audit row. Common values:
-    ``publisher@<node>``, ``mac-dev``, ``cron-daily``.
+  - Free-text identifier stored on the job and, unless a record
+    carries its own ``source_ref``, on each dataset. Common values:
+    ``publisher@<node>``, ``cron-daily``.
 * - ``source_type``
   - str
   - no
   - Defaults to the format. Use to override (e.g.
-    ``skava-publisher`` so the audit history filters cleanly).
+    ``skava-publisher`` so the job history filters cleanly); a record's
+    own ``source_type`` wins for that dataset.
 ```
 
 ## CSV format
@@ -101,22 +105,29 @@ node_id, access_url, is_public
 Optional columns (ignored if missing):
 
 ```
-facility_name, instrument_name, s_fov, doi, pid,
-citation, license, source_ref
+s_fov, checksum, doi, pid, citation, license,
+source_type, source_ref
 ```
+
+`node_code` is accepted as an alias of `node_id`, `access_endpoint` of
+`access_url`. `obs_title`, `facility_name` and `instrument_name` are
+stored when present; a later record without them keeps the stored
+values. A text value longer than its column (for example 128
+characters for `target_name`, 512 for `access_url`) skips the record
+with a `validation_error`, instead of failing the whole run.
 
 Example:
 
-```csv
+```text
 obs_id,obs_collection,dataproduct_type,calib_level,target_name,s_ra,s_dec,t_min,t_max,em_min,em_max,access_format,access_estsize,node_id,access_url,is_public
-power9-test-001,inaf-power9,cube,2,M87,187.7059,12.3911,59600.0,59600.5,2.1e-3,2.1e-3,image/fits,4096,POWER9,file:///data/cubes/m87.fits,true
+tb-cube-x,skava-testbed,cube,2,M87,187.7059,12.3911,59600.0,59600.5,0.2114,0.2142,image/fits,4096,BIG,file:///data/cubes/m87.fits,true
 ```
 
 ## JSON format
 
 Either:
 
-```json
+```text
 [
   { "obs_id": "power9-test-001", ... },
   { "obs_id": "power9-test-002", ... }
@@ -125,17 +136,16 @@ Either:
 
 or wrapped in a `records` envelope:
 
-```json
+```text
 {
   "records": [
     { "obs_id": "...", ... }
-  ],
-  "source_ref": "publisher@power9"
+  ]
 }
 ```
 
-The publisher CLI uses the wrapped form so the manifest file can
-carry its own provenance.
+Only the `records` list of the envelope is read; any other top-level
+key is ignored (pass `source_ref` as a form field or per record).
 
 ## Per-record fields
 
@@ -149,18 +159,19 @@ carry its own provenance.
 * - ``obs_id``
   - yes
   - Unique key. SKAVA performs an UPSERT — same obs_id updates the
-    existing row.
+    existing row (only the fields given a non-empty value overwrite).
 * - ``dataproduct_type``
   - yes
   - ``image`` \| ``cube`` \| ``dynspec`` \| ``polarimetric`` \|
     ``catalog`` \| ``event`` \| arbitrary string.
 * - ``node_id``
   - yes
-  - Code of an existing Node. Unknown → record skipped with error
-    ``unknown node X``.
+  - Code (or numeric id) of an existing Node. Unknown → record skipped
+    with code ``node_not_found``. Alias: ``node_code``.
 * - ``access_url``
   - yes
-  - URL with a scheme. SKAVA is scheme-agnostic.
+  - URL with a scheme. SKAVA is scheme-agnostic. Alias:
+    ``access_endpoint``.
 * - ``calib_level``
   - no
   - 0–4.
@@ -178,13 +189,20 @@ carry its own provenance.
   - Metres. Same range check.
 * - ``access_estsize``
   - no
-  - KB. Used for hints in DataLink responses.
+  - KB. Shown in DataLink ``primary_access`` and used by the
+    ``resource_aware`` ranking policy to estimate memory need.
 * - ``is_public``
   - no
-  - Defaults true. Replica visibility flag.
-* - ``provenance_json``
+  - Defaults true. Replica visibility flag (``true/false``,
+    ``1/0``, ``yes/no``, ``y/n``, ``t/f``); a non-public replica is
+    never handed out by discovery.
+* - ``provenance`` / ``provenance_json``
   - no
-  - Free-form JSON object. The publisher CLI fills SHA256 + rel_path.
+  - Free-form JSON object (a scalar is wrapped as ``{"value": …}``).
+    The publisher CLI fills SHA256 + rel_path.
+* - ``checksum``
+  - no
+  - Plain string, shown by ``/provenance/{obs_id}``.
 * - ``doi`` / ``pid`` / ``citation`` / ``license``
   - no
   - Plain strings.
@@ -200,7 +218,7 @@ carry its own provenance.
         "completed_at": "2026-06-05T16:45:43.773072",
         "status": "succeeded",
         "source_type": "skava-publisher",
-        "source_ref": "publisher@POWER9",
+        "source_ref": "publisher@BIG",
         "filename": "manifest.csv",
         "dry_run": false,
         "record_count": 1003,
@@ -211,21 +229,42 @@ carry its own provenance.
             "inserted_replicas": 1003,
             "updated_replicas": 0,
             "skipped_records": 0,
-            "validation_errors": []
-        }
+            "validation_errors": [],
+            "started_at": "2026-06-05T16:45:43.768500",
+            "finished_at": "2026-06-05T16:45:43.772900"
+        },
+        "error_message": null,
+        "triggered_by": "internal-api"
     },
-    "summary": { ... same shape ... }
+    "summary": {
+        "processed": 1003,
+        "inserted_datasets": 950,
+        "updated_datasets": 53,
+        "inserted_replicas": 1003,
+        "updated_replicas": 0,
+        "skipped": 0,
+        "validation_errors": []
+    }
 }
 ```
 
+The top-level `summary` is a compact view of `job.summary`
+(`processed` = `total_records`, `skipped` = `skipped_records`).
+
 `status` is one of:
 
-* `succeeded` — every record applied
-* `partial` — some records skipped due to validation errors
-* `failed` — DB-level error; no record applied
+* `succeeded` — the run finished; records that failed validation are
+  skipped and listed, the rest applied
+* `dry_run` — a dry run finished; nothing was written
+* `failed` — an unexpected error; nothing applied, the call answers
+  500 `ingestion_failed` and the job keeps the `error_message`
+* `running` — while in progress. Only one job runs at a time: a second
+  call answers 409 `ingestion_running`.
 
 Per-record errors are listed under `summary.validation_errors[]`
-with `{index, code, message}`.
+with `{index, code, message}`; `code` is `validation_error`,
+`normalization_error` (e.g. a non-numeric `s_ra` or an invalid boolean)
+or `node_not_found`.
 
 ## Common validation errors
 
@@ -237,15 +276,15 @@ with `{index, code, message}`.
   - Cause
 * - ``Missing required field: <name>``
   - Schema check failed.
-* - ``unknown node <code>``
+* - ``Node not found: <code>``
   - The publisher's config references a node not registered in
     SKAVA's ``nodes`` table.
 * - ``s_ra must be in [0, 360]``
-  - Number out of range.
+  - Number out of range (likewise ``s_dec``, ``s_fov must be > 0``).
 * - ``t_min must be <= t_max``
-  - Range inverted.
+  - Range inverted (likewise ``em_min``/``em_max``).
 * - ``access_url must include a scheme``
-  - URL had no ``://``.
+  - URL had no ``scheme://``.
 ```
 
 ## History
@@ -271,7 +310,7 @@ Adjust to your audit policy.
 
 ## See also
 
-* [Publisher / overview](../publisher/overview) — the canonical
+* [Publisher / overview](../publisher/overview.md) — the canonical
   consumer of this API.
-* [Admin UI / audit](../admin-ui/audit) for the cross-cutting audit
+* [Admin UI / audit](../admin-ui/audit.md) for the cross-cutting audit
   log that also captures ingestion-triggered changes.

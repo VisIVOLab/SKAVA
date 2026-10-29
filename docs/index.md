@@ -3,9 +3,10 @@
 **SKAVA** is the data-discovery and access service of the INAF
 contribution to the SKA Regional Centre (SRC) Network. It exposes an
 IVOA-aligned HTTP API that lets clients **discover** astronomical
-datasets across federated nodes, **resolve** how to access each
-dataset, and **route** compute requests to a backend co-located with
-the data ("compute next to data").
+datasets across federated nodes and sibling catalogues, **resolve** how
+to access each dataset, and **route** compute requests to a backend
+co-located with the data ("compute next to data"), choosing the node
+from what the nodes themselves report about their resources.
 
 ```{rubric} What SKAVA is
 ```
@@ -14,18 +15,33 @@ the data ("compute next to data").
   node that produced them; SKAVA stores ObsCore-shaped records that
   point at them.
 * A **federation hub**: each node is a row in the database with its
-  own access endpoint, ranking score, and optional co-located VisIVO
-  compute backend.
-* A **discovery + DataLink + SODA endpoint** that astronomical clients
-  can query without knowing the internal topology of the federation.
+  own access endpoint, declared ranking scores and optional co-located
+  VisIVO compute backend. With the resource-aware policy, a prober reads
+  each backend's `/v1/ping` and `/v1/node/status`, and every replica is
+  returned with its `score` and `rank_reason`; replicas set aside are
+  listed with the reason.
+* A **discovery + DataLink + SODA + TAP endpoint** (ObsCore, with VOSI
+  tables and capabilities) that astronomical clients can query without
+  knowing the internal topology of the federation. DataLink advertises
+  the node's own services: its VisIVO backend, its SODA sync and async
+  (UWS) services, and the moment and PV operations for cubes.
+* A **federated search** across sibling SKAVA catalogues, merged on
+  `obs_id`, asked with the caller's token.
+* **OIDC-aware**: public endpoints can require bearer tokens from an
+  SRCNet IAM (INDIGO IAM / Keycloak); a refused request carries the IVOA
+  `ivoa_bearer` challenge that names the IAM.
 
 ```{rubric} What SKAVA is not
 ```
 
-* Not a download server. Bytes never flow through SKAVA — clients hit
-  the access URL the catalogue hands them.
+* Not a download server. Files never flow through SKAVA — clients hit
+  the access URL the catalogue hands them. `/soda/sync` answers with a
+  303 redirect to the node's SODA service; the only bytes SKAVA relays
+  are those of a cutout requested through its non-standard
+  `/soda/execute` proxy.
 * Not a compute service. VisIVO backends do the compute; SKAVA only
-  tells clients which backend serves a given dataset.
+  tells clients (and the Computing Broker) which node serves a given
+  dataset.
 
 ## At a glance
 
@@ -39,7 +55,7 @@ flowchart LR
 ```
 
 Three round-trips, no file transfer. The full architecture is in
-[Compute next to data](architecture/compute-next-to-data).
+[Compute next to data](architecture/compute-next-to-data.md).
 
 ## Documentation map
 
@@ -138,6 +154,7 @@ operations/e2e-power9-runbook
 
 development/contributing
 development/testing
+development/testbed
 development/extending-extractors
 ```
 
@@ -149,6 +166,7 @@ reference/obscore-fields
 reference/env-vars
 reference/glossary
 reference/changelog
+reference/d3.1-design-report
 ```
 
 ## Quick links
@@ -167,7 +185,8 @@ Bring up SKAVA with Docker Compose in under five minutes.
 :link: api/discovery
 :link-type: doc
 
-Discovery, DataLink, SODA, TAP and internal ingestion endpoints.
+Discovery, DataLink, SODA, TAP, federation, authentication and
+internal ingestion endpoints.
 :::
 
 :::{grid-item-card} {fas}`upload` Publish your data
@@ -202,6 +221,6 @@ Coding conventions, tests, and how to add a new extractor.
 
 ## License
 
-SKAVA is released under the MIT license. See the
-[LICENSE](https://github.com/fvitello/SKAVA/blob/main/LICENSE) file in
+SKAVA is released under the GNU General Public License v3.0. See the
+[LICENSE](https://github.com/VisIVOLab/SKAVA/blob/main/LICENSE) file in
 the repository root.

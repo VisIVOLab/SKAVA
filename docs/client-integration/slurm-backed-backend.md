@@ -23,7 +23,7 @@ underlying compute node changes between sessions.
 ```{mermaid}
 flowchart LR
     subgraph laptop["Laptop"]
-        Client[VisIVO desktop]
+        Client[VisIVO Visual Analytics]
     end
     subgraph cluster["SRC cluster"]
         Frontend[(Frontend / login node)]
@@ -77,6 +77,14 @@ SSH tunnel exits to on every consuming laptop. SKAVA emits it as the
 visivo-backend descriptor's `endpoint`; the desktop matches it
 against its registered Remote Backends.
 
+This works with SKAVA's default `static` ranking policy. With
+`SKAVA_RANKING_POLICY=resource_aware` SKAVA itself probes
+`/v1/ping` and `/v1/node/status` at the VisIVO backend URL, from
+SKAVA's host: a `localhost` URL there does not reach the compute node,
+and the node is excluded as "backend unreachable". In that case give
+the Node a backend URL SKAVA can reach (a stable proxy, see below) and
+let the desktops match by `SRC code`.
+
 ### 2. Publish the catalogue once
 
 Run the publisher on the frontend (or any compute node — the shared
@@ -112,15 +120,21 @@ namespace, not on any specific node.
 
 ### 3. Register the Remote Backend on each laptop
 
-In VisIVO desktop:
+In VisIVO Visual Analytics:
 
 ```
-Settings → Remote Backends → Add:
-  ID:        src-<src-name>
-  URL:       http://localhost:8000        ← the local end of the tunnel
-  Token:     <stable token, see below>
-  SRC code:  <SRC-NAME>                   ← matches the Node's code
+Settings → Backends → Remote Backends → Add…:
+  Identifier:    src-<src-name>
+  Display name:  <SRC-NAME> (SLURM)
+  URL:           http://localhost:8000        ← the local end of the tunnel
+  Token:         <stable token, see below>
+  SRC code:      <SRC-NAME>                   ← matches the Node's code
 ```
+
+The desktop's built-in local backend defaults to
+`http://127.0.0.1:8000`, which is the same address. If the laptop also
+runs its own local backend, give the tunnel another port (`--port`,
+see the edge cases) so the two do not collide.
 
 `SRC code` is the safety net: even if a colleague's tunnel uses a
 different local port, the desktop falls back to matching by
@@ -150,9 +164,14 @@ one:
     Settings → Remote Backends.
   - Stronger forward secrecy; fresh credentials per session.
 * - Per-session via file
-  - Launcher writes the token to ``~/.visivo_token``; future desktop
-    versions can auto-load. Not implemented in Phase 1.
-  - Best balance once the desktop supports it.
+  - The tunnel helper writes the session token to the laptop's
+    ``~/.visivo_token`` (the launcher does the same on the cluster).
+    The desktop sends that file's token only to its local backend
+    address (Settings → Backends, default ``http://127.0.0.1:8000``):
+    when the tunnel exits there and no local backend runs, the desktop
+    treats the tunnel as its local backend and needs no token entry.
+  - No copy and paste, but the badge reads "Local" rather than the
+    node's name; at any other port, paste the token instead.
 ```
 
 For SKA testbeds, the stable-token strategy is recommended — fewer
@@ -205,12 +224,12 @@ sequenceDiagram
 
     L->>S: GET /datalink/{obs_id}
     S-->>L: { service_descriptors: [{<br/>  type: "visivo-backend",<br/>  endpoint: "http://localhost:8000",<br/>  node_code: "SRC-NAME"<br/>}], primary_access.access_url: "file:///data/..." }
-    Note over L: pickBackendForSkavaDataset:<br/>URL match on http://localhost:8000<br/>→ src-<src-name> Remote Backend
+    Note over L: routeSkavaCandidates:<br/>URL match on http://localhost:8000<br/>→ src-<src-name> Remote Backend
     L->>T: POST /v1/datasets/open_skava<br/>{ obs_id, access_url=file:///data/... }
     T->>B: forwarded
     B->>F: fits.open("/data/...")
     F-->>B: header + memmapped arrays
-    B-->>T: { dataset_id, kind, geometry }
+    B-->>T: { valid, dataset_id, kind, geometry fields }
     T-->>L: same
     Note over L: viewer opens; subsequent moment/<br/>cutout requests follow the same tunnel
 ```
@@ -288,7 +307,12 @@ hostname and the SLURM-tunnel pattern becomes optional.
 # Health check through the tunnel
 curl -sf -H "X-Visivo-Token: $VISIVO_TOKEN" \
      http://localhost:8000/v1/health
-# {"ok": true, "version": "..."}
+# {"ok": true, "workers": 8, "active_sessions": 0, ...}
+
+# Liveness and node capacity (public by default; VISIVO_NODE_STATUS_PUBLIC=0
+# makes /v1/node/status require the token, /v1/ping stays open)
+curl -sf http://localhost:8000/v1/ping          # {"ok": true}
+curl -sf http://localhost:8000/v1/node/status | jq
 
 # What SKAVA hands clients for a published dataset
 curl -s "https://skava.example.org/datalink/<obs-id>" \
@@ -307,10 +331,11 @@ curl -s -X POST \
     -H "Content-Type: application/json" \
     -d '{"obs_id":"<obs-id>","access_url":"file:///data/cubes/foo.fits"}' \
     http://localhost:8000/v1/datasets/open_skava | jq
-# { "valid": true, "dataset_id": "ds_...", "kind": "cube", "geometry": {...} }
+# { "valid": true, "dataset_id": "ds_...", "session_id": "...", "kind": "cube",
+#   "width": ..., "height": ..., "depth": ..., ..., "recommended_load_mode": "..." }
 ```
 
-All three steps succeeding means the laptop ↔ SKAVA ↔ SLURM ↔
+All steps succeeding means the laptop ↔ SKAVA ↔ SLURM ↔
 backend ↔ filesystem chain is wired correctly.
 
 ## Variants
@@ -343,9 +368,9 @@ configuration with a different network layer.
 
 ## See also
 
-* [Compute next to data](../architecture/compute-next-to-data) — the
+* [Compute next to data](../architecture/compute-next-to-data.md) — the
   architectural pattern this page operationalises.
-* [Backend routing](backend-routing) — how the desktop client
+* [Backend routing](backend-routing.md) — how the desktop client
   matches descriptors against Remote Backends.
-* [Power9 testbed runbook](../operations/e2e-power9-runbook) — a
+* [Power9 testbed runbook](../operations/e2e-power9-runbook.md) — a
   worked example of this pattern on the INAF Power9 SRC.

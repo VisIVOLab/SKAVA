@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.admin.auth import throttle
 from app.admin.auth.local import authenticate
 from app.admin.auth.session import (
     current_user_optional,
@@ -19,6 +20,7 @@ from app.admin.auth.session import (
     logout as session_logout,
 )
 from app.admin.audit.service import log_action
+from app.admin.config import admin_settings
 from app.admin.csrf import CSRFDep
 from app.admin.templating import flash, render
 from app.db import get_db
@@ -60,8 +62,34 @@ async def login_submit(
     password: Annotated[str, Form()],
     next: Annotated[str, Form()] = "/admin/",
 ):
+    client = request.client.host if request.client else "unknown"
+    limit = admin_settings.login_rate_limit_per_minute
+    wait = throttle.retry_after(client, limit)
+    if wait:
+        # Refused before the password is checked: a guesser learns nothing.
+        log_action(
+            db, request,
+            actor=None,
+            action="auth.login_throttled",
+            target_type="user",
+            target_id=username,
+        )
+        db.commit()
+        response = render(
+            request, "login.html",
+            {
+                "next": _safe_next(next),
+                "error": f"Too many failed sign-ins. Try again in {wait} s.",
+                "submitted_username": username,
+            },
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        response.headers["Retry-After"] = str(wait)
+        return response
+
     user = authenticate(db, username=username, password=password)
     if user is None:
+        throttle.record_failure(client)
         # Audit failed attempts so brute-force shows up in the log.
         log_action(
             db, request,
@@ -81,6 +109,7 @@ async def login_submit(
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
+    throttle.record_success(client)
     session_login(request, user)
     log_action(
         db, request,

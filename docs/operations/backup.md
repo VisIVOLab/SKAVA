@@ -13,9 +13,11 @@ drills a non-negotiable quarterly exercise.
 * - State
   - Where
 * - Catalogue (datasets / nodes / replicas)
-  - ``datasets``, ``nodes``, ``dataset_replicas`` tables
-* - Ingestion job history
-  - ``ingestion_jobs`` table
+  - ``datasets``, ``nodes``, ``dataset_replicas`` tables (``nodes``
+    also holds the last telemetry each node reported, which the
+    prober rebuilds by itself)
+* - Job history
+  - ``ingestion_jobs``, ``tap_jobs``, ``staging_jobs`` tables
 * - Admin users
   - ``users`` table
 * - Audit log
@@ -25,8 +27,9 @@ drills a non-negotiable quarterly exercise.
     file separately
 * - Source code
   - Git repo — already replicated by GitHub
-* - SIF images
-  - Container registry — already replicated
+* - Publisher SIF images
+  - Rebuilt from ``tools/skava-publisher/apptainer/publisher.def``;
+    keep the deployed ``.sif`` (and the previous one) on each node
 * - state.db on each publisher node
   - **NOT in SKAVA** — back up the publisher hosts' state files
     separately, or accept rebuilding from scratch on a restore
@@ -45,6 +48,10 @@ docker compose exec db cat /tmp/skava-2026-06-05-1300.dump \
 ```
 
 Ship the file off-host (S3, Backblaze, sibling SRC).
+
+The commands on this page use the dev stack's service names (`db`,
+`api`). In the staging/production stacks (`docker-compose.staging.yml`
+plus an override) the services are `postgres` and `skava-discovery`.
 
 ## Automated daily script
 
@@ -69,7 +76,7 @@ aws s3 cp "$DUMP" s3://inaf-skava-backups/
 find /var/backups/skava -name "*.dump" -mtime +30 -delete
 ```
 
-```cron
+```text
 0 2 * * * /usr/local/bin/skava-backup.sh >> /var/log/skava-backup.log 2>&1
 ```
 
@@ -96,10 +103,10 @@ docker exec -it skava-restore psql -U skava -d skava \
 To the production DB (with downtime):
 
 ```bash
-docker compose down api
-docker compose exec db pg_restore \
+docker compose stop api
+docker compose exec -T db pg_restore \
     -U skava -d skava --clean --no-acl --no-owner \
-    /tmp/skava-2026-06-05-1300.dump
+    < /backups/skava-2026-06-05-1300.dump
 docker compose up -d api
 ```
 

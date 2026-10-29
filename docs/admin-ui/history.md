@@ -8,8 +8,10 @@ admin action writes to. It exists to answer questions like:
 * *"How many dataset deletions happened since the migration?"*
 * *"What did the bulk upload run actually do?"* — full diff per row
 
-The page is added in Phase 3; before Phase 3 the same data was only
-visible as the "Recent activity" widget on the Dashboard (last 10 rows).
+The Dashboard's "Recent activity" widget shows the latest 10 rows;
+History is the full, filterable view. It lists 50 entries per page,
+newest first. Ingestion jobs themselves are not listed here; an Upload
+appears as its ``ingestion.upload`` audit row.
 
 ## Layout
 
@@ -23,9 +25,9 @@ visible as the "Recent activity" widget on the Dashboard (last 10 rows).
 │ │ [ Apply filter ] [ Reset ]              ⬇ Export CSV     │       │
 │ └──────────────────────────────────────────────────────────┘       │
 │                                                                    │
-│ When (UTC)        Who           Action            Target           │
-│ 2026-06-06 14:01  alice         node.update       node/POWER9   ▸  │
-│ 2026-06-06 14:00  alice         dataset.create    dataset/ds_… ▸  │
+│ When (UTC)        Who            Action          Target     IP     │
+│ 2026-06-06 14:01  alice (id=2)   node.update     node/4     10.…  ▸│
+│ 2026-06-06 14:00  alice (id=2)   dataset.create  dataset/17 10.…  ▸│
 │ …                                                                  │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -41,9 +43,9 @@ All filters compose with AND semantics; an empty filter is ignored.
 | Field | Behaviour | Underlying column |
 |---|---|---|
 | Search | case-insensitive substring on `action` OR `target_id` | `action`, `target_id` |
-| Section | exact prefix match (e.g. `node`, `dataset`, `auth`) | `action` (LIKE `prefix.%`) |
+| Section | prefix match (e.g. `node`, `dataset`, `auth`) | `action` (LIKE `prefix%`) |
 | Target type | exact match | `target_type` |
-| Actor | case-insensitive substring on the snapshot label | `actor_label` |
+| Actor | case-insensitive substring on the snapshot label (`username (id=N)`, `<cli>`, `<anonymous IP>`) | `actor_label` |
 | From / To | UTC-midnight inclusive boundary | `occurred_at` |
 
 The Section dropdown is populated by stripping each `action` at its
@@ -112,9 +114,15 @@ See {doc}`../operations/admin-ui-runbook` for the recommended schedule.
 
 **1. "Show every change to the POWER9 node in June 2026":**
 
+`target_id` holds the node's numeric id, not its code, so look the id
+up first (the edit link on the Nodes page, `/admin/nodes/<id>/edit`):
+
 ```
-/admin/history/?target_type=node&q=POWER9&since=2026-06-01&until=2026-06-30
+/admin/history/?target_type=node&q=4&since=2026-06-01&until=2026-06-30
 ```
+
+The search is a substring match, so `q=4` also matches ids 14, 40, …;
+check the Target column.
 
 Export → CSV with one row per change + before/after diff in
 `changes_json`.

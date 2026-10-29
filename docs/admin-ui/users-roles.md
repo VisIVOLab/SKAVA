@@ -16,8 +16,8 @@ the role each one needs.
   - everything else
   - Site administrators, on-call engineers.
 * - **ingester**
-  - read all, mutate datasets / nodes / replicas, trigger
-    ingestion runs
+  - read all, mutate datasets / nodes / replicas, upload
+    manifests on the Upload page
   - Data managers, publisher CLI operators.
 * - **viewer**
   - read all
@@ -46,6 +46,11 @@ You'll be prompted for a password. Policy:
 * must contain at least one digit
 * must NOT exceed 72 bytes (bcrypt limit)
 
+The rules come from `ADMIN_PASSWORD_MIN_LENGTH`,
+`ADMIN_PASSWORD_REQUIRE_MIXED_CASE`, `ADMIN_PASSWORD_REQUIRE_DIGIT` and
+`ADMIN_PASSWORD_REQUIRE_SYMBOL` (off by default); the 72-byte limit is
+fixed.
+
 On success:
 
 ```
@@ -62,9 +67,10 @@ Visit `/admin/login` and sign in.
 
 * - Command
   - Purpose
-* - ``create-user --username … --role … [--password …]``
-  - Add a new user. ``--password`` is for scripted runs; omit it for
-    an interactive prompt (recommended).
+* - ``create-user --username … [--role …] [--email …] [--full-name …] [--password …]``
+  - Add a new user. ``--role`` defaults to ``admin``. ``--password``
+    is for scripted runs; omit it for an interactive prompt
+    (recommended). Refuses if the username already exists.
 * - ``reset-password --username … [--password …]``
   - Reset a user's password. Same interactive default.
 * - ``set-role --username … --role …``
@@ -78,13 +84,17 @@ Visit `/admin/login` and sign in.
     refused.
 ```
 
+Usernames are matched case-insensitively.
+
 All CLI mutations write to the audit log with ``actor_label="<cli>"``
-so a forensics audit can tell apart UI vs CLI vs API actions.
+and an action named ``cli.<verb>`` (``cli.create_user``,
+``cli.reset_password``, ``cli.set_role``, ``cli.deactivate``), so a
+forensics audit can tell UI actions from CLI actions.
 
 ## Password rotation
 
-There's no in-UI "change my password" form yet (Phase 3 scope).
-Until then:
+There is no in-UI "change my password" form; passwords are changed
+with the CLI:
 
 ```bash
 docker compose exec -it api \
@@ -92,9 +102,13 @@ docker compose exec -it api \
 ```
 
 The new password is hashed with the current ``ADMIN_BCRYPT_ROUNDS``
-factor; old sessions immediately become invalid because the user's
-``last_login_at`` is consulted on every request and the cookie holds
-the user id only.
+factor (default 12; older hashes are upgraded at the next login).
+A password reset does **not** end existing sessions: the cookie holds
+the user id only, so a session that is already signed in stays valid
+until it expires (``ADMIN_SESSION_MAX_AGE_SECONDS``, 8 h by default)
+or the user signs out. To cut a user off at once, ``deactivate`` the
+account. Role changes, on the other hand, apply on the next request,
+because the user row is reloaded from the database every time.
 
 ## Account lifecycle
 
@@ -103,7 +117,7 @@ stateDiagram-v2
     [*] --> active: create-user
     active --> deactivated: deactivate
     deactivated --> active: --is_active set back via SQL
-                              (no CLI command yet)
+                              (no CLI command)
     active --> reset_password: forgot password
     reset_password --> active
 ```
@@ -118,20 +132,16 @@ Deactivation:
 
 The user's audit history stays in place forever.
 
-## Future: OIDC
+## OIDC
 
-Phase 1 ships local password only. The auth subsystem is structured
-so an OIDC backend (Garr AAI, eduGAIN, ORCID, Keycloak) can be added
-without touching existing routes:
+The admin UI authenticates with local passwords only
+(``app/admin/auth/local.py``); there is no OIDC sign-in for
+``/admin``. OIDC is supported by the catalogue's API, which validates
+bearer tokens independently of the admin accounts (see
+[Authentication](../api/auth.md)).
 
-* ``app/admin/auth/local.py`` stays as the local-password backend
-* ``app/admin/auth/oidc.py`` (scaffolded, not implemented) will host
-  the OIDC client
-* both expose the same ``authenticate(...)`` signature and write the
-  same session shape
-
-Service accounts (publisher CLI) keep using local credentials even
-when the human flow moves to OIDC.
+The publisher CLI does not use an admin account at all: it calls the
+ingestion API with the ``X-Internal-Api-Key`` shared secret.
 
 ## What's in the DB
 
@@ -150,8 +160,9 @@ SELECT id, username, role, is_active, last_login_at FROM users;
 The ``password_hash`` column is intentionally hidden from the
 ``list-users`` CLI output.
 
-## Audit visibility (Phase 3)
+## Audit visibility
 
-When the audit history page lands, every action with ``actor_user_id
-= <your id>`` will be filterable so you can produce a "what did user
-X do this week" report on demand.
+The [History](history.md) page answers "what did user X do this week":
+type the username in the **Actor** filter (a substring match on the
+``username (id=N)`` label), set the date range, and export the result
+as CSV. CLI actions carry the actor ``<cli>``.

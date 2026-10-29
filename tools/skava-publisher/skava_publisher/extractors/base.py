@@ -17,6 +17,11 @@ class Extractor(abc.ABC):
     #: Human-readable label, used in scan output and log lines.
     name: str = "extractor"
 
+    #: Resolution order: lower is tried first, ties by ``name``. An
+    #: extractor that recognises its format by content (PSRFITS inside a
+    #: ``.fits``) must come before one that matches the extension alone.
+    priority: int = 100
+
     @abc.abstractmethod
     def supports(self, path: Path) -> bool:
         """Return True if this extractor can handle ``path``.

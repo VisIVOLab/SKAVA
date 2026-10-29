@@ -6,10 +6,13 @@ PLOT_PY ?= ../../VisIVO-next/backend/.venv/bin/python
 BENCH_DB ?= postgresql+psycopg://skava:skava@localhost:$${TESTBED_DB_PORT:-15432}/skava_bench
 VISIVO_REPO ?= ../../VisIVO-next
 COMPOSE = docker compose -f docker-compose.yml
+# The catalogues' web admin (/admin/): a local account, created by `make admin`.
+TESTBED_ADMIN_USER ?= admin
+TESTBED_ADMIN_PASSWORD ?= TestbedAdmin1
 
 SERVICES = db keycloak skava skava-2 broker node-big node-small node-far node-busy
 
-.PHONY: data node-base db-ready up seed status down clean experiments experiment-e1 experiment-e6 conformance figures tables
+.PHONY: data node-base db-ready up seed admin status down clean experiments experiment-e1 experiment-e6 conformance figures tables
 
 data:            ## generate the science data (PROFILE=ci|paper)
 	$(PY) make_data.py --profile $(PROFILE)
@@ -29,6 +32,9 @@ seed:            ## register the nodes, then publish each node's holdings in pla
 	$(COMPOSE) exec -T skava python /testbed/seed_nodes.py
 	$(COMPOSE) exec -T -e SEED_NODES=FAR,BUSY skava-2 python /testbed/seed_nodes.py
 	for n in big small far busy far-2 busy-2; do $(COMPOSE) run --rm publisher-$$n || exit 1; done
+
+admin:           ## an admin account on both catalogues' web admin (http://localhost:18000/admin/ and :18001)
+	for s in skava skava-2; do $(COMPOSE) exec -T $$s python -m app.admin.cli create-user --username '$(TESTBED_ADMIN_USER)' --role admin --password '$(TESTBED_ADMIN_PASSWORD)' || exit 1; done
 
 status:          ## what the catalogues and the broker know
 	curl -s http://localhost:18000/availability?include_nodes=true; echo

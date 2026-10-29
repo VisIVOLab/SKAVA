@@ -10,17 +10,21 @@ the host.
 From a host with `apptainer` (≥ 1.1) installed:
 
 ```bash
-git clone https://github.com/fvitello/SKAVA.git
+git clone https://github.com/VisIVOLab/SKAVA.git
 cd SKAVA/tools/skava-publisher
 
 apptainer build --fakeroot publisher.sif apptainer/publisher.def
 ```
 
+Building from the repository root also works: `%setup` falls back to
+`tools/skava-publisher` when `pyproject.toml` is not in the current
+directory.
+
 Build time:
 
 * **x86_64 warm cache** ~3 min
 * **ppc64le cold** ~25-30 min (wheels are built from source for
-  numpy / scipy / h5py / healpy on Power architecture)
+  numpy / astropy / h5py on Power architecture)
 * **aarch64 warm cache** ~5 min
 
 Output: a single ~600 MB SIF file.
@@ -85,15 +89,24 @@ From: python:3.12-slim
     pip install --no-cache-dir --upgrade pip
 
     # ── Install publisher (source copied via %setup) ───────────
-    pip install --no-cache-dir /srv/publisher_src
+    SRC=$(find /srv/publisher_src -name pyproject.toml -print -quit)
+    pip install --no-cache-dir "$(dirname "$SRC")"
+    skava-publisher --version
 
 %setup
     # Copy source from host into the building rootfs
-    cp -r "$PWD" "$APPTAINER_ROOTFS/srv/publisher_src/"
+    # ($PWD, or $PWD/tools/skava-publisher when run from the repo root)
+    mkdir -p "$APPTAINER_ROOTFS/srv/publisher_src"
+    cp -r "$SRC"/. "$APPTAINER_ROOTFS/srv/publisher_src/"
 
 %runscript
     #!/bin/bash
     exec skava-publisher "$@"
+
+%test
+    # Fails the build unless fits, hdf5 and psrfits all load
+    skava-publisher --version
+    python -c "from skava_publisher.extractors import discover; ..."
 ```
 
 The recipe is identical for production / dev — what changes is the
@@ -138,7 +151,7 @@ SKAVA_INTERNAL_API_KEY=...
 
 ## Running from cron
 
-```cron
+```text
 0 */6 * * * /usr/bin/apptainer run \
     --bind /srv/data:/data \
     --bind /etc/skava-publisher.yaml:/etc/skava-publisher.yaml:ro \
@@ -191,17 +204,16 @@ mv /opt/skava/publisher.sif /opt/skava/publisher-prev.sif
 
 * - Caveat
   - Mitigation
-* - Apptainer copies the SIF on every ``apptainer run`` invocation
-    (creates an ephemeral overlay). Cron-triggered runs are slow.
-  - Use ``apptainer instance`` + ``apptainer exec`` for cron; the
-    instance keeps the rootfs warm.
 * - Network egress can be blocked on SRC nodes
   - Whitelist the SKAVA URL on the egress firewall. The publisher
     only talks to SKAVA — no other outbound calls.
 * - State.db is local to the node
-  - That's by design: each node publishes its own data. If multiple
-    nodes publish the same files, register the same Node code on
-    SKAVA — ingestion will update existing rows rather than duplicate.
+  - That's by design: each node publishes its own data. SKAVA keeps
+    one dataset per ``obs_id`` and one replica per (dataset, node).
+    Two nodes holding the same file produce two replicas of one
+    dataset only if they publish the same ``obs_id`` (one taken from
+    the file header); the derived fallback ``obs_id`` includes the
+    node code, so it differs per node.
 * - Apptainer 1.x ``--fakeroot`` sometimes can't ``%setup``
   - Some SRC sites disable it for security. Fall back to mounting
     the source via ``--bind`` and ``pip install /srv/source`` inside

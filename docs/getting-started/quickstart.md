@@ -1,8 +1,13 @@
 # Quickstart
 
 End-to-end tour of the SKAVA HTTP surface, taking ~10 minutes. We use
-the seed data shipped with a fresh install (three demo nodes A/B/C and
-a handful of datasets) — no extra setup needed.
+the seed data shipped with a fresh install (three demo nodes `A`, `B`,
+`C` and seven demo images, `dataset-1` … `dataset-7`, in collection
+`skava-demo`) — no extra setup needed. The seed nodes have no
+co-located VisIVO backend, so the compute-next-to-data paths below
+answer with their fallbacks; the [testbed](../development/testbed.md)
+(four VisIVO backend nodes, a second catalogue, an IAM and a broker
+stand-in) shows them working.
 
 Set a base URL once for the rest of this page:
 
@@ -12,9 +17,10 @@ export SKAVA=http://localhost:8000
 
 ## 1. Discovery — list datasets
 
-The `/discovery/search` endpoint accepts the same ObsCore-like fields
-that TAP exposes. Without filters it returns the most-recent N
-datasets:
+The `/discovery/search` endpoint takes IVOA-style parameters (`POS`,
+`BAND`, `TIME`, `COLLECTION`, `DPTYPE`, `SPATIAL_CELL`, `obs_id`) plus
+`limit` (default 100, max 1000) and `offset`. Without filters it pages
+through the whole catalogue, ordered by `obs_id`:
 
 ```bash
 curl -s "$SKAVA/discovery/search?limit=3" | jq '.results[] | .metadata.obs_id'
@@ -24,18 +30,23 @@ Common filters:
 
 ```bash
 # All "image" datasets
-curl -s "$SKAVA/discovery/search?dataproduct_type=image&limit=10" \
+curl -s "$SKAVA/discovery/search?DPTYPE=image&limit=10" \
     | jq '.results[].metadata | {obs_id, target_name, s_ra, s_dec}'
 
-# Spatial cone search (degrees)
-curl -s "$SKAVA/discovery/search?ra=83.6&dec=22.0&radius=0.5" \
+# Spatial cone search: CIRCLE <ra> <dec> <radius>, degrees
+curl -s "$SKAVA/discovery/search?POS=CIRCLE%20101%20-21%200.5" \
     | jq '.total'
 
-# Combine
-curl -s "$SKAVA/discovery/search?obs_collection=mac-tmp-download&em_min_max=2e-3"
+# Combine: a collection and a wavelength interval (metres)
+curl -s "$SKAVA/discovery/search?COLLECTION=skava-demo&BAND=1.0e-6%202.0e-6"
 ```
 
-The full parameter list is in the [discovery reference](../api/discovery).
+Each result carries its `replicas`, ranked best first, the `best_node`
+and an `access_url`. Every replica has a `rank_reason` (why the policy
+put it there) and, under the resource-aware policy, a `score` (a cost,
+lower is better) and the age of the telemetry it was ranked on.
+
+The full parameter list is in the [discovery reference](../api/discovery.md).
 
 ## 2. DataLink — resolve a single dataset
 
@@ -48,17 +59,31 @@ curl -s "$SKAVA/datalink/$OBS" | jq
 
 You get back:
 
-* `dataset` — the ObsCore metadata
-* `routing.replicas[]` — every node that hosts a copy, ranked
+* `dataset` — `obs_id`, collection and product type
+* `routing` — `best_node`, the ranking `policy` (`static` or
+  `resource_aware`), `replicas[]` ranked best first (each with
+  `rank_reason` and `score`) and `excluded[]`, the replicas set aside
+  with the reason (node disabled, backend unreachable at the last
+  probe, not enough memory, …)
 * `primary_access` — the chosen replica's URL, format, estimated size
-* `links[]` — IVOA DataLink-style links (`#this`, `preview`, `metadata`, …)
-* `service_descriptors[]` — including the **visivo-backend** descriptor
-  when the best-ranked node has a co-located VisIVO backend
+* `links[]` — DataLink-style links by `rel` (`self`, `direct-download`,
+  `alternate-replica`, `soda-sync`, …)
+* `service_descriptors[]` — SKAVA's own services, one **visivo-backend**
+  descriptor per ranked node with a co-located VisIVO backend (best
+  first), and, when a node holds a `file://` replica it can process in
+  place, that node's services: `node-soda-sync`, `node-soda-async`
+  (UWS) and, for cubes, `visivo-moment` and `visivo-pv`
 * `capabilities` — quick boolean flags for clients
 
-The `service_descriptors` is what the VisIVO desktop client looks at
-to decide whether to route compute next to the data. See
-[Backend routing](../client-integration/backend-routing) for details.
+The `service_descriptors` is what the VisIVO Visual Analytics desktop
+client looks at to decide whether to route compute next to the data.
+See [Backend routing](../client-integration/backend-routing.md) for
+details. VO clients (pyvo, TOPCAT) ask for the same answer as a
+DataLink VOTable:
+
+```bash
+curl -s "$SKAVA/datalink/$OBS?RESPONSEFORMAT=votable" | head -20
+```
 
 ## 3. Internal ingestion — add a dataset
 
@@ -108,25 +133,34 @@ curl -fsS -X POST "$SKAVA/internal/ingestion/run" \
 And verify:
 
 ```bash
-curl -s "$SKAVA/discovery/search?obs_collection=quickstart" \
+curl -s "$SKAVA/discovery/search?COLLECTION=quickstart" \
     | jq '.results[].metadata'
 ```
 
 ## 4. SODA — request a cutout
 
 ```{note}
-`/soda/sync` validates and routes (JSON). `/soda/execute` performs a real
-byte-level cutout when the dataset's node has a co-located VisIVO backend
-serving a `file://` replica, streaming `application/fits` back; otherwise
-it returns a staging-handoff JSON. See [SODA execution](../soda_execution).
+When a node can process the dataset in place (a `file://` replica on a
+node with a co-located VisIVO backend), `/soda/sync` answers
+**303 See Other** with the node's own SODA service and the replica's ID
+filled in: the node cuts the file and SKAVA never handles the bytes.
+The node also runs asynchronous UWS jobs (`OPERATION=CUTOUT`, `MOMENT`,
+`PV`) at its `/soda/async`. Otherwise `/soda/sync` validates the
+request and answers with the routing as JSON. `/soda/execute` is a
+non-standard POST proxy: it has the node compute the cutout and streams
+the `application/fits` back, or returns a staging-handoff JSON when no
+node can. See the [SODA API](../api/soda.md).
 ```
 
 ```bash
-# Validate + route
-curl -s "$SKAVA/soda/sync?ID=$OBS&POS=CIRCLE%2083.6%2022.0%200.1" | jq
+# On the seed data: validation + routing JSON (no node can cut in place)
+curl -s "$SKAVA/soda/sync?ID=$OBS&POS=CIRCLE%20101%20-21%200.1" | jq
 
-# Execute (real cutout when a co-located backend is available)
-curl -s -X POST "$SKAVA/soda/execute?ID=$OBS&POS=CIRCLE%2083.6%2022.0%200.1" -o cutout.fits
+# Where a node can: follow the redirect to the node's SODA service
+curl -sL "$SKAVA/soda/sync?ID=$OBS&POS=CIRCLE%20101%20-21%200.1" -o cutout.fits
+
+# Non-standard proxy (cutout, or staging-handoff JSON on the seed data)
+curl -s -X POST "$SKAVA/soda/execute?ID=$OBS&POS=CIRCLE%20101%20-21%200.1" -o cutout.fits
 ```
 
 ## 5. TAP — ObsCore queries
@@ -136,29 +170,49 @@ curl -s "$SKAVA/tap/sync?LANG=ADQL&QUERY=SELECT+TOP+10+obs_id,target_name+FROM+i
     | head -30
 ```
 
-Returns a VOTable. See the [TAP reference](../api/tap) for the
+Returns a VOTable (`RESPONSEFORMAT=application/json` for JSON). The
+VOSI documents a TAP client reads first are at `$SKAVA/tap/tables` and
+`$SKAVA/tap/capabilities`. See the [TAP reference](../api/tap.md) for the
 supported subset of ADQL.
 
-## 6. Admin UI
+## 6. Federation and tokens
+
+```bash
+# The local catalogue and every sibling in SKAVA_FEDERATED_SRC_URLS
+curl -s "$SKAVA/federation/sources" | jq
+curl -s "$SKAVA/federation/search?DPTYPE=image&limit=5" | jq '.sources'
+```
+
+The answers are merged on `obs_id`; a sibling that also lists a dataset
+appears under its `also_at`. A fresh install is open (no token). When
+`SKAVA_ACCESS_TOKENS` or an IAM (`IAM_WELLKNOWN_ENDPOINT`) is configured,
+the public endpoints need `Authorization: Bearer <token>`, and a request
+without one gets a 401 whose `WWW-Authenticate` header carries the
+`ivoa_bearer` challenge naming the IAM. See
+[Authentication](../api/auth.md) and [Federation](../api/federation.md).
+
+## 7. Admin UI
 
 Open <http://localhost:8000/admin/> in your browser and sign in with
-the bootstrap admin you created in [Installation](installation).
+the bootstrap admin you created in [Installation](installation.md).
 
 From the dashboard:
 
-* **Nodes** — add the `POWER9` node from the SRC testbed
-* **Datasets** — browse + edit individual entries; pre-fill a new
-  dataset from a FITS upload (small files only — bulk uploads go via
-  the publisher)
-* **Audit** *(Phase 3)* — who-changed-what timeline
+* **Nodes** — register a site and, optionally, the URL of its
+  co-located VisIVO backend
+* **Datasets** — browse + edit individual entries and their replicas;
+  pre-fill a new dataset from a FITS upload (small files only — bulk
+  ingestion goes via the publisher)
+* **Upload** — a CSV / JSON manifest, with a dry run first
+* **History** — the audit log: who changed what, exportable as CSV
 
-The full UI tour lives in [Admin UI / overview](../admin-ui/overview).
+The full UI tour lives in [Admin UI / overview](../admin-ui/overview.md).
 
 ## Where to next
 
 * Set up the publisher CLI on the node where your data physically
-  lives → [skava-publisher / overview](../publisher/overview).
-* Integrate the VisIVO desktop client →
-  [client-integration / visivo-desktop](../client-integration/visivo-desktop).
+  lives → [skava-publisher / overview](../publisher/overview.md).
+* Integrate the VisIVO Visual Analytics desktop client →
+  [client-integration / visivo-desktop](../client-integration/visivo-desktop.md).
 * Plan a production deployment with proper TLS, secrets and backups →
-  [deployment / production](../deployment/production).
+  [deployment / production](../deployment/production.md).

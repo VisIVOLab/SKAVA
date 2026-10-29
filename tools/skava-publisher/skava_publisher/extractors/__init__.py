@@ -7,7 +7,7 @@ extractors by exposing their own entry points under the same group.
 
 Resolution at scan time:
 
-    for candidate in registered_extractors:
+    for candidate in registered_extractors:   # by priority, then name
         if candidate.supports(path):
             return candidate.extract(path)
     raise NoExtractorFound(path)
@@ -27,8 +27,10 @@ logger = logging.getLogger("skava.publisher.extractors")
 def discover() -> list[Extractor]:
     """Instantiate every extractor exposed via entry points.
 
-    The list is ordered by the entry point name to give a deterministic
-    resolution priority across runs and across operator environments.
+    The list is ordered by each extractor's ``priority`` (lower first), then
+    by entry point name, so the resolution order is deterministic across
+    runs and environments and a content-sniffing extractor (PSRFITS) is
+    asked before the extension-only one (FITS).
     """
     found: list[tuple[str, Extractor]] = []
     eps: Iterable
@@ -50,7 +52,7 @@ def discover() -> list[Extractor]:
             found.append((ep.name, inst))
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to load extractor %r: %s", ep.name, exc)
-    found.sort(key=lambda item: item[0])
+    found.sort(key=lambda item: (getattr(item[1], "priority", 100), item[0]))
     return [inst for (_, inst) in found]
 
 

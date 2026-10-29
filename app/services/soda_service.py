@@ -47,10 +47,12 @@ class SodaService:
             operation=SodaOperationDescriptor(
                 type="subset",
                 supports_execution=False,
-                message="SODA sync endpoint is declared and validated, but server-side processing is not implemented yet.",
+                message=("No node can cut this dataset in place: the request was validated and the routing "
+                         "resolved, but no subset was made."),
             ),
             next_step=SodaNextStepDescriptor(
-                planned_backend="future remote cutout/subset service",
+                planned_backend=("the SODA service of a node with a VisIVO backend holding a file:// replica; "
+                                 "none is registered for this dataset"),
                 datalink=build_datalink_url(dataset_id),
             ),
         )

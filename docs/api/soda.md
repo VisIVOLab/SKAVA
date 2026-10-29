@@ -10,7 +10,7 @@ SODA is node-local. The VisIVO backend of a node is a SODA service:
 beyond the cutout, selected by `OPERATION=MOMENT` (a moment map) and
 `OPERATION=PV` (a position-velocity diagram). SKAVA never touches the
 bytes: its DataLink advertises the chosen node's services for each dataset
-(`node-soda-sync`, `node-soda-async`, see [DataLink](datalink)), with the
+(`node-soda-sync`, `node-soda-async`, see [DataLink](datalink.md)), with the
 replica's own `ID`, and SKAVA's own `/soda/sync` **redirects** (303) a
 request to that node's service. `/soda/execute` is a non-standard proxy
 cutout kept for clients that cannot follow the DataLink descriptors.
@@ -33,7 +33,7 @@ cutout kept for clients that cannot follow the DataLink descriptors.
     node can process the dataset in place: a JSON descriptor (parameter
     validation + routing decision), no pixels.
 * - ``POST /soda/execute``
-  - real cutout / fallback
+  - real cutout / fallback (non-standard)
   - Streams ``application/fits`` when a node holding the dataset has a
     co-located VisIVO backend + ``file://`` replica (first in ranking
     order); otherwise returns a staging handoff JSON job.
@@ -48,36 +48,40 @@ cutout kept for clients that cannot follow the DataLink descriptors.
 
 ```bash
 curl -s -X POST \
-    "https://skava.inaf.it/soda/execute?ID=power9-3a7f1b2c0e5d4986&POS=CIRCLE%2083.6%2022.0%200.1&BAND=1.4e-3%202.1e-3" \
-    -o crab_cutout.fits
+    "https://skava.inaf.it/soda/execute?ID=tb-cube-l&POS=CIRCLE%20150.0%20-30.0%200.1&BAND=0.2142%200.2150" \
+    -o tb-cube-l_cutout.fits
 # Response headers on success:
 #   Content-Type: application/fits
 #   X-Soda-Applied: pos,band
-#   X-Soda-Executed-On: POWER9
+#   X-Soda-Executed-On: BIG
 ```
 
 Delegation goes to the first replica, in ranking order, whose node has
 ``visivo_backend_url`` set and whose access URL is ``file://`` — the same rule
 DataLink uses to advertise the cutout, so an advertised cutout is one that
-runs. A reachable backend that fails the
-cutout returns ``502 backend_execution_failed``. See
-[SODA execution](../soda_execution) for the design.
+runs. `/soda/execute` takes the parameters in the query string and
+accepts only the `CIRCLE` form of `POS`. A backend that is unreachable,
+times out (`SKAVA_SODA_BACKEND_TIMEOUT_SECONDS`) or fails the cutout
+returns ``502 backend_execution_failed``; the token in
+`SKAVA_VISIVO_BACKEND_TOKEN` is forwarded as `X-Visivo-Token` when the
+node's backend requires one. See
+[Compute next to data](../architecture/compute-next-to-data.md) for the design.
 
 ## Sync request
 
 ```bash
-curl -s -X POST "https://skava.inaf.it/soda/sync" \
-    -H "Content-Type: application/json" \
-    -d '{
-          "ID": "power9-3a7f1b2c0e5d4986",
-          "POS": "CIRCLE 83.6 22.0 0.1",
-          "BAND": "1.4e-3 2.1e-3",
-          "TIME": "59010.0 59010.5",
-          "RESPONSEFORMAT": "application/fits"
-        }' | jq
+curl -s -i "https://skava.inaf.it/soda/sync?ID=tb-cube-l&CIRCLE=150.0%20-30.0%200.1&BAND=0.2142%200.2150"
+# HTTP/1.1 303 See Other
+# location: http://node-big:8000/soda/sync?ID=file%3A%2F%2F%2Fdata%2Fcubes%2Ftb-cube-l.fits&CIRCLE=150.0+-30.0+0.1&BAND=0.2142+0.2150
 ```
 
+A SODA client that follows redirects (`curl -L`, pyvo) receives the FITS
+cutout from the node, which applies its own access rule (its backend's
+token) to the redirected request.
+
 ### Parameters
+
+All parameters are query parameters.
 
 ```{list-table}
 :header-rows: 1
@@ -90,12 +94,23 @@ curl -s -X POST "https://skava.inaf.it/soda/sync" \
 * - ``ID``
   - str
   - **yes**
-  - obs_id of the dataset to operate on.
+  - obs_id of the dataset; replaced by the replica's own ``ID`` in
+    the redirect.
 * - ``POS``
   - str
   - no
-  - SODA-standard geometry: ``CIRCLE ra dec radius`` \| ``RANGE …`` \|
-    ``POLYGON …``. Decimal degrees.
+  - SODA geometry. Forwarded as given on a redirect (the node accepts
+    ``CIRCLE``, ``RANGE`` and ``POLYGON``); without a node only
+    ``CIRCLE ra dec radius`` (degrees) is accepted.
+* - ``CIRCLE``
+  - str ``"ra dec radius"``
+  - no
+  - SODA 1.0 ``CIRCLE`` parameter, degrees.
+* - ``POLYGON``
+  - str ``"ra1 dec1 ra2 dec2 …"``
+  - no
+  - SODA 1.0 ``POLYGON`` parameter. Only served by a node; refused with
+    400 when no node can process the dataset in place.
 * - ``BAND``
   - str ``"min max"``
   - no
@@ -107,26 +122,31 @@ curl -s -X POST "https://skava.inaf.it/soda/sync" \
 * - ``RESPONSEFORMAT``
   - str
   - no
-  - ``application/fits`` (default) or ``image/png``.
+  - Forwarded on a redirect. Without a node, one of
+    ``application/fits``, ``image/fits``, ``application/octet-stream``,
+    ``application/json``.
 ```
 
-### `/soda/sync` response (validation descriptor)
+At most one of `POS`, `CIRCLE`, `POLYGON` may be given (400 otherwise).
+
+### `/soda/sync` response without a node (validation descriptor)
 
 ```json
 {
     "status": "accepted",
     "mode": "soda-sync-stub",
-    "dataset": {"obs_id": "power9-3a7f1b2c0e5d4986"},
-    "routing": {"best_node": "POWER9", "access_url": "file:///data/crab.fits"},
-    "request": {"ID": "power9-3a7f1b2c0e5d4986", "POS": "CIRCLE 83.6 22.0 0.1"},
-    "operation": {"type": "subset", "supports_execution": false},
-    "next_step": {"datalink": "https://skava.inaf.it/datalink/power9-3a7f1b2c0e5d4986"}
+    "dataset": {"obs_id": "demo-0001", "obs_collection": "demo", "dataproduct_type": "image"},
+    "routing": {"best_node": "IT-01", "access_url": "https://data.example.org/demo-0001.fits", "replicas": ["…"]},
+    "request": {"ID": "demo-0001", "POS": "CIRCLE 83.6 22.0 0.1", "BAND": null, "TIME": null, "RESPONSEFORMAT": null},
+    "operation": {"type": "subset", "supports_execution": false, "message": "…"},
+    "next_step": {"planned_backend": "…", "datalink": "https://skava.inaf.it/datalink/demo-0001"}
 }
 ```
 
-This is the answer when no node can process the dataset in place; otherwise
-`/soda/sync` redirects to the node's SODA service, which answers with the
-pixels.
+This is the answer only when no node can process the dataset in place
+(no `file://` replica on a node with a co-located VisIVO backend);
+otherwise `/soda/sync` redirects to the node's SODA service, which
+answers with the pixels.
 
 ### `/soda/execute` execution flow
 
@@ -137,8 +157,14 @@ pixels.
 3. The backend opens the FITS locally, applies `POS`/`BAND` with astropy,
    and returns the subset; SKAVA streams it back as `application/fits`
    with `X-Soda-Applied` / `X-Soda-Executed-On` headers.
-4. If no co-located backend is available, SKAVA returns a metadata-cache
-   staging handoff JSON instead.
+   `TIME` is forwarded but the node's cutout engine does not slice in
+   time.
+4. If no co-located backend is available, SKAVA records a metadata-cache
+   staging job and returns it as JSON (`job_id`, `status`, `request`,
+   `requested_by`, …) with an `operation` block
+   (`execution_profile: "metadata-cache-handoff"`). `requested_by` is a
+   non-reversible reference to the caller's token (`token:<sha256
+   prefix>`), never the token itself.
 
 Asynchronous SODA is the node's: a client that follows the DataLink
 descriptor `node-soda-async` creates a UWS job on the node's backend
@@ -150,10 +176,11 @@ operations it offers next to the data.
 
 ## Use from VO tools
 
-Aladin and TOPCAT understand the SODA descriptors emitted by the DataLink
-endpoint (`utype="adhoc:service"`, `standardID = SODA#sync-1.0`, pointing
-at `/soda/execute`). Their "apply cutout" UI works against SKAVA's
-`/soda/execute` for datasets whose node runs a co-located VisIVO backend.
+Aladin, TOPCAT and pyvo read the service descriptors in the DataLink
+VOTable (`utype="adhoc:service"`, `standardID = SODA#sync-1.0` and
+`SODA#async-1.0`). They point at the node's own SODA services, with
+`ID` fixed to the replica's identifier, so a cutout from these tools
+runs on the node directly, without passing through SKAVA.
 
 ## Errors
 
@@ -164,22 +191,31 @@ at `/soda/execute`). Their "apply cutout" UI works against SKAVA's
 * - Status
   - When
 * - 200
-  - `/soda/sync`: validated + routed. `/soda/execute`: streamed cutout,
-    or staging-handoff JSON when no co-located backend.
+  - `/soda/sync`: validation descriptor (no node can cut the dataset).
+    `/soda/execute`: streamed cutout, or staging-handoff JSON when no
+    co-located backend.
+* - 303
+  - `/soda/sync`: redirect to the node's SODA service.
 * - 400
-  - Missing ``ID``, malformed/unsupported ``POS``/``BAND``/``TIME``, or a
-    region that does not overlap the dataset.
+  - Missing ``ID``, more than one spatial constraint, malformed
+    ``POS``/``BAND``/``TIME``, ``POLYGON`` without a node, unsupported
+    ``RESPONSEFORMAT``.
+* - 401
+  - Tokens are required and the request has none or an invalid one.
 * - 404
   - obs_id unknown.
 * - 502
-  - ``backend_execution_failed`` — node backend reachable but the cutout
-    failed or timed out.
+  - ``backend_execution_failed`` — node backend unreachable, timed out,
+    or returned an error for the cutout.
 * - 503
-  - No available replicas for the dataset.
+  - ``no_available_nodes`` — no eligible replica for the dataset.
 ```
+
+Errors raised by the node's own SODA service (after a redirect) follow
+DALI: `text/plain` bodies starting with `UsageError:` or `FatalError:`.
 
 ## See also
 
-* [DataLink API](datalink) where the SODA service descriptor lives.
-* [Architecture / overview](../architecture/overview) for why
+* [DataLink API](datalink.md) where the SODA service descriptor lives.
+* [Architecture / overview](../architecture/overview.md) for why
   routing is decoupled from execution.

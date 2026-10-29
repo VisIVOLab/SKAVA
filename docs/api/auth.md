@@ -3,21 +3,23 @@
 SKAVA exposes three categories of endpoint, each with its own
 authentication scheme.
 
-## Public discovery — usually open
+## Public catalogue — open unless tokens are configured
 
 * `/discovery/*`
 * `/datalink/*`
 * `/access/*`
 * `/soda/*`
-* `/tap/*`
-* `/vosi/*`
-* `/system/*`
+* `/tap/sync`, `/tap/async*`
+* `/staging/*`
+* `/provenance/*`
+* `/federation/*`
 
 **By default**: no authentication. Anyone can query.
 
-**Optional bearer token**: set
-``SKAVA_ACCESS_TOKENS=tok1,tok2,...`` to require a valid token on
-every request. Clients pass it as either header:
+**Required token**: as soon as static tokens
+(``SKAVA_ACCESS_TOKENS=tok1,tok2,...``) or OIDC (see below) are
+configured, every request to these endpoints needs a valid token.
+Clients pass it as either header:
 
 ```
 Authorization: Bearer <token>
@@ -29,18 +31,20 @@ or:
 X-SKAVA-Access-Token: <token>
 ```
 
-Missing or wrong → 401.
+(`X-SKAVA-Access-Token` wins when both are sent.) Missing or wrong →
+401 `unauthorized`, with a `WWW-Authenticate` challenge.
 
-Rotate by adding the new token, distributing it to clients, then
-removing the old one. The list is a whitelist, so multiple tokens
-co-exist seamlessly.
+Rotate static tokens by adding the new token, distributing it to
+clients, then removing the old one. The list is a whitelist, so
+multiple tokens co-exist seamlessly.
 
-## Internal ingestion — API key
+## Internal endpoints — API key
 
 * `/internal/ingestion/dry-run`
 * `/internal/ingestion/run`
 * `/internal/ingestion/history`
 * `/internal/ingestion/history/{job_id}`
+* `/internal/telemetry` and `/internal/telemetry/probe`
 
 Required header on every call:
 
@@ -48,12 +52,10 @@ Required header on every call:
 X-Internal-Api-Key: <value of INTERNAL_API_KEY env var>
 ```
 
-The key:
-
-* must match the server-configured `INTERNAL_API_KEY` exactly
-* must be ≥ 8 chars (validated at SKAVA boot)
-* is logged at INFO level when wrong (failed-login pattern surfaces
-  in your log aggregator)
+The key must match the server-configured `INTERNAL_API_KEY` (or
+`SKAVA_INTERNAL_API_KEY`) exactly. When neither is set, every internal
+call is refused with 401. No length is enforced: choose a long random
+value (`openssl rand -hex 32`).
 
 Treat it as a service-to-service shared secret. Rotate yearly.
 
@@ -73,8 +75,10 @@ password. Flow:
 4. ``POST /admin/logout`` clears the cookie.
 
 The session secret comes from ``ADMIN_SESSION_SECRET``. In
-production set it to a stable ``openssl rand -hex 32`` value; in
-dev a per-boot random is generated with a loud warning.
+production set it to a stable ``openssl rand -hex 32`` value. When it
+is unset a per-process random value is generated with a loud warning
+(in any ``SKAVA_ENV``: nothing refuses to start), so sessions do not
+survive a restart.
 
 CSRF: every form embeds a per-session HMAC token that is validated
 on POST. The header `X-CSRF-Token` is accepted as an alternative
@@ -82,12 +86,18 @@ for HTMX / fetch callers.
 
 ## OIDC bearer tokens (SRCNet IAM)
 
-Set ``IAM_WELLKNOWN_ENDPOINT`` (the variable SRCNet services use) to the
-IAM's discovery document and SKAVA accepts, on the public endpoints, an
-access token that IAM issued: the signature is verified against the
-issuer's key set (asymmetric algorithms only), the token must not have
-expired, and it must carry the issuer and, when ``SKAVA_OIDC_AUDIENCE`` is
-set, that audience. Static tokens keep working next to it.
+Set ``IAM_WELLKNOWN_ENDPOINT`` (the variable SRCNet services use; the
+alias ``SKAVA_OIDC_WELLKNOWN`` also works) to the IAM's discovery
+document and SKAVA accepts, on the public endpoints, an access token
+that IAM issued: the signature is verified against the issuer's key set
+(asymmetric algorithms only: RS256/384/512, ES256/384, PS256), the token
+must carry `exp` and `iat` and not have expired (30 s leeway), it must
+carry the issuer and, when ``SKAVA_OIDC_AUDIENCE`` is set, that audience.
+The discovery document and key set are fetched on first use and cached;
+an unknown key id triggers a refetch, so key rotation is picked up.
+Static tokens keep working next to it: a presented token is first looked
+up in ``SKAVA_ACCESS_TOKENS``, and only a JWT-shaped one is then checked
+against the IAM.
 
 A request without a valid token gets ``401`` with the IVOA SSO challenge:
 
@@ -96,25 +106,46 @@ WWW-Authenticate: Bearer realm="SKAVA", ivoa_bearer standard_id="ivo://ivoa.net/
 ```
 
 so a client (the VisIVO Visual Analytics desktop does this) can find the
-IAM, sign in and retry. Two settings cover an IAM the service reaches on a
-name other than the public one: ``SKAVA_OIDC_ISSUER`` is the issuer the
-tokens carry, ``SKAVA_OIDC_PUBLIC_WELLKNOWN`` the discovery URL told to the
-clients in the challenge. ``SKAVA_OIDC_JWKS_URI`` overrides where the key
-set is fetched from.
+IAM, sign in and retry. When no discovery URL is configured the
+challenge is the plain `Bearer realm="SKAVA"`. Two settings cover an IAM
+the service reaches on a name other than the public one:
+``SKAVA_OIDC_ISSUER`` is the issuer the tokens carry,
+``SKAVA_OIDC_PUBLIC_WELLKNOWN`` the discovery URL told to the clients in
+the challenge. ``SKAVA_OIDC_JWKS_URI`` overrides where the key set is
+fetched from (setting it alone also enables OIDC validation, without
+issuer check).
 
-The federated search ([Federation API](federation)) asks the sibling
-instances with the caller's token, so one sign-in covers the federation;
-an instance that requires no token still passes the token it was given
-along. The admin UI keeps its local-password sessions; service accounts
+### Tokens forwarded and recorded
+
+Two dependencies read the caller's token:
+
+* `require_access_token` enforces the rule above on every public
+  endpoint. On an open instance it returns nothing, whatever the caller
+  sent.
+* `presented_token` returns the token as presented, unverified. It is
+  used only where SKAVA acts on the caller's behalf: the federated search
+  ([Federation API](federation.md)) asks the sibling instances with it, so
+  one sign-in covers the federation, and an instance that requires no
+  token still passes along the token it was given (the siblings verify
+  it).
+
+A token is never stored. Where a job records who asked for it (staging
+jobs and the `/soda/execute` staging handoff as `requested_by`, TAP async
+jobs as `submitted_by`), SKAVA stores `token_reference(token)`:
+`token:` followed by the first 16 hex digits of its SHA-256, or `null`
+on an open instance.
+
+The admin UI keeps its local-password sessions; service accounts
 (publisher CLI, pipelines) keep using `INTERNAL_API_KEY`.
 
 ## What's NOT authenticated
 
-* Health / capability endpoints (`/system/health`,
-  `/vosi/capabilities`) — intentionally always open so monitoring
-  can probe them.
-* The `/access/{obs_id}` redirector — its target's access policy is
-  decided by the storage layer, not SKAVA.
+* System endpoints: `/availability`, `/health/db`, `/metrics`,
+  `/capabilities` — always open so monitoring can probe them.
+* The TAP VOSI documents `/tap/capabilities` and `/tap/tables`, so VO
+  clients can read the service description before signing in.
+* The bytes behind a replica's `access_url`: their access policy is
+  decided by the storage layer or the node, not SKAVA.
 
 ## Reverse-proxy concerns
 
@@ -122,23 +153,24 @@ If you put nginx / Traefik / Envoy in front:
 
 * Don't strip the `X-Internal-Api-Key` header.
 * Don't strip the `Authorization` header.
-* Set `proxy_set_header X-Forwarded-For` so SKAVA's audit log can
-  capture the real client IP.
-
-Future enhancement: a `SKAVA_TRUSTED_PROXIES` config that tells the
-audit logger to honour the X-Forwarded-For header (today it logs the
-last hop IP).
+* The admin audit log records the connecting address as seen by the
+  application (`request.client.host`); `X-Forwarded-For` is not read,
+  so behind a proxy it records the last hop unless the ASGI server is
+  started with proxy-header handling (`uvicorn --proxy-headers
+  --forwarded-allow-ips=...`).
 
 ## Auth in tests
 
-`tests/conftest.py` registers a `test_internal_key` fixture and a
-`test_admin_user` fixture that bootstrap minimal credentials in the
-test PostgreSQL. Use them when adding integration tests:
+`tests/conftest.py` sets `INTERNAL_API_KEY=test-internal-key` before the
+app is imported, and provides an `admin_user` fixture (an `admin`-role
+user in the test database) and an `admin_client` fixture (a `TestClient`
+already logged in through the real login form). Use them when adding
+integration tests:
 
 ```python
-def test_publish(client, test_internal_key):
+def test_publish(client):
     r = client.post("/internal/ingestion/run",
-                    headers={"X-Internal-Api-Key": test_internal_key},
+                    headers={"X-Internal-Api-Key": "test-internal-key"},
                     files={"file": ("m.csv", b"...", "text/csv")})
     assert r.status_code == 200
 ```

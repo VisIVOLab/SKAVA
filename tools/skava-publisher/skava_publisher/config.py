@@ -84,7 +84,7 @@ class NodeConfig(BaseModel):
 class ScanConfig(BaseModel):
     roots: list[Path] = Field(min_length=1)
     include: list[str] = Field(
-        default_factory=lambda: ["*.fits", "*.fits.gz", "*.h5", "*.hdf5"],
+        default_factory=lambda: ["*.fits", "*.fits.gz", "*.h5", "*.hdf5", "*.sf"],
         description="Glob patterns matched against each file's name.",
     )
     exclude: list[str] = Field(

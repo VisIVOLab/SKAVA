@@ -4,7 +4,11 @@ SKAVA's ``datasets`` table mirrors the IVOA ObsCore data model with a
 few SKAVA-specific extensions. This page is the canonical column
 reference.
 
-## Required ObsCore fields
+## Core ObsCore fields
+
+Only ``obs_id`` is NOT NULL in the database; every other column is
+nullable. The ingestion API additionally requires ``dataproduct_type``
+(plus the replica's ``node_id`` and ``access_url``).
 
 ```{list-table}
 :header-rows: 1
@@ -21,18 +25,20 @@ reference.
 * - ``obs_collection``
   - VARCHAR
   - 128
-  - Survey / collection grouping (e.g. ``inaf-power9-ska``).
+  - Survey / collection grouping (e.g. ``skava-testbed``). Indexed.
 * - ``dataproduct_type``
   - VARCHAR
   - 64
-  - ObsCore vocabulary plus SKAVA extensions:
-    ``image`` \| ``cube`` \| ``dynspec`` \| ``polarimetric`` \|
-    ``catalog`` \| ``event``.
+  - Free string, by convention the ObsCore vocabulary plus SKAVA
+    extensions: ``image`` \| ``cube`` \| ``dynspec`` \|
+    ``polarimetric`` \| ``catalog`` \| ``event``. Indexed. Only
+    ``cube`` gets the node moment/PV descriptors in DataLink.
 * - ``calib_level``
   - INT
   - 0–4
-  - 0 raw, 1 calibrated, 2 derived, 3 advanced product, 4 user-
-    contributed.
+  - ObsCore calibration level: 0 raw instrumental, 1 instrumental in
+    standard format, 2 calibrated science-ready, 3 enhanced data
+    product, 4 analysis product. Not range-checked on ingestion.
 * - ``target_name``
   - VARCHAR
   - 128
@@ -40,11 +46,12 @@ reference.
 * - ``facility_name``
   - VARCHAR
   - 128
-  - Telescope / observatory name.
+  - Telescope / observatory name. Not read by the ingestion API
+    (set by seeding or the admin UI).
 * - ``instrument_name``
   - VARCHAR
   - 128
-  - Instrument / camera / backend.
+  - Instrument / camera / backend. Not read by the ingestion API.
 ```
 
 ## Spatial fields
@@ -60,23 +67,28 @@ reference.
 * - ``s_ra``
   - DOUBLE
   - deg
-  - Right ascension of the field centre (J2000).
+  - Right ascension of the field centre (ICRS), in [0, 360].
 * - ``s_dec``
   - DOUBLE
   - deg
-  - Declination of the field centre (J2000).
+  - Declination of the field centre (ICRS), in [-90, 90].
 * - ``s_fov``
   - DOUBLE
   - deg
-  - Diameter of the smallest enclosing circle of the field.
+  - Diameter of the smallest enclosing circle of the field (> 0).
+    Half of it widens the ``POS`` / ``CONTAINS`` cone match.
 * - ``spatial_index_order``
   - INT
-  - HEALPix order
-  - Used by the spatial index for cone-search acceleration.
+  - order
+  - Order of the sky cell (8 for ingested rows).
 * - ``spatial_index_cell``
   - VARCHAR(64)
-  - HEALPix cell id
-  - Pre-computed; updated on insert/update.
+  - cell key
+  - ``order<N>:ra<i>:dec<j>``, an equal-angle sky bin
+    (2·2^N bins in RA, 2^N in Dec) computed on ingestion from
+    ``s_ra``/``s_dec``. Not HEALPix; a stable key that a HEALPix/MOC
+    index can later replace. Queried by the ``SPATIAL_CELL`` discovery
+    filter; the cone search itself uses ``s_ra``/``s_dec``/``s_fov``.
 ```
 
 ## Time fields
@@ -140,7 +152,9 @@ extractor converts from frequency (Hz) automatically when needed.
 * - ``access_estsize``
   - INT
   - KB
-  - Estimated payload size for client UI hints.
+  - Estimated payload size. Shown in DataLink and used by the
+    ``resource_aware`` ranking policy to estimate the memory a node
+    needs (× ``SKAVA_RANKING_MEMORY_FACTOR``).
 ```
 
 The actual access URL lives on the ``dataset_replicas`` table,
@@ -175,20 +189,21 @@ which can have multiple rows per dataset.
 * - ``source_type``
   - VARCHAR(64)
   - —
-  - Where this row came from (``skava-publisher`` \| ``admin-ui``
-    \| ``manual-csv``).
+  - Where this row came from: ``skava-publisher`` for the publisher
+    CLI, otherwise the manifest format (``csv`` \| ``json``) unless the
+    uploader or the record sets another value.
 * - ``source_ref``
   - VARCHAR(256)
   - —
-  - Free-form ref to the ingest event (``publisher@POWER9``,
+  - Free-form ref to the ingest event (``publisher@BIG``,
     ``daily-cron``).
 * - ``checksum``
   - VARCHAR(128)
   - —
   - File SHA256 (lowercase hex). Populated by the publisher for
-    files under ``checksum_max_bytes``.
+    files up to ``checksum_max_bytes`` (50 GB by default).
 * - ``provenance_json``
-  - JSONB
+  - JSON
   - —
   - Free-form extra. Publisher writes ``{ sha256, rel_path,
     publisher_label }`` here.
@@ -205,11 +220,12 @@ which can have multiple rows per dataset.
   - —
   - Meaning
 * - ``ingested_at``
-  - TIMESTAMPTZ
+  - TIMESTAMP (UTC)
   - —
-  - First time SKAVA saw this obs_id.
+  - Time of the last ingestion that wrote this obs_id (reset on
+    every UPSERT, not only the first).
 * - ``updated_at``
-  - TIMESTAMPTZ
+  - TIMESTAMP (UTC)
   - —
   - Last UPSERT touched this row.
 ```
@@ -254,19 +270,24 @@ The ``dataset_replicas`` table joins datasets to nodes. Fields:
   - VARCHAR(512)
   - —
   - Path on the node's filesystem (or relative under its serving
-    root).
+    root). The ingestion API fills a placeholder
+    (``/ingested/<obs_id>``); clients use ``access_endpoint``.
 * - ``access_endpoint``
   - VARCHAR(512)
   - —
-  - URL clients consume.
+  - URL clients consume (any scheme). A ``file://`` endpoint on a
+    node with a co-located VisIVO backend is what enables node-side
+    SODA and the moment/PV services.
 * - ``status``
   - VARCHAR(32)
   - default ``available``
-  - ``available`` \| ``quarantined`` \| ``evicted``.
+  - Free string. Only ``available`` replicas are routed; any other
+    value (e.g. ``quarantined``) takes the replica out of discovery,
+    DataLink and SODA with the reason ``replica <status>``.
 * - ``is_public``
   - BOOL
   - default true
-  - Visibility flag.
+  - Visibility flag. Non-public replicas are never routed.
 ```
 
 Unique constraint: ``(dataset_id, node_id)``. One replica per
@@ -278,15 +299,12 @@ Fields that go beyond classic ObsCore:
 
 * ``provenance_json`` — JSONB free-form provenance
 * ``obs_title`` — human title
-* ``spatial_index_order`` / ``spatial_index_cell`` — HEALPix-based
-  spatial index for cone searches
+* ``spatial_index_order`` / ``spatial_index_cell`` — equal-angle sky
+  cell key (HEALPix/MOC-ready)
 * ``checksum`` — SHA256 of the source file
 
-Future extensions:
-
-* MOC-based footprints (currently only s_fov scalar)
-* Polarisation tag in a dedicated column
-* `s_region` STC-S string for non-circular footprints
+Not stored: MOC footprints and ``s_region`` (the footprint is the
+``s_fov`` scalar), and a dedicated polarisation column.
 
 ## Backwards compatibility
 

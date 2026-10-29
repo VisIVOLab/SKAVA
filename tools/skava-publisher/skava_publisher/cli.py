@@ -25,7 +25,7 @@ import click
 from skava_publisher import __version__
 from skava_publisher.config import PublisherConfig, load_config
 from skava_publisher.extractors import discover, find_extractor
-from skava_publisher.manifest import build_record, dump_manifest
+from skava_publisher.manifest import build_record, dump_manifest, manifest_body
 from skava_publisher.scanner import walk
 from skava_publisher.state import StateStore, open_state
 from skava_publisher.uploader import UploadError, publish as do_publish, validate as do_validate
@@ -63,8 +63,14 @@ def _scan_and_extract(
     state: StateStore | None,
     *,
     force: bool = False,
+    files: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Return (records, summary) — common driver of scan/validate/publish."""
+    """Return (records, summary) — common driver of scan/validate/publish.
+
+    ``files``, when given, receives the file behind each record, in the
+    records' order, as extracted: ``{"path", "size_bytes", "mtime_ns"}``,
+    so the caller can record each file's outcome.
+    """
     extractors = discover()
     if not extractors:
         click.secho("No extractors registered. Is the install broken?",
@@ -129,9 +135,83 @@ def _scan_and_extract(
             extracted=extracted,
         )
         records.append(record)
+        if files is not None:
+            files.append({"path": str(abs_path), "size_bytes": size_bytes,
+                          "mtime_ns": mtime_ns})
         summary["extracted"] += 1
 
     return records, summary
+
+
+def _unchanged_files(records: list[dict[str, Any]],
+                     files: list[dict[str, Any]] | None) -> list[dict[str, Any] | None]:
+    """The file behind each manifest record, when it is still the file the
+    record was extracted from (same path, size and mtime). A file changed
+    since (its record is stale), gone, or not described by the manifest gets
+    None, and its state is left alone."""
+    if not files or len(files) != len(records):
+        return [None] * len(records)
+    out: list[dict[str, Any] | None] = []
+    for entry in files:
+        try:
+            st = Path(str(entry.get("path", ""))).stat()
+        except OSError:
+            out.append(None)
+            continue
+        same = (st.st_size == entry.get("size_bytes") and st.st_mtime_ns == entry.get("mtime_ns"))
+        out.append(entry if same else None)
+    return out
+
+
+def _skipped_by_skava(result: dict[str, Any]) -> dict[int, str]:
+    """Index of each record SKAVA skipped → its reason, from a run response."""
+    summary = result.get("summary") or (result.get("job") or {}).get("summary") or {}
+    skipped: dict[int, str] = {}
+    for err in summary.get("validation_errors") or []:
+        try:
+            index = int(err.get("index"))
+        except (TypeError, ValueError):
+            continue
+        skipped[index] = f"{err.get('code', 'skipped')}: {err.get('message', '')}".strip()
+    return skipped
+
+
+def _record_outcome(
+    state: StateStore,
+    records: list[dict[str, Any]],
+    files: list[dict[str, Any] | None],
+    *,
+    result: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> tuple[int, int]:
+    """Write each file's outcome to state.db: published only when SKAVA took
+    the record, failed (with SKAVA's reason, or the upload's error) otherwise,
+    so a failed file is retried by the next run. Returns (published, failed).
+
+    ``files`` is the file behind each record as it was when the record was
+    extracted (``{"path", "size_bytes", "mtime_ns"}``, None to leave it
+    alone). That fingerprint, not the file's current one, is what state.db
+    keeps: a file changed while it was being published differs from it, and
+    the next scan extracts it again."""
+    skipped = _skipped_by_skava(result) if result is not None else {}
+    published = failed = 0
+    for index, (record, entry) in enumerate(zip(records, files)):
+        if entry is None:
+            continue
+        path = str(entry["path"])
+        state.upsert_seen(path=path, size_bytes=int(entry["size_bytes"]),
+                          mtime_ns=int(entry["mtime_ns"]),
+                          sha256=(record.get("provenance_json") or {}).get("sha256"))
+        if error is not None:
+            state.mark_failed(path=path, error=error)
+            failed += 1
+        elif index in skipped:
+            state.mark_failed(path=path, error=f"skava: {skipped[index]}")
+            failed += 1
+        elif record.get("obs_id"):
+            state.mark_published(path=path, obs_id=str(record["obs_id"]))
+            published += 1
+    return published, failed
 
 
 def _print_summary(summary: dict[str, int]) -> None:
@@ -182,16 +262,16 @@ def scan(cfg: PublisherConfig, out: Path, force: bool, no_state: bool) -> None:
     state_ctx = open_state(cfg.state.db_path) if not no_state else None
     try:
         state = state_ctx.__enter__() if state_ctx is not None else None
-        records, summary = _scan_and_extract(cfg, state, force=force)
+        files: list[dict[str, Any]] = []
+        records, summary = _scan_and_extract(cfg, state, force=force, files=files)
     finally:
         if state_ctx is not None:
             state_ctx.__exit__(None, None, None)
 
-    body = json.dumps({"records": records}, indent=2, default=str, ensure_ascii=False)
     if str(out) == "-":
-        click.echo(body)
+        click.echo(manifest_body(records, files))
     else:
-        dump_manifest(records, out)
+        dump_manifest(records, out, files)
         click.echo(f"Wrote {len(records)} records to {out}", err=True)
     _print_summary(summary)
 
@@ -249,54 +329,48 @@ def validate(cfg: PublisherConfig, manifest: Path | None) -> None:
 def publish(cfg: PublisherConfig, manifest: Path | None,
              yes: bool, force: bool) -> None:
     """POST to SKAVA's /internal/ingestion/run — REAL ingestion."""
-    if manifest is not None:
-        records = json.loads(manifest.read_text(encoding="utf-8")).get("records", [])
-        state = None
-    else:
-        state_ctx = open_state(cfg.state.db_path)
-        state = state_ctx.__enter__()
-        records, summary = _scan_and_extract(cfg, state, force=force)
-        _print_summary(summary)
-
-    if not records:
-        click.secho("Nothing to publish — no new or modified files.",
-                     fg="yellow")
-        return
-
-    click.echo(f"About to publish {len(records)} record(s) to "
-                f"{cfg.skava.api_url} as node {cfg.node.code}.")
-    if not yes and not click.confirm("Proceed?", default=True):
-        click.secho("Cancelled by operator.", fg="yellow")
-        return
-
+    state_ctx = open_state(cfg.state.db_path)
+    state = state_ctx.__enter__()
     try:
-        result = do_publish(cfg, records,
-                             source_ref=f"publisher@{cfg.node.code}")
-    except UploadError as exc:
-        click.secho(f"Publish failed: {exc}", fg="red", err=True)
-        if state is not None:
-            for r in records:
-                state.mark_failed(path=r["provenance_json"].get("__abs_path", ""),
-                                    error=str(exc))
-        sys.exit(2)
-    click.secho(f"✓ Published {len(records)} record(s).", fg="green")
-    click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+        if manifest is not None:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            records = payload.get("records", [])
+            files: list[dict[str, Any] | None] = _unchanged_files(records, payload.get("files"))
+            if records and not any(files):
+                click.secho("The manifest names no unchanged file: state.db is not updated "
+                            "(the next scan extracts these files again).", fg="yellow")
+        else:
+            found: list[dict[str, Any]] = []
+            records, summary = _scan_and_extract(cfg, state, force=force, files=found)
+            files = list(found)
+            _print_summary(summary)
 
-    # On success, mark each file as published in state.db.
-    if state is not None:
-        for r in records:
-            obs_id = r.get("obs_id")
-            rel = r.get("provenance_json", {}).get("rel_path")
-            if obs_id and rel:
-                # Find the abs path from the rel by scanning roots — cheap
-                # since the path is in the manifest's provenance.
-                for root in cfg.scan.roots:
-                    candidate = (Path(root) / rel).resolve()
-                    if candidate.is_file():
-                        state.mark_published(
-                            path=str(candidate), obs_id=str(obs_id),
-                        )
-                        break
+        if not records:
+            click.secho("Nothing to publish — no new or modified files.",
+                         fg="yellow")
+            return
+
+        click.echo(f"About to publish {len(records)} record(s) to "
+                    f"{cfg.skava.api_url} as node {cfg.node.code}.")
+        if not yes and not click.confirm("Proceed?", default=True):
+            click.secho("Cancelled by operator.", fg="yellow")
+            return
+
+        try:
+            result = do_publish(cfg, records,
+                                 source_ref=f"publisher@{cfg.node.code}")
+        except UploadError as exc:
+            click.secho(f"Publish failed: {exc}", fg="red", err=True)
+            _record_outcome(state, records, files, error=f"upload: {exc}")
+            sys.exit(2)
+        published, failed = _record_outcome(state, records, files, result=result)
+        colour = "green" if not failed else "yellow"
+        click.secho(f"✓ SKAVA took {len(records) - len(_skipped_by_skava(result))} of "
+                    f"{len(records)} record(s); {failed} marked failed in state.db "
+                    f"and retried next run.", fg=colour)
+        click.echo(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+    finally:
+        state_ctx.__exit__(None, None, None)
 
 
 # ─── watch ───────────────────────────────────────────────────────────────────
@@ -314,6 +388,10 @@ def publish(cfg: PublisherConfig, manifest: Path | None,
 @click.pass_obj
 def watch(cfg: PublisherConfig, interval: int | None, once: bool) -> None:
     """Loop: scan + publish every ``interval_seconds``. SIGTERM-safe."""
+    if not cfg.watch.enabled:
+        click.secho("watch.enabled is false in the configuration; not watching.",
+                    fg="yellow")
+        return
     interval = interval or cfg.watch.interval_seconds
     stop = {"flag": False}
 
@@ -332,25 +410,20 @@ def watch(cfg: PublisherConfig, interval: int | None, once: bool) -> None:
         click.echo(f"[{ts}] watch iteration #{iteration}")
         try:
             with open_state(cfg.state.db_path) as state:
-                records, summary = _scan_and_extract(cfg, state)
+                found: list[dict[str, Any]] = []
+                records, summary = _scan_and_extract(cfg, state, files=found)
                 _print_summary(summary)
                 if records:
-                    result = do_publish(cfg, records,
-                                          source_ref=f"watch@{cfg.node.code}")
-                    click.secho(f"  ✓ published {len(records)} record(s).",
-                                  fg="green")
-                    for r in records:
-                        obs_id = r.get("obs_id")
-                        rel = r.get("provenance_json", {}).get("rel_path")
-                        if obs_id and rel:
-                            for root in cfg.scan.roots:
-                                candidate = (Path(root) / rel).resolve()
-                                if candidate.is_file():
-                                    state.mark_published(
-                                        path=str(candidate),
-                                        obs_id=str(obs_id),
-                                    )
-                                    break
+                    files: list[dict[str, Any] | None] = list(found)
+                    try:
+                        result = do_publish(cfg, records,
+                                              source_ref=f"watch@{cfg.node.code}")
+                    except UploadError as exc:
+                        _record_outcome(state, records, files, error=f"upload: {exc}")
+                        raise
+                    published, failed = _record_outcome(state, records, files, result=result)
+                    click.secho(f"  ✓ published {published} record(s), {failed} failed.",
+                                  fg="green" if not failed else "yellow")
                 else:
                     click.echo("  nothing to publish.")
         except UploadError as exc:

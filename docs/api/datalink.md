@@ -6,11 +6,14 @@ single dataset into access URLs and service descriptors.
 ## Endpoint
 
 ```
-GET /datalink/{obs_id}
+GET /datalink/{obs_id}[?RESPONSEFORMAT=votable]
 ```
 
-Public, no authentication required. Returns 404 when the obs_id is
-unknown.
+Open unless the deployment requires tokens (static
+`SKAVA_ACCESS_TOKENS` or OIDC; see [Authentication](auth.md)). Returns
+404 when the obs_id is unknown. JSON is the default; `RESPONSEFORMAT`
+(or `FORMAT`) set to `votable`, `application/x-votable+xml`,
+`application/xml` or `xml` returns the VOTable described below.
 
 ## Response envelope
 
@@ -24,64 +27,107 @@ unknown.
   - Slim view of the dataset (obs_id, obs_collection,
     dataproduct_type). The full ObsCore is on the discovery endpoint.
 * - ``routing.best_node``
-  - Node code of the ranked-first replica.
+  - Node code of the selected replica (the first ranked replica whose
+    access endpoint is usable; otherwise the next one in ranking order).
+* - ``routing.policy``
+  - The ranking policy that decided: ``static`` or ``resource_aware``
+    (``SKAVA_RANKING_POLICY``).
 * - ``routing.replicas[]``
-  - All known replicas, with each one's host node properties.
+  - The eligible replicas, best first, each with its host node's
+    properties and the decision: ``rank_reason``, ``score`` (the
+    ``resource_aware`` cost, lower is better; ``null`` under ``static``)
+    and ``telemetry_age_s``.
+* - ``routing.excluded[]``
+  - The replicas the policy set aside, as ``{code, reason}`` (node
+    disabled or unavailable, replica not public, backend unreachable at
+    the last probe, not enough free memory, …).
 * - ``primary_access``
-  - The chosen replica: ``access_url``, ``access_format``,
-    ``access_estsize``.
+  - The selected replica: ``access_url``, ``access_format``,
+    ``access_estsize`` (KB).
 * - ``links[]``
-  - IVOA-style link table: ``rel``, ``href``, ``content_type``,
-    ``title``, ``description``, ``node_id``. Includes the canonical
-    ``#this``, plus preview / metadata / soda-sync placeholders.
+  - Link table: ``rel``, ``href``, ``content_type``, ``title``,
+    ``description``, ``node_id`` (see below).
 * - ``service_descriptors[]``
-  - Per-service hints (see below).
+  - Per-service descriptors (see below).
 * - ``capabilities``
-  - Quick boolean flags useful for clients deciding which features
-    to render.
+  - Boolean flags for clients deciding which features to render:
+    ``supports_datalink``, ``supports_soda_sync``,
+    ``supports_soda_async``, ``supports_cutout``, ``supports_preview``
+    (always false), ``supports_soda_sync_endpoint`` (always true),
+    ``supports_soda_sync_execution``, ``supports_soda_async_endpoint``,
+    ``supports_soda_async_execution``. The sync/cutout flags are true
+    when a ranked replica is a ``file://`` copy on a node with a
+    co-located VisIVO backend; the async flags when such a node can
+    run the node SODA service for the dataset.
 ```
 
 ## Worked example
 
 ```bash
-OBS=power9-3a7f1b2c0e5d4986
-curl -s "https://skava.inaf.it/datalink/$OBS" | jq
+curl -s "https://skava.inaf.it/datalink/tb-cube-l" | jq
 ```
 
-Selected fields:
+Selected fields (testbed, `resource_aware` policy):
 
 ```json
 {
   "dataset": {
-    "obs_id": "power9-3a7f1b2c0e5d4986",
-    "obs_collection": "inaf-power9-ska",
-    "dataproduct_type": "image"
+    "obs_id": "tb-cube-l",
+    "obs_collection": "skava-testbed",
+    "dataproduct_type": "cube"
+  },
+  "routing": {
+    "best_node": "BIG",
+    "policy": "resource_aware",
+    "replicas": [
+      {
+        "code": "BIG",
+        "access_endpoint": "file:///data/cubes/tb-cube-l.fits",
+        "rank_reason": "rtt 1.7 ms, cpu pressure 0%, 0.0 tasks/worker, needs 3.0 GB of 7.3 GB free",
+        "score": 22.35,
+        "telemetry_age_s": 10.7
+      }
+    ],
+    "excluded": [
+      {
+        "code": "SMALL",
+        "reason": "not enough memory: rtt 1.7 ms, cpu pressure 0%, 0.0 tasks/worker, needs 3.0 GB of 1.8 GB free"
+      }
+    ]
   },
   "primary_access": {
-    "access_url": "http://pleiadi-gpu.oact.inaf.it:8001/data/crab.fits",
+    "access_url": "file:///data/cubes/tb-cube-l.fits",
     "access_format": "image/fits",
-    "access_estsize": 4096
+    "access_estsize": 3145733
   },
   "service_descriptors": [
     {
-      "service_type": "access-resolution",
-      "access_url": "https://skava.inaf.it/datalink/power9-3a7f1b2c0e5d4986",
-      "standard_id": "ivo://ivoa.net/std/DataLink#links-1.1",
+      "service_type": "soda-sync",
+      "service_id": "skava-soda-sync",
+      "access_url": "https://skava.inaf.it/soda/sync",
+      "standard_id": "ivo://ivoa.net/std/SODA#sync-1.0",
+      "supported_parameters": ["ID", "POS", "BAND", "TIME", "RESPONSEFORMAT"],
       "enabled": true
     },
     {
-      "service_type": "soda-sync",
-      "access_url": "https://skava.inaf.it/soda/sync",
+      "service_type": "node-soda-sync",
+      "service_id": "soda-sync-big",
+      "access_url": "http://node-big:8000/soda/sync",
       "standard_id": "ivo://ivoa.net/std/SODA#sync-1.0",
-      "supported_parameters": ["ID","POS","BAND","TIME","RESPONSEFORMAT"],
+      "supported_parameters": ["ID", "POS", "CIRCLE", "POLYGON", "BAND", "TIME", "RESPONSEFORMAT"],
+      "node_code": "BIG",
+      "requires_auth": false,
+      "input_params": {"ID": "file:///data/cubes/tb-cube-l.fits"},
       "enabled": true
     },
     {
       "service_type": "visivo-backend",
-      "endpoint": "http://pleiadi-gpu.oact.inaf.it:8000",
-      "node_code": "POWER9",
-      "requires_auth": true,
-      "supports_kinds": ["image","cube","dynspec"],
+      "service_id": "visivo-backend-big",
+      "access_url": "http://node-big:8000",
+      "endpoint": "http://node-big:8000",
+      "node_code": "BIG",
+      "requires_auth": false,
+      "supports_kinds": ["image", "cube", "dynspec"],
       "enabled": true
     }
   ]
@@ -89,6 +135,11 @@ Selected fields:
 ```
 
 ## Service descriptors
+
+Every descriptor has `service_type`, `service_id`, `access_url`,
+`standard_id`, `supported_parameters`, `enabled` and `description`;
+node descriptors add `node_code`, `requires_auth` and, where a value is
+fixed for this dataset, `input_params`.
 
 ```{list-table}
 :header-rows: 1
@@ -99,28 +150,53 @@ Selected fields:
   - Purpose
 * - ``access-resolution``
   - DataLink 1.1
-  - The canonical "give me an access URL" service. Points back at
-    this same endpoint.
+  - Points back at this endpoint. Always enabled.
 * - ``soda-sync``
   - SODA sync 1.0
-  - Validates parameters and routes (`/soda/sync`). Always enabled.
+  - SKAVA's ``/soda/sync``. Always enabled: it answers 303 to the
+    node's SODA service when a node can process the dataset in place,
+    otherwise it validates the request and returns its routing.
 * - ``soda-async``
   - SODA async 1.0
-  - Reserved (``enabled: false`` until async execution lands).
+  - Always ``enabled: false``: SKAVA runs no jobs itself; asynchronous
+    SODA is the node's service (``node-soda-async``).
 * - ``cutout``
+  - none
+  - SKAVA's ``POST /soda/execute`` proxy (non-standard). Enabled when
+    a ranked replica is a ``file://`` copy on a node with a co-located
+    VisIVO backend.
+* - ``node-soda-sync``
   - SODA sync 1.0
-  - Real cutout via `/soda/execute`. ``enabled: true`` **when the
-    dataset has a node with a co-located VisIVO backend** (else false).
+  - ``{backend}/soda/sync`` on the node holding the selected
+    in-place replica (``ID``, ``POS``, ``CIRCLE``, ``POLYGON``,
+    ``BAND``, ``TIME``, ``RESPONSEFORMAT``); ``input_params.ID`` is the
+    replica's identifier on that node.
+* - ``node-soda-async``
+  - SODA async 1.0
+  - ``{backend}/soda/async`` on the same node: the cutout as a UWS job.
+* - ``visivo-moment``
+  - SODA async 1.0
+  - Moment map as a node UWS job (``OPERATION=MOMENT``; ``MOMENT``,
+    ``CHANNELS``, ``THRESHOLD``). Cubes only.
+* - ``visivo-pv``
+  - SODA async 1.0
+  - Position-velocity diagram as a node UWS job (``OPERATION=PV``;
+    ``PVPATH``, ``PVWIDTH``). Cubes only.
 * - ``visivo-backend``
   - SKAVA-specific
-  - VisIVO compute backend co-located with the best replica.
+  - One per ranked node with a ``visivo_backend_url``, best first.
     Desktop clients route compute here instead of downloading.
 ```
 
+The four node descriptors are emitted only when a node can process the
+dataset in place: the first ranked replica that is a `file://` copy on
+a node with a co-located VisIVO backend. They are enabled when that node
+is enabled and available.
+
 ## The visivo-backend descriptor
 
-Emitted whenever the ranked-first replica's Node has a non-empty
-``visivo_backend_url``. Fields:
+Emitted for every ranked replica whose Node has a non-empty
+``visivo_backend_url``, in ranking order. Fields:
 
 ```{list-table}
 :header-rows: 1
@@ -132,7 +208,7 @@ Emitted whenever the ranked-first replica's Node has a non-empty
   - Constant: ``visivo-backend``
 * - ``service_id``
   - ``visivo-backend-<node_code>`` (lower-case)
-* - ``endpoint``
+* - ``access_url`` / ``endpoint``
   - The backend URL the Node operator configured.
 * - ``node_code``
   - Which Node this descriptor belongs to (used by clients for
@@ -140,33 +216,44 @@ Emitted whenever the ranked-first replica's Node has a non-empty
 * - ``requires_auth``
   - True when the backend expects a bearer token.
 * - ``supports_kinds``
-  - Optional list of data product kinds (``image``, ``cube``,
-    ``dynspec``, ``polarimetric``) the backend can handle.
+  - Data product kinds the backend can handle (currently always
+    ``image``, ``cube``, ``dynspec``).
+* - ``enabled``
+  - The node is enabled and available.
 * - ``description``
   - Human-readable text.
 ```
 
-VisIVO desktop's routing logic walks the descriptors and tries to
-match each against its registered backends, first by URL then by
-node code. See
-[Client integration / backend routing](../client-integration/backend-routing).
+The VisIVO Visual Analytics desktop client walks the descriptors and
+tries to match each against its registered backends, first by URL then
+by node code. See
+[Client integration / backend routing](../client-integration/backend-routing.md).
 
 ## Links table
 
-DataLink-style; for each link:
-
 ```{list-table}
 :header-rows: 1
-:widths: 18 22 60
+:widths: 22 78
 
 * - ``rel``
-  - ``#this`` \| ``preview`` \| ``metadata`` \| ``datalink`` \|
-    ``soda-sync`` \| ``direct-download``
-  - IVOA semantics. ``#this`` is the canonical self-link.
+  - Meaning
+* - ``self``
+  - This DataLink document (JSON).
+* - ``direct-download``
+  - The selected replica's ``access_endpoint``, with ``node_id``.
+* - ``alternate-replica``
+  - One per other eligible replica, with ``node_id``.
+* - ``preview`` / ``metadata``
+  - Placeholders with ``href: null`` (no preview or separate metadata
+    service is offered).
+* - ``datalink``
+  - Same URL as ``self``.
+* - ``soda-sync``
+  - SKAVA's ``/soda/sync``.
 ```
 
-Generic VO clients (Aladin, TOPCAT) will render these as a tabular
-list when the user clicks "follow DataLink" on a search result.
+Generic VO clients (Aladin, TOPCAT) should request the VOTable, which
+maps these onto the IVOA semantics vocabulary.
 
 ## VOTable output
 
@@ -213,22 +300,23 @@ descriptor is what the VisIVO desktop reads via `service_descriptors`.
 * - Status
   - Meaning
 * - 200
-  - Success — even when the dataset has zero healthy replicas (the
-    response includes the empty ``primary_access``).
+  - Success.
+* - 401
+  - Tokens are required and the request has none or an invalid one.
 * - 404
-  - obs_id unknown.
+  - ``dataset_not_found``: obs_id unknown.
+* - 503
+  - ``no_available_nodes``: the catalogue knows the dataset but no
+    replica is eligible, or none of the eligible ones has a usable
+    access endpoint.
 * - 5xx
   - DB unavailable / unexpected exception.
 ```
 
-A response with valid 200 and zero replicas is a useful signal that
-"the catalogue knows this dataset but no node currently hosts a
-copy" — typically a stuck staging job.
-
 ## See also
 
-* [Discovery API](discovery) for the parent search endpoint.
-* [SODA API](soda) for the sync execution surface that this DataLink
+* [Discovery API](discovery.md) for the parent search endpoint.
+* [SODA API](soda.md) for the sync execution surface that this DataLink
   links to.
-* [Compute next to data](../architecture/compute-next-to-data) for
+* [Compute next to data](../architecture/compute-next-to-data.md) for
   how clients use the visivo-backend descriptor.

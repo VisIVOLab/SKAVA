@@ -1,9 +1,9 @@
 # Bulk upload
 
-`/admin/upload` is the browser-facing front-end for SKAVA's ingestion
-pipeline. Drag a CSV or JSON manifest onto the form, pick dry-run or
-run, and the same record-by-record validation + UPSERT that the
-publisher CLI triggers happens server-side.
+`/admin/upload/` is the browser-facing front-end for SKAVA's ingestion
+pipeline. Choose (or drag) a CSV or JSON manifest onto the file input,
+pick dry-run or run, and the same record-by-record validation + UPSERT
+that the publisher CLI triggers happens server-side.
 
 ## When to use this vs the publisher CLI
 
@@ -19,7 +19,7 @@ publisher CLI triggers happens server-side.
   - On the data node
 * - Max file size
   - 32 MB (hard cap)
-  - Unlimited (streams record-by-record)
+  - No client-side cap (one JSON POST per run)
 * - Idempotency
   - UPSERT on ``obs_id``
   - UPSERT + per-file state.db skip
@@ -34,8 +34,10 @@ publisher CLI triggers happens server-side.
   - production publishing of a node's data tree
 ```
 
-The two paths share the same `IngestionJobService`, so the result of
-either is byte-equivalent in the catalogue.
+The two paths share the same `IngestionJobService` (the Upload page
+calls it in-process, not over HTTP), so the result of either is
+equivalent in the catalogue; only `triggered_by` on the job row
+differs (`admin-ui:<username>` vs `internal-api`).
 
 ## Permissions
 
@@ -97,9 +99,10 @@ by side. Fields:
 * **Updated replicas** — replica rows updated.
 * **Skipped** — records that failed validation; these are listed by
   row index in the collapsible "validation errors" table.
+* **Validation errors** — number of entries in that table.
 
-Job number (``job #N``) is the primary key in `ingestion_jobs` —
-useful for the future History page filter.
+Job number (``job #N``) is the primary key in `ingestion_jobs`; the
+matching History entry has target ``ingestion_job/N``.
 
 ## Errors and limits
 
@@ -117,8 +120,9 @@ useful for the future History page filter.
   - Malformed CSV header or JSON document. Open the file in a text
     editor; the error message identifies the offending construct.
 * - ``Ingestion refused: An ingestion job is already running``
-  - SKAVA only allows one ingestion job at a time. Wait or check
-    the dashboard for the current job.
+  - HTTP 409. SKAVA only allows one ingestion job at a time (a
+    publisher run counts too). Wait and re-submit;
+    ``GET /internal/ingestion/history`` lists the jobs.
 * - One or more rows in the validation table
   - Per-record schema failures. Fix the source file or accept the
     skip (skipped records are not written).
@@ -136,16 +140,18 @@ Two audit artefacts are produced for every upload:
    ``target_type="ingestion_job"``, ``target_id=<job_id>``, and a
    compact ``changes_json`` summary.
 
-The cross-cutting admin audit page (Phase 3) will filter on both.
+The [History](history.md) page shows the ``audit_log`` row (Section
+``ingestion``); the ``ingestion_jobs`` rows are not shown in the admin
+UI and are read with ``GET /internal/ingestion/history``.
 
 ## Format reminders
 
 ### CSV
 
 UTF-8, comma-separated, one header row, one record per row. See
-[ObsCore fields reference](../reference/obscore-fields) for the
+[ObsCore fields reference](../reference/obscore-fields.md) for the
 column list. The publisher CLI's documentation includes a
-[worked example](../api/ingestion#csv-format).
+[worked example](../api/ingestion.md#csv-format).
 
 ### JSON
 
@@ -169,5 +175,5 @@ Either a top-level array of records or an object with a
 * **Allow CSV editing in-place.** Out of scope; use a spreadsheet
   app or the publisher CLI's manifest generation.
 * **Approve-then-publish multi-step workflow.** Dry-run + run is the
-  simplest version of approval; a richer two-step
-  "ingester drafts, admin approves" flow is Phase 5 scope.
+  only approval step; there is no "ingester drafts, admin approves"
+  flow.

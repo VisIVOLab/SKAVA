@@ -17,24 +17,43 @@ the publisher's source.
   - What it extracts
 * - ``fits``
   - ``*.fits``, ``*.fit``, ``*.fts``, ``*.fits.gz``, ``*.fits.fz``
-  - target / facility / instrument; WCS-based RA/Dec/FoV; time from
-    MJD-OBS + EXPTIME or DATE-OBS; spectral from RESTFREQ or any
-    FREQ / WAVE / VOPT / VRAD axis; dataproduct_type heuristic.
+  - Reads the first HDU with ``NAXIS > 0``. obs_id from
+    OBS_ID / OBSID; target / facility / instrument; WCS-based
+    RA/Dec/FoV (RA / DEC keyword fallback); time from MJD-OBS plus
+    MJD-END or EXPTIME, or DATE-OBS; spectral from RESTFREQ or any
+    FREQ / WAVE / VOPT / VRAD axis; dataproduct_type ``image``
+    (NAXIS 2), ``cube`` (3) or ``polarimetric`` (STOKES axis or
+    NAXIS 4); ``access_format=image/fits``.
 * - ``hdf5``
   - ``*.h5``, ``*.hdf5``
-  - LOFAR ICD-3 root attributes (POINTING_RA, OBSERVATION_*_MJD,
+  - LOFAR ICD-3 root attributes (OBSERVATION_ID, TARGET, TELESCOPE,
+    INSTRUMENT, POINTING_RA / ANTENNA_RA, OBSERVATION_*_MJD,
     OBSERVATION_FREQUENCY_*), with fallbacks for generic
-    dynamic-spectrum files.
+    dynamic-spectrum files. Always ``dataproduct_type=dynspec``,
+    ``access_format=application/x-hdf5``.
 * - ``psrfits``
   - ``.fits``/``.sf`` with ``FITSTYPE=PSRFITS`` or ``EXTNAME=SUBINT``
-  - STT_IMJD/STT_SMJD/STP_MJD time; OBSFREQ/OBSBW spectral band;
-    SRC_NAME / TELESCOP / BACKEND.
+  - OBS_ID / OBSID / FILEID; SRC_NAME / OBJECT, TELESCOP,
+    BACKEND / INSTRUME; numeric or sexagesimal RA / DEC;
+    STT_IMJD + STT_SMJD / STP_MJD time; OBSFREQ / OBSBW band. Always
+    ``dataproduct_type=dynspec``,
+    ``access_format=application/x-psrfits``.
 ```
+
+``psrfits`` has a higher priority than ``fits`` (see
+[Resolution order](#resolution-order)), so a PSRFITS file named
+``*.fits`` is claimed by ``psrfits``; ``*.sf`` files are in the default
+``scan.include``.
 
 Every extractor is best-effort: missing or malformed headers cause
 the corresponding field to be omitted from the result, not raised.
 The operator is expected to review the resulting manifest before
 publishing high-stakes data.
+
+SKAVA requires ``dataproduct_type`` on every record: a FITS file whose
+type the heuristic cannot decide (e.g. NAXIS 1 or 5) is posted
+without it and skipped by SKAVA with "Missing required field:
+dataproduct_type".
 
 ## The contract
 
@@ -54,13 +73,18 @@ class MyExtractor(Extractor):
     def extract(self, path: Path) -> dict[str, Any]:
         """Parse the file and return a dict.
 
-        Recognised keys (match form input names in the admin UI):
-          obs_id, obs_title, obs_collection, dataproduct_type,
-          calib_level, target_name, facility_name, instrument_name,
+        Keys SKAVA's ingestion stores:
+          obs_id, obs_collection, dataproduct_type, calib_level,
+          target_name,
           s_ra, s_dec, s_fov,
           t_min, t_max,            # MJD
           em_min, em_max,           # metres
-          access_format, access_estsize  # KB
+          access_format, access_estsize,  # KB
+          is_public, checksum, doi, pid, citation, license,
+          provenance_json
+
+        facility_name, instrument_name and obs_title are stored
+        too (the built-ins return them when the header has them).
 
         Omit keys you can't infer. The publisher's manifest builder
         overlays your dict on top of the config defaults; absent
@@ -79,7 +103,8 @@ Rules:
   walk. Cheap extension check is enough; detailed format checks
   belong in `extract()`.
 * `extract()` may raise — the publisher catches and records the
-  failure in state.db with the error string.
+  failure in state.db with the error string, and aborts the scan
+  once `extract_failure_threshold` files have failed.
 * Don't perform network I/O. Extractors are pure local-FS readers.
 * Don't import the SKAVA app code. Extractors live in a separate
   Python package.
@@ -108,12 +133,19 @@ class CasaExtractor(Extractor):
     name = "casa"
 
     def supports(self, path: Path) -> bool:
-        return path.suffix == ".ms" and path.is_dir()
+        # A Measurement Set is a directory; claim its main table file.
+        return path.name == "table.dat" and path.parent.suffix == ".ms"
 
     def extract(self, path):
+        ms_dir = path.parent
         # ... call into python-casacore to read the Measurement Set
         ...
 ```
+
+The scanner only hands **regular files** to extractors (it descends
+into directories), so a directory-based format such as a CASA
+Measurement Set has to be claimed through one of its files, as
+above, and ``scan.include`` must match that file name.
 
 Install it next to the publisher:
 
@@ -129,28 +161,22 @@ via the entry point and added to the resolution chain.
 ## Resolution order
 
 When the scanner finds a file, it iterates the discovered extractors
-in **lexical order of their entry-point name** and uses the first
-one whose `supports()` returns true. So if multiple plugins claim
-the same file:
+by **`priority`** (a class attribute, lower first, default 100) and
+then by entry-point name, and uses the first one whose `supports()`
+returns true. The built-in `psrfits` has priority 10, so it sees a
+`.fits` file before `fits` (priority 100) does.
 
-* `casa` (lex order: c) wins over `fits` (lex order: f) for a
-  `.fits` file if `casa.supports()` returns true first.
-* Re-name your entry point if you need a specific priority.
-
-This is intentional — predictable across deployments — but if you
-need richer priority semantics, write a single "router" extractor
-that delegates internally and register only that one.
+An extractor that recognises its files by content (a header keyword,
+a table) should set a priority below 100, so it is asked before the
+extension-only built-ins; one that matches extensions only should keep
+the default. The order is the same on every deployment.
 
 ## Re-using the built-in helpers
 
-The shared `_opt_float`, `_opt_str`, `_dataproduct_type`,
-`_spatial`, `_time`, `_spectral` helpers in
-`skava_publisher.extractors.fits` are not yet exposed as a public API
-— they're internal to the FITS extractor. Phase 4 will extract them
-into `skava_publisher.extractors.helpers` so plugins can reuse the
-WCS / time / frequency logic without copying.
-
-For now, copy the relevant snippets directly into your plugin.
+The `_opt_float`, `_opt_str`, `_dataproduct_type`, `_spatial`,
+`_time`, `_spectral` helpers in `skava_publisher.extractors.fits` are
+private to the FITS extractor, not a public API. Copy the relevant
+snippets into your plugin rather than importing them.
 
 ## Testing your extractor
 
@@ -174,8 +200,9 @@ def test_extract_from_sample_file():
     assert "s_ra" in out
 ```
 
-The Apptainer image bakes Python 3.12 + pytest, so the same tests
-run in CI inside the container the operator will deploy.
+The Apptainer image bakes Python 3.12 but not pytest; install it
+(``pip install pytest``) in the environment where you run these
+tests.
 
 ## Common pitfalls
 
@@ -186,26 +213,22 @@ run in CI inside the container the operator will deploy.
 * - Pitfall
   - Fix
 * - Plugin not picked up
-  - Confirm the entry point: ``pip show skava-publisher-casa`` →
-    look at the entry-points section. Or:
+  - Confirm the entry point:
     ``python -c "from importlib.metadata import entry_points;
     print(list(entry_points(group='skava_publisher.extractors')))"``.
+    The publisher logs ``Loaded extractors: …`` at the start of every
+    scan.
 * - ``supports`` returns true for files you can't handle
   - The publisher will treat extraction errors as failed-once, retry
     next run. Tighten ``supports``.
 * - Returning ``None`` for missing fields
-  - Don't — just omit the key. The manifest builder distinguishes
-    "absent" from "explicit None" and the latter currently sets
-    DB columns to NULL even if a default exists.
+  - Don't — just omit the key. The manifest builder applies the
+    ``is_public`` default and the file-size ``access_estsize`` only
+    when the key is absent, so an explicit ``None`` suppresses
+    them.
 * - Returning Astropy units instead of plain floats
   - Always call ``.to_value("deg")`` / ``.to_value("m")`` etc.
-    before returning. JSON can't serialise ``Quantity``.
+    before returning. The manifest writer turns a ``Quantity`` into
+    a string such as ``"12.3 deg"``, which SKAVA then rejects as a
+    ``normalization_error``.
 ```
-
-## Roadmap
-
-* Phase 4: ``skava_publisher.extractors.helpers`` public API.
-* Phase 4: ``--extractor=...`` CLI override for testing a specific
-  one against a single file.
-* Phase 5: per-file timing / size metrics emitted as JSON for
-  Prometheus scrape.

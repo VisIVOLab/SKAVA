@@ -92,6 +92,6 @@ def supported_operations(cutout_available: bool) -> list[str]:
 def build_datalink_descriptor(access_url: str, cutout_available: bool = False) -> DatalinkDescriptor:
     return DatalinkDescriptor(
         service=access_url,
-        standard_hint="DataLink/SODA precursor",
+        standard_hint="Legacy access contract; see /datalink/{obs_id}",
         operations=supported_operations(cutout_available),
     )

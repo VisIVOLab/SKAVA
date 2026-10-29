@@ -6,9 +6,10 @@ distinguish it from "Pattern A" (server-side rendering, see
 {doc}`../architecture/compute-next-to-data`).
 
 Pattern B is the production default for HI / SKA Phase 1 cubes (typical
-size: 1–20 GB). Server-side rendering is reserved for the SKA Phase 2
-TB-scale cubes — that work is parked until the x86 + Blackwell test
-nodes land (the ppc64le testbed cannot host EGL).
+size: 1–20 GB). Server-side rendering (Pattern A) is available where the
+node's backend has an EGL context, and the client offers it when the
+user asks for a full-resolution load of a large cube; on a node without
+EGL, Pattern B is the only path to full resolution.
 
 ## The problem
 
@@ -26,14 +27,16 @@ a hung viewer.
 
 ## The fix in one sentence
 
-The backend tells the client the cube's size; the client chooses
-auto-load vs preview-only based on a threshold (default 4 GiB), and
-exposes explicit "Load full resolution" and "Crop full resolution"
-actions in the View menu.
+The backend tells the client the cube's size and its own threshold
+(4 GiB, or a quarter of the backend's memory when that is less); the
+client chooses auto-load vs preview-only from it, and exposes explicit
+"Load Full Resolution" and "Crop Full Resolution…" actions in the View
+menu.
 
 ## Backend side
 
-The `/v1/datasets/open` response gains three fields:
+Every open response (`/v1/datasets/open`, `/v1/datasets/open_url`,
+`/v1/datasets/open_skava`) carries three fields:
 
 ```json
 {
@@ -51,13 +54,22 @@ full_res_threshold_bytes`:
 * `"preview_only"` — client should stop at preview and surface explicit
   user actions for full-res or crop
 
-Threshold is configurable per-deployment with
-`VISIVO_FULL_RES_THRESHOLD_BYTES`. Default 4 GiB is empirically the size
-above which a 16 GB-RAM laptop with integrated/low-end discrete GPU
-starts thrashing on VTK volume rendering of an HI cube.
+When `VISIVO_FULL_RES_THRESHOLD_BYTES` is set, it is the threshold,
+outright. Otherwise the threshold is the smaller of:
+
+* 4 GiB, empirically the size above which a 16 GB-RAM laptop with
+  integrated/low-end discrete GPU starts thrashing on VTK volume
+  rendering of an HI cube;
+* a quarter of the memory the backend can have (the tightest cgroup
+  limit in a container, such as a SLURM job's `--mem`, else the
+  host's RAM). A full-resolution load streams the cube in concurrent
+  slabs, so about twice the cube sits in the backend's memory at once:
+  a node with 8 GB gets a 2 GiB threshold instead of being killed
+  serving a 3 GB cube.
 
 Implementation pointer: `backend/app/fits_dataset.py`,
-`geometry_metadata()`. Schema: `backend/app/schemas.py`,
+`geometry_metadata()` and `_full_res_threshold_bytes()` (memory limit
+from `backend/app/node_status.py`). Schema: `backend/app/schemas.py`,
 `OpenDatasetResponse`.
 
 ## Client side
@@ -74,16 +86,23 @@ preserving the old behaviour).
   shows ``Preview-only mode: cube is 10.0 GB (threshold 4.0 GB). Use
   View → Load Full Resolution or Crop Region for full-res data.``
 
-The View menu gains two new actions (always visible, useful even on
-small cubes for manual reload):
+The View menu has two actions (always visible, useful even on small
+cubes for manual reload):
 
 ```text
-View → Load Full Resolution        ← fires requestHighResCube() unconditionally
-View → Crop Full Resolution…       ← opens the existing sub-cube ROI dialog
+View → Load Full Resolution        ← fetches the whole cube at full resolution
+View → Crop Full Resolution…       ← opens the sub-cube ROI dialog
 ```
 
+**Load Full Resolution** first checks the cube
+against the client's own local-load threshold (setting
+`Cube/local_full_threshold_mb`, default 256 MB). Above it, a warning
+explains the memory and transfer cost and offers **Use Remote
+Rendering** when the backend can render server-side, or a crop
+otherwise; the user can still load it anyway.
+
 Implementation pointers: `src/app/BackendClient.{h,cpp}`,
-`src/gui/vtkWindowCube.{h,cpp}`, `src/gui/MainWindow.cpp`.
+`src/gui/vtkWindowCube.{h,cpp}`, `src/gui/vtkWindowCube_Setup.cpp`.
 
 ## Crop full resolution
 
@@ -115,7 +134,7 @@ Why: empirical on an SDC2 1.6 GB subcube:
 | Binary endpoint | 1.6 GB raw, 4 parallel slabs | 8–12 s |
 
 The client splits the Z range into 4 concurrent slab requests
-(configurable via `VISIVO_SUBVOLUME_PARALLEL`); each slab is its own
+(configurable via `VISIVO_SUBVOLUME_PARALLEL` on the client, 1–16); each slab is its own
 TCP stream over the same SSH tunnel, so per-stream TCP fairness
 multiplies effective bandwidth ~3–4×.
 
@@ -140,6 +159,10 @@ slice the user is actively looking at.
 
 ## Threshold tuning per deployment
 
+The threshold is a backend setting: it applies to every client of that
+backend, and the memory cap above still lowers the default on a small
+node. An explicit value overrides both.
+
 ```{list-table}
 :header-rows: 1
 :widths: 25 25 50
@@ -161,9 +184,10 @@ slice the user is actively looking at.
   - Always preview-only; never auto-load full res
 ```
 
-Set via `APPTAINERENV_VISIVO_FULL_RES_THRESHOLD_BYTES=<bytes>` in the
-SLURM launcher invocation, or via the analogous env var on a bare-metal
-backend.
+Set via `APPTAINERENV_VISIVO_FULL_RES_THRESHOLD_BYTES=<bytes>` exported
+in the environment `launch_backend_slurm.sh` runs in (the batch job
+inherits it and Apptainer passes it into the container), or via
+`VISIVO_FULL_RES_THRESHOLD_BYTES` on a bare-metal backend.
 
 ## See also
 

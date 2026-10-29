@@ -33,7 +33,7 @@ apptainer run \
     --bind /etc/skava-publisher.yaml:/etc/skava-publisher.yaml \
     --bind /var/lib/skava-publisher:/var/lib/skava-publisher \
     --env SKAVA_INTERNAL_API_KEY="..." \
-    publisher.sif scan -c /etc/skava-publisher.yaml -o /tmp/manifest.json
+    publisher.sif -c /etc/skava-publisher.yaml scan -o /tmp/manifest.json
 ```
 
 ### pip
@@ -48,7 +48,7 @@ skava-publisher --version
 Or directly from the repo (needs access; prompts for credentials if private):
 
 ```bash
-pip install "git+https://github.com/fvitello/SKAVA.git#subdirectory=tools/skava-publisher"
+pip install "git+https://github.com/VisIVOLab/SKAVA.git#subdirectory=tools/skava-publisher"
 ```
 
 ## Configuration
@@ -57,6 +57,8 @@ Copy `example-config.yaml` to `/etc/skava-publisher.yaml` (or anywhere)
 and edit. **Secrets must come from environment variables.** The config
 loader expands `${VAR}` references; missing vars surface as Pydantic
 validation errors at startup, not as confusing HTTP 401s later.
+`--config` / `-c` goes before the subcommand, or set
+`SKAVA_PUBLISHER_CONFIG`.
 
 ```bash
 export SKAVA_INTERNAL_API_KEY="<openssl rand -hex 32>"
@@ -84,9 +86,9 @@ skava-publisher -c config.yaml publish -m /tmp/manifest.json
 
 ```bash
 skava-publisher -c config.yaml publish -y
-# = scan + publish in one shot
-# Output: "Scanned 1003 files, 3 new → published 3"
-# state.db skips the 1000 unchanged
+# = scan + publish in one shot (no separate dry-run)
+# Summary: scanned 1003, skipped_unchanged 1000, extracted 3
+# "✓ Published 3 record(s)." followed by SKAVA's JSON response
 ```
 
 ### 3. Full-auto (cron + watch mode)
@@ -95,7 +97,7 @@ skava-publisher -c config.yaml publish -y
 # Every 6 hours
 0 */6 * * * apptainer run --bind /data:/data --bind /etc/skava-publisher.yaml:/etc/skava-publisher.yaml \
                           --env-file /etc/skava-publisher.env \
-                          /opt/skava/publisher.sif watch -c /etc/skava-publisher.yaml --once \
+                          /opt/skava/publisher.sif -c /etc/skava-publisher.yaml watch --once \
             >> /var/log/skava-publisher.log 2>&1
 ```
 
@@ -111,11 +113,16 @@ apptainer exec instance://skava-watch skava-publisher -c /etc/skava-publisher.ya
 | Command | Network call | Writes SKAVA | Updates state.db | Use case |
 |---|---|---|---|---|
 | `scan` | no | no | yes (file index only) | review JSON before publish |
-| `validate` | yes (dry-run) | no | no | sanity check |
-| `publish` | yes | **yes** | yes (marks published) | actual ingestion |
+| `validate` | yes (dry-run) | no | file index only, when it scans (no `-m`) | sanity check |
+| `publish` | yes | **yes** | yes (marks published), not with `-m` | actual ingestion |
 | `watch --once` | yes | **yes** | yes | cron-friendly periodic run |
 | `watch` (no `--once`) | yes | **yes** | yes | long-running daemon |
 | `status` | no | no | no | inspect state.db summary |
+
+Each file is marked by what SKAVA did with its record: `published`
+when SKAVA took it, `failed` with SKAVA's reason when SKAVA skipped it
+(`validation_errors` in the response) or the upload failed. Failed
+files are sent again by the next run; `status` lists them.
 
 ## Supported file formats
 
@@ -124,6 +131,12 @@ apptainer exec instance://skava-watch skava-publisher -c /etc/skava-publisher.ya
 | FITS (imaging / spectral) | `FitsExtractor` | `*.fits`, `*.fit`, `*.fts`, `*.fits.gz`, `*.fits.fz` | WCS + RA/DEC fallback, MJD-OBS + EXPTIME, RESTFREQ + spectral axis |
 | HDF5 (LOFAR ICD-3 dynspec) | `Hdf5Extractor` | `*.h5`, `*.hdf5` | root attributes (POINTING_RA, OBSERVATION_FREQUENCY_MIN, …) |
 | PSRFITS (pulsar / FRB) | `PsrFitsExtractor` | `.fits`/`.sf` with `FITSTYPE=PSRFITS` or `EXTNAME=SUBINT` | STT_IMJD/STT_SMJD, OBSFREQ/OBSBW, sexagesimal RA/DEC |
+
+Extractors are tried by priority, then by entry-point name, and the
+first match wins: `PsrFitsExtractor` (priority 10) recognises PSRFITS
+by its header and comes before `FitsExtractor`, so a PSRFITS file named
+`*.fits` is tagged `dynspec`. The default `scan.include` is `*.fits`,
+`*.fits.gz`, `*.h5`, `*.hdf5`, `*.sf`; add the other suffixes you need.
 
 ### Adding a new extractor
 
@@ -146,7 +159,7 @@ path           TEXT PK    absolute filesystem path
 size_bytes     INTEGER
 mtime_ns       INTEGER    nanosecond mtime → cheap "has it changed?" check
 sha256         TEXT       null when checksum was skipped (large files)
-obs_id         TEXT       assigned by SKAVA once published
+obs_id         TEXT       recorded once published (header OBS_ID or a path hash)
 first_seen     TEXT       ISO-8601 UTC
 last_published TEXT       ISO-8601 UTC; null until first successful publish
 last_status    TEXT       pending | published | failed
@@ -157,7 +170,7 @@ Inspect with `skava-publisher status` or any sqlite3 client:
 
 ```bash
 sqlite3 /var/lib/skava-publisher/state.db \
-    "SELECT obs_id, path FROM files WHERE last_status='failed';"
+    "SELECT path, last_error FROM files WHERE last_status='failed';"
 ```
 
 ## Security notes
@@ -173,7 +186,8 @@ sqlite3 /var/lib/skava-publisher/state.db \
 | Symptom | Likely cause |
 |---|---|
 | `validation error … internal_api_key` | env var not set / typo in `${VAR}` |
-| Every run reports 0 new files | `include` patterns don't match — try `--no-state scan` |
-| `extract_failure_threshold reached` | one specific file corrupts the run; see logs, exclude it |
-| `last_status='failed'` rows | check `last_error`; common: SKAVA refused for missing required field |
+| Every run reports 0 new files | `include` patterns don't match — try `scan --no-state` |
+| `Aborting: N extraction failures (>= extract_failure_threshold)` | one specific file corrupts the run; see logs, exclude it |
+| `last_status='failed'` rows | extraction errors; check `last_error` |
+| Records missing in SKAVA although state.db says `published` | SKAVA skipped them (e.g. `node_not_found`, missing `dataproduct_type`); see `validation_errors` in the publish output, fix, re-run with `--force` |
 | Watch loops but never publishes | files match `exclude` patterns; see scanner debug at `log_level: DEBUG` |

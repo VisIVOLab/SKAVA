@@ -7,7 +7,7 @@ the roadmap but external contributions are welcome.
 ## Dev environment
 
 ```bash
-git clone https://github.com/fvitello/SKAVA.git
+git clone https://github.com/VisIVOLab/SKAVA.git
 cd SKAVA
 
 python3 -m venv .venv
@@ -17,14 +17,17 @@ pip install -e ".[dev]"
 # Bring up Postgres
 docker compose -f docker-compose.yml up -d db
 
-# Migrate + seed
+# Migrate + seed (SKAVA_ENV=dev defaults the database URL to
+# postgresql+psycopg://skava:skava@localhost:5432/skava)
 alembic upgrade head
 python -m app.seed
 
 # Run uvicorn with hot reload
-SKAVA_DATABASE_URL=postgresql+psycopg://skava:skava@localhost:5432/skava \
-    uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
+
+The tests need no database at all (they run on in-memory SQLite, see
+[testing](testing.md)).
 
 Open <http://localhost:8000/admin/> after bootstrapping an admin
 with ``python -m app.admin.cli create-user --role admin --username
@@ -39,8 +42,8 @@ pip install -e ".[dev]"
 
 ## Coding conventions
 
-* **Python** 3.10+. Type hints throughout. ``from __future__ import
-  annotations`` at the top of every new file.
+* **Python** 3.11+ for the service (CI runs 3.11 and 3.12); the
+  publisher supports 3.10+. Type hints throughout.
 * **FastAPI** routers stay thin. Business logic lives in
   ``app/services/``.
 * **SQLAlchemy** 2.x mapped ORM with ``Mapped[...]`` annotations and
@@ -48,18 +51,15 @@ pip install -e ".[dev]"
 * **Pydantic v2** for request/response schemas in ``app/schemas/``.
 * **Docstrings** in Google style; the napoleon Sphinx extension
   renders them in the API docs.
-* **Tests** in ``tests/``. We use pytest with the ``httpx`` async
-  client and an ephemeral PostgreSQL.
+* **Tests** in ``tests/``. We use pytest with FastAPI's
+  ``TestClient`` on an in-memory SQLite database.
 
-Formatters / linters:
+Formatters / linters (not enforced by CI; run them before a PR):
 
 ```bash
 ruff check .
 ruff format .
-mypy app/
 ```
-
-CI enforces all three.
 
 ## Branching and PRs
 
@@ -69,18 +69,17 @@ CI enforces all three.
 * One concern per PR. Big work splits into a stack of small ones.
 * PR titles should make sense as standalone changelog entries.
 
-Each PR runs:
-
-* lint + typecheck
-* unit + integration tests
-* docs build (links checked)
-* container build smoke test
+Each PR to ``main`` runs the ``tests`` workflow
+(``.github/workflows/tests.yml``): ``pytest`` on Python 3.11 and
+3.12. Build the docs locally (``make -C docs html``, warnings are
+errors) when you touch ``docs/``.
 
 Merge when all green and one ``approve`` from a maintainer.
 
-## Issue templates
+## Issues
 
-Three flavours:
+The repository has no issue templates; please shape an issue as one
+of:
 
 * **Bug** — minimal reproducer, expected vs actual, environment.
 * **Feature request** — user story, alternatives considered.
@@ -92,11 +91,14 @@ Three flavours:
 Docs live in ``docs/`` as MyST Markdown. To preview locally:
 
 ```bash
-pip install -r docs/requirements.txt
+pip install -r docs/requirements.txt sphinx-autobuild
 make -C docs livehtml
 ```
 
 A browser opens to the live-reloading site. Edit; it refreshes.
+``make -C docs linkcheck`` checks the external links. On every push
+to ``main`` that changes ``docs/``, a workflow mirrors the tree to the
+public documentation site.
 
 Style guide:
 
@@ -109,12 +111,14 @@ Style guide:
 
 ## What we'd love help with
 
-* OIDC backend in ``app/admin/auth/oidc.py``.
-* SODA cutout execution worker.
-* Federation fan-out implementation (``app/routers/federation.py``).
-* A second extractor for CASA Measurement Sets.
+* OIDC sign-in for the admin UI (the public API already accepts
+  OIDC tokens; the admin UI has local accounts only).
+* An asynchronous SODA execution path (``/soda/execute`` is
+  synchronous today).
+* A second extractor for CASA Measurement Sets (see
+  [extending the publisher](extending-extractors.md)).
 * Performance work on the spatial-index lookup.
-* Internationalisation (IT, EN, ES). Phase 4 of the admin UI.
+* Internationalisation of the admin UI (IT, EN, ES).
 
 ## What we'd rather you not PR
 
@@ -132,5 +136,5 @@ Be kind, be specific, default to writing.
 ## Security disclosures
 
 Email ``security@skava.inaf.it`` rather than filing a public issue.
-See the [security page](../deployment/security#disclosure) for
+See the [security page](../deployment/security.md#disclosure) for
 details.

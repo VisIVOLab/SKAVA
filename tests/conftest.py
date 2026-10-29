@@ -117,3 +117,12 @@ def admin_client(client, admin_user):
         f"Login failed: status={r.status_code}, body={r.text[:200]}"
     )
     return client
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_throttle():
+    """The admin login throttle is process state: each test starts clean."""
+    from app.admin.auth import throttle
+    throttle.reset()
+    yield
+    throttle.reset()

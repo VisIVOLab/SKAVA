@@ -11,23 +11,23 @@ incident response. Aimed at a duty operator with shell + DB access.
 
 ## First login after deployment
 
-The admin UI ships with **no users in the database**. The first user
-must be created out-of-band via a one-shot script, then everything
-else flows through the UI.
+The admin UI ships with **no users in the database**. Users are
+managed with the admin CLI (`app/admin/cli.py`); the UI has no user
+management pages.
 
 ```bash
 # In the running container / venv
-python -m app.scripts.create_admin_user \
+docker compose exec api python -m app.admin.cli create-user \
     --username root \
     --email root@example.org \
     --role admin
 # Prompts for password interactively; validates against the policy
-# (12+ chars, mixed case, digit) before writing.
+# (12+ chars, mixed case, digit) before writing. --password skips
+# the prompt (scripts; the testbed's `make admin` uses it).
 ```
 
-After login, use the UI to create the rest of the team (Phase 5 adds
-this section to the nav; until then, repeat the CLI for additional
-users).
+Repeat for the rest of the team (`--role ingester` or `viewer`).
+`list-users` shows who exists.
 
 ## User lifecycle
 
@@ -38,15 +38,15 @@ users).
 * - Action
   - How
 * - Disable a leaver
-  - SQL: ``UPDATE users SET is_active=false, password_hash=NULL WHERE username='…'``.
-    Their `actor_user_id` in the audit log is preserved by the
-    `ON DELETE SET NULL` cascade, but `actor_label` snapshot stays
-    readable.
+  - ``python -m app.admin.cli deactivate --username …`` (sets
+    ``is_active=false``; audit row ``cli.deactivate``). The user's
+    rows stay, so the audit history keeps pointing at them; their
+    sessions stop working on the next request.
 * - Rotate password
-  - Re-run the CLI script with the same username; the password is
-    re-hashed in place.
+  - ``python -m app.admin.cli reset-password --username …``; the
+    password is re-hashed in place (audit row ``cli.reset_password``).
 * - Promote viewer → ingester
-  - SQL: ``UPDATE users SET role='ingester' WHERE username='…'``.
+  - ``python -m app.admin.cli set-role --username … --role ingester``.
     Effect is immediate on the user's next request — no session reset
     needed because RBAC is checked per request.
 * - List active admins
@@ -78,17 +78,17 @@ psql with `\copy ... TO 'audit.csv' CSV HEADER`.
 
 ## Recovering from "I lost the only admin password"
 
-```sql
--- emergency: reset role=admin user's password to a random temporary
-UPDATE users
-SET    password_hash = NULL,
-       is_active     = true
-WHERE  username = 'root';
+No SQL needed: anyone with shell access to the api container resets
+it with the CLI.
+
+```bash
+docker compose exec api python -m app.admin.cli reset-password --username root
 ```
 
-Then re-run the CLI to set a new password. The temporary NULL hash
-prevents login during the reset window; the audit entry for the
-re-set is `auth.password_reset` (recorded by the CLI).
+The CLI writes the audit entry `cli.reset_password` (actor `<cli>`).
+If the account was deactivated, there is no CLI verb to reactivate
+it: create a new admin with `create-user`, or set `is_active = true`
+on the row in SQL.
 
 ## Common incidents
 
@@ -110,6 +110,9 @@ them. Resolution: log out + log in in both tabs.
 If the symptom is *consistent*, check that `ADMIN_SESSION_COOKIE_SECURE`
 matches the actual transport (must be `False` for plain HTTP dev,
 `True` for HTTPS).
+Also check that `ADMIN_SESSION_SECRET` is set: without it each process
+generates its own secret, so a restart (or a second worker) invalidates
+every form.
 
 ### "History page shows '0 entries' but I know we just did things"
 
@@ -124,11 +127,11 @@ Two possible causes, in order of likelihood:
 
 ### "Bulk upload returned dry-run summary but no records were created"
 
-`/admin/upload` defaults to **dry-run**. Untick the *Dry run* box and
-re-submit. The original dry-run run is still in the audit log under
-`ingestion.dry_run`.
+`/admin/upload` defaults to **Dry run**. Choose *Run* under "Run mode"
+and re-submit. The dry run is still in the audit log under
+`ingestion.upload.dry_run` (the real run is `ingestion.upload`).
 
-## Phase 3 features at a glance
+## Read-only pages at a glance
 
 ```{list-table}
 :header-rows: 1
@@ -158,5 +161,5 @@ See also:
 
 * {doc}`../admin-ui/overview` — high-level architecture
 * {doc}`../admin-ui/history` — audit page UX + filter semantics
-* {doc}`../admin-ui/upload` — Phase 2c bulk upload
+* {doc}`../admin-ui/upload` — bulk upload
 * {doc}`troubleshooting` — generic SKAVA incidents (not admin-specific)

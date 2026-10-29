@@ -36,14 +36,14 @@ For SRCs with maintenance windows:
 docker compose exec db pg_dump -U skava -d skava --format=custom \
     --file=/tmp/preupgrade.dump
 
-# 3. Pull the new image
-docker compose pull api
+# 3. Update the source tree (the shipped compose files build the image)
+git pull
 
-# 4. Recreate api container — runs Alembic on boot
-docker compose up -d api
+# 4. Rebuild and recreate the api container — runs Alembic on boot
+docker compose up -d --build api
 
 # 5. Smoke test
-curl -fsS http://localhost:8000/system/health | jq
+curl -fsS http://localhost:8000/health/db | jq
 
 # 6. Re-enable traffic at the proxy
 ```
@@ -83,25 +83,28 @@ Prerequisites:
 
 ## Rolling back
 
-```bash
-# Roll the image back. Schema stays at the new head.
-docker compose down api
-docker compose pull api:v0.1.3
-docker compose up -d api
-```
-
-Alembic migrations are not auto-reverted. If the new release added
-columns and you rolled back, the old code simply ignores them — no
-data loss.
-
-For a hostile schema change (rare; flagged in release notes), the
-release ships a downgrade migration:
+When the release you are leaving added no migration, roll the code
+back and rebuild:
 
 ```bash
-docker compose exec api alembic downgrade -1
+git checkout <previous-release-tag>
+docker compose up -d --build api
 ```
 
-Always test the downgrade on a staging DB before applying to
+When it did add one, downgrade the schema **first, with the new
+code still running** — the older entrypoint runs `alembic upgrade
+head`, which fails on a database at a revision it does not know, and
+the container exits:
+
+```bash
+docker compose exec api alembic downgrade <previous-head-revision>   # e.g. 0008_add_admin_users_and_audit
+git checkout <previous-release-tag>
+docker compose up -d --build api
+```
+
+Every migration in `migrations/versions/` ships a `downgrade()`.
+Downgrading drops the columns/tables the migration added, with their
+data. Always test the downgrade on a staging DB before applying to
 production.
 
 ## Upgrade checklist
@@ -117,14 +120,15 @@ production.
   - admin
 * - 2. Backup PostgreSQL (always — see :doc:`backup`).
   - admin
-* - 3. Update ``docker-compose.yml`` / Helm chart image tag.
+* - 3. Update the source tree, or the image tag if you publish
+    images to a registry.
   - admin
-* - 4. Pull the new image (``docker compose pull`` / ``helm pull``).
+* - 4. Rebuild (``docker compose build``) or pull the new image.
   - automated
 * - 5. Restart api containers; verify the
     ``alembic upgrade head`` line in logs.
   - admin
-* - 6. ``curl /system/health`` + a sample
+* - 6. ``curl /health/db`` + a sample
     ``curl /discovery/search?limit=1`` to validate.
   - admin
 * - 7. Run a publisher dry-run against the upgraded instance.
@@ -142,16 +146,27 @@ production.
 
 * - Migration
   - Notes
-* - ``0008 add_admin_users_and_audit``
-  - Adds the admin subsystem. No effect on existing API behaviour.
-    Run ``python -m app.admin.cli create-user --role admin`` to
-    bootstrap.
-* - ``0007 add_visivo_backend``
-  - Two new columns on ``nodes``. Defaults to empty, so existing
-    deployments without a VisIVO backend keep working unchanged.
-* - ``0006 production_readiness``
-  - Indexes on hot paths. Migration takes O(n log n) on big DBs;
-    run during maintenance windows for catalogues > 1 M rows.
+* - ``0009_add_node_telemetry``
+  - Five nullable columns on ``nodes`` (``probe_ok``,
+    ``probe_rtt_ms``, ``probe_error``, ``telemetry_json``,
+    ``telemetry_at``). Additive; the default ``static`` ranking policy
+    does not read them.
+* - ``0008_add_admin_users_and_audit``
+  - Adds the admin subsystem (``users``, ``audit_log``). No effect on
+    existing API behaviour. Run ``python -m app.admin.cli create-user
+    --role admin --username <name>`` to bootstrap.
+* - ``0007_add_visivo_backend``
+  - Two new columns on ``nodes`` (``visivo_backend_url``,
+    ``visivo_backend_requires_auth``). Defaults to empty / false, so
+    existing deployments without a VisIVO backend keep working
+    unchanged.
+* - ``0006_production_readiness``
+  - DOI / PID / citation / licence / provenance / spatial-index
+    columns on ``datasets`` and the ``tap_jobs`` and ``staging_jobs``
+    tables. Additive.
+* - ``0005_scientific_query_support``, ``0002_add_search_indexes``
+  - Build B-tree indexes on ``datasets`` (and ``dataset_replicas``);
+    on catalogues > 1 M rows run them during a maintenance window.
 * - earlier migrations
   - schema-stable; safe to roll forward without ceremony.
 ```

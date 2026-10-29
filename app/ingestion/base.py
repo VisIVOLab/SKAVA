@@ -17,6 +17,9 @@ class IngestionRecord:
     obs_collection: str | None = None
     calib_level: int | None = None
     target_name: str | None = None
+    obs_title: str | None = None
+    facility_name: str | None = None
+    instrument_name: str | None = None
     s_ra: float | None = None
     s_dec: float | None = None
     s_fov: float | None = None

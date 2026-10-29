@@ -31,6 +31,7 @@ extensions = [
     "sphinx.ext.viewcode",        # source code link from API pages
     "sphinx_copybutton",          # copy-to-clipboard on code blocks
     "sphinx_design",              # admonitions, grids, tabs
+    "sphinxcontrib.mermaid",      # ```{mermaid} diagrams
 ]
 
 # MyST extras — enable the most useful Markdown extensions.
@@ -56,7 +57,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # Show "Edit on GitHub" link.
 html_context = {
     "display_github": True,
-    "github_user":    "fvitello",
+    "github_user":    "VisIVOLab",
     "github_repo":    "SKAVA",
     "github_version": "main",
     "conf_py_path":   "/docs/",
@@ -83,7 +84,7 @@ html_theme_options = {
     "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/fvitello/SKAVA",
+            "url": "https://github.com/VisIVOLab/SKAVA",
             "html": "",
             "class": "fa-brands fa-github",
         },

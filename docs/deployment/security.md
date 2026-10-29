@@ -2,7 +2,7 @@
 
 SKAVA's threat model and the controls that mitigate each class of
 attack. Pair this page with the
-[Configuration reference](configuration) for the env-vars you'll be
+[Configuration reference](configuration.md) for the env-vars you'll be
 setting.
 
 ## Threat model
@@ -14,7 +14,7 @@ URLs to scientific files. The defenders' goals, in priority order:
 2. Authentication of mutating actions — only authorised operators
    should change Nodes / Datasets / Replicas.
 3. Confidentiality of credentials — internal API keys, session
-   secrets, OIDC client secrets (future).
+   secrets, the users' bearer tokens.
 4. Availability — public discovery should keep responding under
    normal SRC load.
 5. Audit — every mutation must be attributable.
@@ -37,24 +37,55 @@ Out of scope at this layer (delegated to other components):
 * - Surface
   - Mechanism
   - Notes
-* - Public discovery (``/discovery``, ``/datalink``, ``/tap``, ``/soda``)
-  - none by default; optional bearer-token whitelist via
-    ``SKAVA_ACCESS_TOKENS``
-  - For SKA-Pre proof-of-concept sites we recommend leaving discovery
-    open. Production SRCs may turn it on per IVOA / SKAO policy.
+* - Public endpoints (``/discovery``, ``/datalink``, ``/tap`` queries, ``/soda``,
+    ``/access``, ``/provenance``, ``/staging``, ``/federation``)
+  - none by default; a token is required as soon as static tokens
+    (``SKAVA_ACCESS_TOKENS``) or OIDC (``IAM_WELLKNOWN_ENDPOINT``) are
+    configured. Sent as ``Authorization: Bearer`` or
+    ``X-SKAVA-Access-Token``.
+  - For proof-of-concept sites we recommend leaving discovery open.
+    Production SRCs may turn it on per IVOA / SKAO policy. A 401
+    carries an ``ivoa_bearer`` challenge naming the IAM when OIDC is
+    on. The system endpoints (``/availability``, ``/health/db``,
+    ``/capabilities``, ``/metrics``) stay open.
 * - Internal ingestion (``/internal/*``)
   - ``X-Internal-Api-Key`` shared secret
   - Rotate yearly. Treat as a service-to-service credential, not a
     user credential.
 * - Admin UI (``/admin/*``)
-  - signed session cookie + bcrypt password
-  - Phase 1 only — local users. Phase 5 plans OIDC (Garr AAI /
-    eduGAIN) without removing the local backend.
-* - Federation (``/federation/*``, roadmap)
-  - sibling-to-sibling allowlist + signed envelopes
-  - Not yet enforced; design captured in
-    [Architecture / overview](../architecture/overview).
+  - signed session cookie + bcrypt password + CSRF token
+  - Local users only (roles ``admin``, ``ingester``, ``viewer``),
+    separate from the IAM.
+* - Federation (``/federation/*``)
+  - the caller's token
+  - The federated search forwards the token the caller presented,
+    unverified, to each sibling in ``SKAVA_FEDERATED_SRC_URLS``; each
+    sibling enforces its own policy. Siblings are trusted by
+    configuration only.
+* - Node backends (from SKAVA)
+  - ``X-Visivo-Token`` = ``SKAVA_VISIVO_BACKEND_TOKEN``
+  - Sent to nodes registered with "requires auth", by
+    ``/soda/execute`` and the telemetry prober.
 ```
+
+## OIDC tokens
+
+When ``IAM_WELLKNOWN_ENDPOINT`` is set, SKAVA fetches the IAM's
+discovery document and key set (cached; a key rotation is picked up
+on an unknown key id) and accepts a JWT that:
+
+* is signed with an asymmetric algorithm (RS*, ES256/384, PS256 —
+  never HS*) by a key in that set,
+* carries ``exp`` and ``iat`` and has not expired (30 s leeway),
+* was issued by the discovery document's issuer (or
+  ``SKAVA_OIDC_ISSUER``),
+* carries ``SKAVA_OIDC_AUDIENCE`` in ``aud`` when that is set.
+
+Set the audience in production so a token issued for another service
+is not accepted. Static ``SKAVA_ACCESS_TOKENS`` keep working alongside.
+SKAVA never stores a presented token: jobs record only a short hash of
+it (``token:<sha256 prefix>``). See
+[configuration](configuration.md#oidc-bearer-tokens) for every setting.
 
 ## Transport security
 
@@ -92,6 +123,9 @@ Out of scope at this layer (delegated to other components):
 * - Bearer tokens for ``SKAVA_ACCESS_TOKENS``
   - ``openssl rand -hex 32``
   - Distribute to each VO client OOB; rotate when an operator leaves.
+* - ``SKAVA_VISIVO_BACKEND_TOKEN``
+  - the node backend's token
+  - Same handling as ``INTERNAL_API_KEY``.
 ```
 
 ## Path safety on the VisIVO backend
@@ -104,20 +138,23 @@ A hostile client could try to read ``/etc/passwd``. Mitigations
 * **Scheme jail**: only ``file://`` is honoured by ``open_skava``;
   the ``open_url`` endpoint serves the download path and accepts only
   ``http(s)://``.
-* **Path jail**: ``VISIVO_DATA_ROOT`` makes the backend refuse paths
-  outside the configured directory tree.
+* **Path jail**: ``VISIVO_DATA_ROOT`` (or ``VISIVO_DATA_ROOTS``, a
+  path-separated list) makes the backend refuse paths outside the
+  configured directory trees.
 * **Symlink-aware** ``Path.resolve()`` before the jail check: a
   symlink to ``/etc/passwd`` resolves to ``/etc/passwd`` and fails
   ``relative_to(root)``.
 * **Extension whitelist**: only ``.fits``, ``.fit``, ``.h5``,
   ``.hdf5`` etc. are accepted by ``_is_supported_dataset``.
 
-Production deployments **must** set ``VISIVO_DATA_ROOT``.
+Production deployments **must** set ``VISIVO_DATA_ROOT`` or
+``VISIVO_DATA_ROOTS``.
 
 ## Audit
 
-Every mutating action in the admin UI (and every CLI call) writes a
-row to ``audit_log`` with:
+Every mutating action in the admin UI, every login attempt
+(``auth.login`` / ``auth.login_failed``) and every mutating admin CLI
+call (``cli.<verb>``) writes a row to ``audit_log`` with:
 
 * who performed the action (user id + display label snapshot)
 * what was changed (``action`` verb path, ``target_type`` / id)
@@ -130,29 +167,35 @@ SKAVA's code ever ``UPDATE``s or ``DELETE``s rows. Retention is left
 to the operator (a cron ``pg_dump`` to cold storage + a periodic
 ``DELETE WHERE occurred_at < NOW() - INTERVAL '365 days'``).
 
-## What SKAVA does not (yet) do
+## What SKAVA does not do
 
 ```{list-table}
 :header-rows: 1
 :widths: 35 65
 
 * - Concern
-  - Status / roadmap
+  - Status
 * - Rate limit on login
-  - Designed (``ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE`` already in
-    config), enforcement in Phase 4.
+  - After ``ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE`` failed sign-ins in a
+    minute from one client address, further attempts get HTTP 429 with
+    ``Retry-After`` before the password is checked (audit action
+    ``auth.login_throttled``). The count is per process. The production
+    nginx configs (``nginx.prod.conf``, ``nginx.tls.conf``) also limit
+    ``/admin`` to 5 r/s per client (burst 10).
 * - Rate limit on public endpoints
-  - Out of scope — use the reverse proxy.
+  - Done at the reverse proxy: the shipped nginx configs allow 30 r/s
+    per client (burst 60).
 * - Refresh-token revocation
   - N/A (sessions only).
 * - CSP / Permissions-Policy headers
-  - Not set by SKAVA. Add at the reverse proxy.
-* - SSO (OIDC)
-  - Scaffolded module path (``app/admin/auth/oidc.py``) exists; not
-    yet implemented.
+  - Not set by SKAVA. The production nginx configs add
+    ``X-Content-Type-Options``, ``X-Frame-Options`` and
+    ``Referrer-Policy``; add CSP at the reverse proxy.
+* - SSO (OIDC) for the admin UI
+  - Not available: OIDC covers the public API only; the admin UI uses
+    local accounts.
 * - 2FA
-  - Roadmap; will plug into the local-password backend without
-    disturbing OIDC.
+  - Not available for the admin UI.
 * - Encrypted columns in PostgreSQL
   - Not used. PostgreSQL TDE / column-level encryption are the
     operator's responsibility.

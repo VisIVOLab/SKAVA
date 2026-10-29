@@ -2,7 +2,7 @@
 
 This page brings up a full SKAVA stack — discovery API + PostgreSQL +
 Admin UI — on a single host using Docker Compose. Production
-deployments are covered in [Deployment / production](../deployment/production).
+deployments are covered in [Deployment / production](../deployment/production.md).
 
 ## Requirements
 
@@ -11,20 +11,23 @@ deployments are covered in [Deployment / production](../deployment/production).
   use the v2 syntax.
 * **Git**.
 * **8 GB RAM** comfortable for the demo seed; SKAVA itself uses < 200 MB.
-* **Port 8000** free on the host. Reassign in `docker-compose.yml` if needed.
+* **Ports 8000** (API) and **5432** (PostgreSQL) free on the host.
+  Reassign in `docker-compose.yml` if needed.
 
 ## Clone and start
 
 ```bash
-git clone https://github.com/fvitello/SKAVA.git
+git clone https://github.com/VisIVOLab/SKAVA.git
 cd SKAVA
 
 docker compose -f docker-compose.yml up -d --build
 ```
 
-The `up` command builds the API image, starts PostgreSQL, runs Alembic
-migrations, runs the seed (only on a fresh DB — subsequent restarts
-preserve user data), and finally launches `uvicorn` on port 8000.
+The `up` command builds the API image, starts PostgreSQL, runs the
+Alembic migrations (in `migrations/`), runs the demo seed (only on a
+fresh DB — subsequent restarts preserve user data; set
+`SKAVA_RUN_SEED=false` to skip it), and finally launches `uvicorn` on
+port 8000.
 
 Watch the logs:
 
@@ -39,7 +42,7 @@ Waiting for database to be ready...
 Database ready (attempt 1).
 Running migrations...
 INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
-INFO  [alembic.runtime.migration] Running upgrade ... -> 0008_add_admin_users_and_audit
+INFO  [alembic.runtime.migration] Running upgrade ... -> 0009_add_node_telemetry
 Seeding data...
 [seed] Skipping seed: 3 node(s) already present.   ← on warm DB
 Starting API...
@@ -49,7 +52,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 ## Smoke test
 
 ```bash
-curl -s http://localhost:8000/system/health | python -m json.tool
+curl -s "http://localhost:8000/availability?include_nodes=true" | python -m json.tool
 ```
 
 Expected:
@@ -57,9 +60,9 @@ Expected:
 ```json
 {
   "status": "ok",
-  "version": "0.1.0",
-  "uptime_seconds": 12.3,
-  ...
+  "service": "skava-discovery",
+  "database": {"status": "ok", "database": "reachable"},
+  "nodes": {"total_nodes": 3, "enabled_nodes": 3, "available_nodes": 3}
 }
 ```
 
@@ -69,21 +72,25 @@ A short discovery query confirms the seed loaded:
 curl -s "http://localhost:8000/discovery/search?limit=2" | python -m json.tool
 ```
 
-You should see a `results` array with two entries.
+You should see a `results` array with two entries (the seed has seven
+demo datasets, `dataset-1` … `dataset-7`, on nodes `A`, `B` and `C`).
 
 ## Set the internal API key
 
-The internal-ingestion endpoints (used by the publisher CLI and the
-admin UI's CSV upload) require an API key. The default
-`docker-compose.yml` does not set one — open it and add to the `api:
-environment:` block:
+The internal endpoints (`/internal/ingestion/*`, used by the publisher
+CLI, and `/internal/telemetry*`) require an API key in the
+`X-Internal-Api-Key` header. The default `docker-compose.yml` sets a
+development value (`dev-mac-key-not-for-prod-rotate-me-please`); replace
+it in the `api: environment:` block:
 
 ```yaml
     environment:
       INTERNAL_API_KEY: <openssl rand -hex 32>
 ```
 
-Replace the placeholder with the output of `openssl rand -hex 32`.
+Replace the placeholder with the output of `openssl rand -hex 32`. (The
+admin UI's CSV upload runs the same ingestion service in-process and
+does not need the key.)
 Recreate the container so the new env var is picked up:
 
 ```bash
@@ -113,11 +120,11 @@ shows the seed counts and your profile.
 
 ## Next steps
 
-* [Quickstart: query the federation](quickstart) — the actual API
+* [Quickstart: query the federation](quickstart.md) — the actual API
   surface.
-* [Publisher overview](../publisher/overview) — register your own
+* [Publisher overview](../publisher/overview.md) — register your own
   datasets without manually editing rows.
-* [Configuration](../deployment/configuration) — every environment
+* [Configuration](../deployment/configuration.md) — every environment
   variable in one place.
 
 ## Common installation issues
@@ -146,6 +153,6 @@ shows the seed counts and your profile.
 ```
 
 ```{seealso}
-[Troubleshooting](../operations/troubleshooting) for a longer list of
+[Troubleshooting](../operations/troubleshooting.md) for a longer list of
 runtime errors.
 ```

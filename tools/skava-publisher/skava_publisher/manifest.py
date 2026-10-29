@@ -80,9 +80,20 @@ def build_record(
     return record
 
 
-def dump_manifest(records: list[dict[str, Any]], path: Path) -> None:
+def manifest_body(records: list[dict[str, Any]],
+                  files: list[dict[str, Any]] | None = None) -> str:
+    """The manifest as JSON: the records SKAVA ingests and, aligned with
+    them, the file each came from as it was when extracted (absolute path,
+    size, mtime). SKAVA reads only ``records``; ``publish -m`` uses ``files``
+    to record each file's outcome in state.db, and only for a file that has
+    not changed since."""
+    payload: dict[str, Any] = {"records": records}
+    if files is not None:
+        payload["files"] = files
+    return json.dumps(payload, indent=2, default=str, ensure_ascii=False)
+
+
+def dump_manifest(records: list[dict[str, Any]], path: Path,
+                  files: list[dict[str, Any]] | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"records": records}, indent=2, default=str, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    path.write_text(manifest_body(records, files), encoding="utf-8")

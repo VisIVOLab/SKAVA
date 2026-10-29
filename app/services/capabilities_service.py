@@ -6,7 +6,7 @@ def get_capabilities() -> CapabilitiesResponse:
     return CapabilitiesResponse(
         service="SKAVA Data Discovery and Access",
         profile="VO-aligned Production Service",
-        version="0.2.0",
+        version="0.1.0",
         vosi={"availability": "/availability", "capabilities": "/capabilities"},
         interfaces=[
             CapabilityInterface(
@@ -48,35 +48,35 @@ def get_capabilities() -> CapabilitiesResponse:
                 name="datalink_descriptor",
                 path="/datalink/{obs_id}",
                 method="GET",
-                description="Canonical DataLink-like JSON descriptor endpoint.",
-                params=["obs_id"],
+                description="DataLink for one dataset: the ranked replicas with their reasons and the services of the chosen node; JSON, or an IVOA DataLink VOTable with RESPONSEFORMAT.",
+                params=["obs_id", "RESPONSEFORMAT"],
             ),
             CapabilityInterface(
                 name="soda_sync",
                 path="/soda/sync",
                 method="GET",
-                description="SODA sync stub endpoint: validates subset requests and resolves routing, without executing server-side subsetting yet.",
+                description="SODA sync: redirects (303) to the SODA service of the first ranked node that can cut the dataset in place, which validates and cuts it; without such a node, validates the request and returns the routing, with no subset.",
                 params=["ID", "POS", "BAND", "TIME", "RESPONSEFORMAT"],
             ),
             CapabilityInterface(
                 name="soda_execute",
                 path="/soda/execute",
                 method="POST",
-                description="SODA subset execution handoff backed by staging job metadata.",
+                description="Non-standard convenience proxy: the cutout is computed by the VisIVO backend next to the replica and streamed back; a staging handoff when no node can cut it.",
                 params=["ID", "POS", "BAND", "TIME", "RESPONSEFORMAT"],
             ),
             CapabilityInterface(
                 name="tap_sync",
                 path="/tap/sync",
                 method="GET|POST",
-                description="Minimal TAP sync ObsCore compatibility profile with ADQL equality predicates.",
+                description="TAP sync on ivoa.obscore: AND-joined comparison predicates on ObsCore columns and the ObsTAP CONTAINS(POINT, CIRCLE) cone; VOTable or JSON.",
                 params=["REQUEST", "LANG", "QUERY", "MAXREC", "FORMAT"],
             ),
             CapabilityInterface(
                 name="tap_async",
                 path="/tap/async",
                 method="POST",
-                description="TAP async compatibility endpoint backed by persisted job records.",
+                description="TAP async: the query runs at submission and its result is kept as a job record.",
                 params=["REQUEST", "LANG", "QUERY", "MAXREC", "FORMAT"],
             ),
             CapabilityInterface(
@@ -97,14 +97,28 @@ def get_capabilities() -> CapabilitiesResponse:
                 name="federation_search",
                 path="/federation/search",
                 method="GET",
-                description="Best-effort federated discovery across configured SRC-compatible peers.",
+                description="Discovery across this catalogue and its sibling catalogues, asked with the caller's token and merged on obs_id; each source's status is reported.",
                 params=["POS", "BAND", "TIME", "COLLECTION", "DPTYPE", "obs_id", "limit"],
+            ),
+            CapabilityInterface(
+                name="federation_sources",
+                path="/federation/sources",
+                method="GET",
+                description="The sibling catalogues a federated search asks.",
+                params=[],
             ),
             CapabilityInterface(
                 name="tap_capabilities",
                 path="/tap/capabilities",
                 method="GET",
-                description="TAP sync compatibility profile declaration.",
+                description="VOSI capabilities of the TAP service (XML; JSON with FORMAT=json).",
+                params=["FORMAT"],
+            ),
+            CapabilityInterface(
+                name="tap_tables",
+                path="/tap/tables",
+                method="GET",
+                description="VOSI tableset: the ivoa.obscore columns with their units and UCDs.",
                 params=[],
             ),
             CapabilityInterface(
@@ -118,8 +132,8 @@ def get_capabilities() -> CapabilitiesResponse:
         standards=[
             CapabilityStandard(name="ObsCore", ivoa_id="ivo://ivoa.net/std/ObsCore", support_level="aligned"),
             CapabilityStandard(name="DataLink", ivoa_id="ivo://ivoa.net/std/DataLink", support_level="minimal-votable-profile"),
-            CapabilityStandard(name="SODA", ivoa_id="ivo://ivoa.net/std/SODA", support_level="precursor"),
-            CapabilityStandard(name="TAP/ObsTAP", ivoa_id="ivo://ivoa.net/std/TAP", support_level="minimal-sync-profile"),
+            CapabilityStandard(name="SODA", ivoa_id="ivo://ivoa.net/std/SODA", support_level="redirect-to-node"),
+            CapabilityStandard(name="TAP/ObsTAP", ivoa_id="ivo://ivoa.net/std/TAP", support_level="obscore-subset"),
         ],
-        compliance_note="Production-hardened VO-aligned service. ObsCore discovery, access routing, DataLink VOTable output, and a minimal TAP sync profile are operational; full TAP async, full ADQL, and SODA execution remain planned extensions.",
+        compliance_note="VO-aligned service. ObsCore discovery, ranked access routing, DataLink JSON and VOTable, TAP sync and async on an ADQL subset with VOSI tables and capabilities, and SODA redirected to the node that holds the data are operational. Not supported: full ADQL (OR, joins, functions, polygons) and SODA subsetting by SKAVA itself.",
     )

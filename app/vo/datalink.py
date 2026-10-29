@@ -31,33 +31,33 @@ def build_access_links(
             rel="preview",
             href=None,
             content_type="image/png",
-            title="Preview placeholder",
-            description="Preview service not yet implemented.",
+            title="Preview (none)",
+            description="No preview link is published here; a VisIVO backend next to the data can render previews once the dataset is opened there.",
         ),
         LinkDescriptor(
             rel="metadata",
             href=None,
             content_type="application/json",
-            title="Metadata placeholder",
-            description="Dedicated metadata endpoint not yet implemented.",
+            title="Metadata (none)",
+            description="No separate metadata document: the metadata is served by /discovery/dataset/{obs_id}.",
         ),
         LinkDescriptor(
             rel="datalink",
             href=self_url,
             content_type="application/json",
-            title="DataLink-like entrypoint",
-            description="Current JSON precursor; future DataLink serialization can map here.",
+            title="This DataLink document",
+            description="This document as JSON; RESPONSEFORMAT=votable gives the IVOA DataLink VOTable.",
         ),
         LinkDescriptor(
             rel="soda-sync",
             href=f"{settings.public_base_url.rstrip('/')}/soda/sync",
             content_type="application/json",
             title="SODA sync endpoint",
-            description="SODA sync stub endpoint with request validation and routing orchestration.",
+            description="SODA sync: redirected (303) to the first ranked node that can cut the dataset in place; without one, validated here and answered with the routing.",
         ),
-        # No soda-async link: the endpoint does not exist yet, and a link a
-        # client can follow must not lead to a 404. The disabled service
-        # descriptor below still records that it is planned.
+        # No soda-async link: SKAVA runs no jobs itself, asynchronous SODA is
+        # the node's service, advertised by the node descriptors below; a
+        # link a client can follow must not lead to a 404.
     ]
 
     for replica in ranked_replicas:
@@ -87,13 +87,13 @@ def build_service_descriptors(
     """Build the service_descriptors[] array for the DataLink response.
 
     The first descriptors are the always-present capability descriptors
-    (access-resolution, soda-sync stub, soda-async placeholder, cutout
-    placeholder). Per-node ``visivo-backend`` descriptors are appended
+    (access resolution, SKAVA's SODA sync redirect, the disabled SKAVA
+    soda-async entry, the cutout entry). Per-node ``visivo-backend`` descriptors are appended
     when any of the supplied ``nodes`` has its ``visivo_backend_url``
     populated. The desktop client uses those entries to route compute
     requests to the SRC's local backend instead of downloading the file.
 
-    See docs/distributed-backend-design.md §7 for the full design.
+    See docs/distributed-backend-design.md (VisIVO Visual Analytics repository) for the design.
     """
     base_url = settings.public_base_url.rstrip("/")
     descriptors: list[ServiceDescriptor] = [
@@ -113,8 +113,8 @@ def build_service_descriptors(
             standard_id="ivo://ivoa.net/std/SODA#sync-1.0",
             supported_parameters=["ID", "POS", "BAND", "TIME", "RESPONSEFORMAT"],
             enabled=True,
-            description=("Validates a SODA request and redirects it (HTTP 303) to the SODA service "
-                         "of the node holding the selected replica."
+            description=("Redirects a SODA request (HTTP 303) to the SODA service of the first "
+                         "ranked node that can cut the dataset in place, which validates and cuts it."
                          if node_soda is not None else
                          "Validates a SODA request and answers with its routing; no node can "
                          "process this dataset in place."),

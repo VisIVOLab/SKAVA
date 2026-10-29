@@ -68,3 +68,54 @@ def test_logout_clears_session(admin_client):
     r = admin_client.get("/admin/", follow_redirects=False)
     assert r.status_code in (302, 303)
     assert "/admin/login" in r.headers.get("location", "")
+
+
+def _try_login(client, password):
+    from tests.conftest import _csrf_from_login_form
+    csrf = _csrf_from_login_form(client.get("/admin/login").text)
+    return client.post("/admin/login", data={
+        "username": "admin", "password": password, "csrf_token": csrf, "next": "/admin/",
+    }, follow_redirects=False)
+
+
+def test_repeated_failed_logins_are_throttled(client, admin_user, monkeypatch):
+    from app.admin.config import admin_settings
+    from tests.conftest import _ADMIN_PASSWORD
+    monkeypatch.setattr(admin_settings, "login_rate_limit_per_minute", 3)
+    for _ in range(3):
+        assert _try_login(client, "wrong-password").status_code == 401
+    # Over the limit: refused before the password is checked, even the right one.
+    r = _try_login(client, _ADMIN_PASSWORD)
+    assert r.status_code == 429
+    assert int(r.headers["Retry-After"]) > 0
+    assert "Too many failed sign-ins" in r.text
+
+
+def test_a_successful_login_clears_the_count(client, admin_user, monkeypatch):
+    from app.admin.config import admin_settings
+    from tests.conftest import _ADMIN_PASSWORD
+    monkeypatch.setattr(admin_settings, "login_rate_limit_per_minute", 3)
+    for _ in range(2):
+        _try_login(client, "wrong-password")
+    assert _try_login(client, _ADMIN_PASSWORD).status_code in (302, 303)
+    client.post("/admin/logout", follow_redirects=False)
+    for _ in range(2):
+        assert _try_login(client, "wrong-password").status_code == 401
+
+
+def test_the_throttle_window_slides():
+    from app.admin.auth import throttle
+    for t in (0.0, 1.0, 2.0):
+        throttle.record_failure("10.0.0.1", now=t)
+    assert throttle.retry_after("10.0.0.1", 3, now=30.0) == 31
+    assert throttle.retry_after("10.0.0.1", 3, now=60.5) == 0      # the first left the window
+    assert throttle.retry_after("10.0.0.1", 0, now=1.0) == 0       # 0 disables it
+    assert throttle.retry_after("10.0.0.2", 3, now=1.0) == 0       # per client
+
+
+def test_clients_that_never_return_are_forgotten():
+    from app.admin.auth import throttle
+    for i in range(1000):
+        throttle.record_failure(f"client-{i}", now=0.0)
+    throttle.retry_after("someone-else", 6, now=120.0)
+    assert len(throttle._failures) == 0

@@ -5,6 +5,65 @@ All notable changes to SKAVA. The repository follows
 
 ## Unreleased
 
+### Added (October 2026)
+
+* **Resource-aware routing** — a background prober reads each node
+  backend's ``/v1/ping`` and ``/v1/node/status`` (migration 0009) and the
+  ``resource_aware`` policy (``SKAVA_RANKING_POLICY``) ranks replicas on
+  reachability, round-trip time, CPU pressure, queue depth and free memory
+  against the dataset's size. Every replica carries a ``score``, a
+  ``rank_reason`` and the age of its telemetry; the DataLink names the
+  policy and lists the excluded replicas with their reasons. Probe metrics
+  and ``/internal/telemetry`` endpoints.
+* **SODA on the node** — ``/soda/sync`` redirects (303) to the SODA service
+  of the first ranked node that can cut the dataset in place, with
+  ``CIRCLE``, ``POLYGON``, ``BAND`` and ``TIME``; the DataLink advertises the
+  node's SODA sync and async services and, for cubes, its moment-map and
+  position–velocity operations, in JSON and as VOTable service resources.
+* **OIDC** — bearer tokens from an IAM are validated (signature, expiry,
+  issuer, audience) and a 401 carries the IVOA ``ivoa_bearer`` challenge;
+  ``SKAVA_OIDC_ISSUER`` and ``SKAVA_OIDC_PUBLIC_WELLKNOWN`` for an IAM
+  reached on a private name.
+* **Federated search** — ``/federation/search`` asks the local catalogue and
+  the sibling catalogues concurrently with the caller's token and merges
+  the answers on ``obs_id`` (the other sites under ``also_at``); each
+  source's status is reported.
+* **TAP** — ``CONTAINS(s_pos, CIRCLE(...))``, TAP 1.1 ``RESPONSEFORMAT``, an
+  ObsCore-like VOTable whose ``access_url`` is the DataLink document, and a
+  VOSI XML ``/tap/capabilities`` with the real row limits (default 100,
+  maximum 1000).
+* **Testbed** (``testbed/``) — two catalogues, a Keycloak IAM, a Computing
+  Broker stand-in and four simulated nodes, with pyvo conformance checks and
+  the evaluation experiments; see [the testbed](../development/testbed.md).
+
+### Fixed (October 2026)
+
+* **Publisher** — PSRFITS files named ``*.fits`` reach the PSRFITS
+  extractor (extractors are ordered by priority, then name; ``*.sf`` is
+  in the default ``scan.include``); a file is marked ``published`` only
+  when SKAVA took its record, ``failed`` with SKAVA's reason otherwise,
+  and a failed upload is recorded; ``publish -m`` records outcomes for
+  the unchanged files its manifest describes; the state keeps each
+  file's extraction-time fingerprint; ``watch.enabled: false`` disables
+  ``watch``.
+* **Ingestion** stores ``obs_title``, ``facility_name`` and
+  ``instrument_name``, and a value longer than its column skips its
+  record instead of failing the run on PostgreSQL.
+* **Admin** — ``ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE`` is enforced: failed
+  sign-ins per client address per minute, then 429 with ``Retry-After``.
+
+### Changed (October 2026)
+
+* Discovery returns replicas in ranking order; one ranking decision is
+  counted per ``/soda/execute`` request, which runs on the first replica
+  that can cut in place, so what is advertised is what runs.
+* Job records (staging, TAP async, SODA staging) store a hashed
+  ``token_reference`` of the requester, never the token itself.
+* ``/capabilities`` and the DataLink link descriptions describe the service
+  as it is; the legacy flat documentation pages were folded into the
+  sections of this site.
+* The repository moved to <https://github.com/VisIVOLab/SKAVA>.
+
 ### Added
 
 * **TAP ObsTAP profile upgrade** — the ``/tap/sync`` ADQL surface now supports

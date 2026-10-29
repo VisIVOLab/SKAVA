@@ -1,39 +1,52 @@
 # Monitoring
 
-SKAVA exposes Prometheus metrics, structured JSON logs, and a
-health endpoint. This page connects them to a production
+SKAVA exposes Prometheus metrics, structured JSON logs, and
+health endpoints. This page connects them to a production
 observability stack.
 
-## Health endpoint
+## Health endpoints
 
 ```
-GET /system/health
+GET /health/db
+GET /availability[?include_nodes=true]
 ```
 
-Always public. Response:
+Both are public. `/health/db` runs `SELECT 1`:
+
+```json
+{"status": "ok", "database": "reachable"}
+```
+
+`/availability` (the VOSI availability resource) adds the node summary
+when asked:
 
 ```json
 {
     "status": "ok",
-    "version": "0.1.0",
-    "uptime_seconds": 12345.6,
-    "db_ok": true
+    "service": "skava-discovery",
+    "database": {"status": "ok", "database": "reachable"},
+    "nodes": {"total_nodes": 4, "enabled_nodes": 4, "available_nodes": 4}
 }
 ```
 
-Use this for load-balancer healthchecks and Kubernetes
-liveness/readiness probes:
+Both answer **503** when the database is unreachable. `/availability`
+reports `"status": "degraded"` when `include_nodes=true` and no
+enabled node is available. Behind the shipped nginx, `/healthz`
+answers `ok` from the proxy itself (it does not reach SKAVA).
+
+Use `/health/db` for load-balancer healthchecks and Kubernetes
+liveness/readiness probes (the staging compose file's healthcheck does):
 
 ```yaml
 livenessProbe:
   httpGet:
-    path: /system/health
+    path: /health/db
     port: 8000
   initialDelaySeconds: 30
   periodSeconds: 30
 readinessProbe:
   httpGet:
-    path: /system/health
+    path: /health/db
     port: 8000
   periodSeconds: 5
 ```
@@ -41,20 +54,25 @@ readinessProbe:
 ## Prometheus metrics
 
 ```
-GET /system/metrics
+GET /metrics
 ```
 
-Standard Prometheus exposition format. Scrape config:
+Standard Prometheus exposition format. The production nginx configs
+block `/metrics` (403), so scrape the container on the internal
+network:
 
 ```yaml
 - job_name: skava
-  metrics_path: /system/metrics
+  metrics_path: /metrics
   static_configs:
-    - targets: ["skava-api:8000"]
+    - targets: ["skava-discovery:8000"]
   scrape_interval: 15s
 ```
 
 ### Published metrics
+
+Defined in `app/metrics.py`; the Python client's default process and
+platform collectors are exported as well.
 
 ```{list-table}
 :header-rows: 1
@@ -65,30 +83,42 @@ Standard Prometheus exposition format. Scrape config:
   - Labels / meaning
 * - ``skava_http_requests_total``
   - counter
-  - Labels: ``method``, ``route``, ``status``. Cumulative request
-    count.
-* - ``skava_http_request_duration_seconds``
+  - Labels: ``method``, ``endpoint`` (request path), ``status``.
+    Cumulative request count.
+* - ``skava_http_request_latency_seconds``
   - histogram
-  - Per-route latency. Buckets: 5 ms → 10 s.
-* - ``skava_active_sessions``
-  - gauge
-  - Admin UI sessions currently valid.
-* - ``skava_db_pool_connections``
-  - gauge
-  - Labels: ``state`` (active / idle / overflow).
-* - ``skava_ingestion_jobs_total``
+  - Labels: ``method``, ``endpoint``. Request latency (client default
+    buckets, 5 ms → 10 s).
+* - ``skava_ranking_decisions_total``
   - counter
-  - Labels: ``status`` (succeeded / failed / partial).
-* - ``skava_ingestion_records_total``
+  - Label: ``node``. One per routing decision (discovery, DataLink,
+    ``/soda/execute``), by the node chosen.
+* - ``skava_ranking_fallback_total``
   - counter
-  - Labels: ``outcome`` (inserted / updated / skipped).
-* - ``skava_audit_writes_total``
+  - Label: ``reason``. DataLink fell back from the top-ranked replica
+    (``primary_endpoint_unhealthy``).
+* - ``skava_db_errors_total``
   - counter
-  - Labels: ``action_prefix``.
-* - ``skava_app_info``
+  - Label: ``operation``. Database errors seen by the health check
+    (``health_db``).
+* - ``skava_node_probes_total``
+  - counter
+  - Labels: ``node``, ``outcome`` (``ok`` / ``failed``). Telemetry
+    probes of each node's VisIVO backend.
+* - ``skava_node_rtt_ms``
   - gauge
-  - Constant 1 with labels ``version``, ``env``.
+  - Label: ``node``. Median ``/v1/ping`` round trip at the last
+    successful probe.
 ```
+
+The probe metrics move only when the prober runs
+(`SKAVA_TELEMETRY_INTERVAL_SECONDS` > 0, or
+`POST /internal/telemetry/probe`). What each node last reported, and
+the ranking policy in force, is in `GET /internal/telemetry`
+(internal API key).
+
+Note that `endpoint` is the raw path, so routes with a path parameter
+(`/datalink/{obs_id}`) produce one series per dataset.
 
 ### Sample alert rules
 
@@ -105,31 +135,40 @@ groups:
 
   - alert: SkavaHighLatency
     expr:  histogram_quantile(0.95,
-              sum(rate(skava_http_request_duration_seconds_bucket{route="/discovery/search"}[5m]))
+              sum(rate(skava_http_request_latency_seconds_bucket{endpoint="/discovery/search"}[5m]))
               by (le)) > 1
     for:   10m
     annotations:
       summary: "p95 discovery latency over 1s for 10 min"
 
-  - alert: SkavaDBPoolSaturated
-    expr:  skava_db_pool_connections{state="active"}
-              == on(instance) skava_db_pool_connections{state="max"}
-    for:   3m
+  - alert: SkavaServerErrors
+    expr:  sum(rate(skava_http_requests_total{status=~"5.."}[5m])) > 0.1
+    for:   5m
     annotations:
-      summary: "DB connection pool exhausted"
+      summary: "SKAVA answering 5xx"
 
-  - alert: SkavaIngestionFailure
-    expr:  rate(skava_ingestion_jobs_total{status="failed"}[1h]) > 0
+  - alert: SkavaDBErrors
+    expr:  increase(skava_db_errors_total[10m]) > 0
     annotations:
-      summary: "Ingestion job(s) failed in the last hour"
+      summary: "Database errors in the last 10 min"
 
-  - alert: SkavaAuthFailureSpike
-    expr:  rate(skava_audit_writes_total{action_prefix="auth.login_failed"}[5m])
-              > 5
-    for:   2m
+  - alert: SkavaNodeProbeFailing
+    expr:  increase(skava_node_probes_total{outcome="failed"}[5m]) > 0
+           unless on(node) increase(skava_node_probes_total{outcome="ok"}[5m]) > 0
+    for:   5m
     annotations:
-      summary: "Login failure spike — possible brute force"
+      summary: "A node backend is not answering probes"
+
+  - alert: SkavaRoutingFallbacks
+    expr:  rate(skava_ranking_fallback_total[15m]) > 0
+    for:   15m
+    annotations:
+      summary: "DataLink keeps falling back from the top-ranked node"
 ```
+
+Failed admin logins are not a metric: they are audit rows
+(`auth.login_failed`) and `skava.admin.audit` log lines — alert on
+them from the log pipeline.
 
 ## Logs
 
@@ -143,7 +182,7 @@ JSON-structured to stdout. Sample:
     "message": "request_completed",
     "request_id": "97f25c08-…",
     "endpoint": "/discovery/search",
-    "query_params": {"limit": "10", "dataproduct_type": "image"},
+    "query_params": {"limit": "10", "DPTYPE": "image"},
     "status_code": 200,
     "execution_time_ms": 8.2
 }
@@ -185,52 +224,49 @@ scrape_configs:
 * - Logger
   - Purpose
 * - ``skava.request``
-  - One line per request: method, route, status, duration_ms.
+  - One ``request_completed`` line per request: endpoint, query
+    parameters, status code, ``execution_time_ms``.
 * - ``skava.admin.auth``
-  - Login events (success + failure).
+  - Session warnings (e.g. ``ADMIN_SESSION_SECRET`` not set).
 * - ``skava.admin.audit``
-  - One line per audit row (mirrors the DB row).
+  - One line per audit row (mirrors the DB row), including
+    ``auth.login`` / ``auth.login_failed``.
 * - ``skava.ingestion``
-  - Per-job summary + per-record errors.
-* - ``skava.skava``
-  - DataLink ranking decisions.
+  - ``ingestion_summary`` per job + ``ingestion_record_skipped`` per
+    rejected record.
+* - ``skava.discovery`` / ``skava.datalink``
+  - Ranking decisions (``discovery_selection``,
+    ``datalink_selection``) and fallbacks (``datalink_fallback``).
+* - ``skava.soda.exec``
+  - ``/soda/execute`` delegations to node backends.
+* - ``skava.telemetry``
+  - Prober failures (``node_probe_failed``, ``node_probe_cycle_failed``).
+* - ``skava.federation``
+  - A sibling catalogue that failed or timed out.
 ```
-
-## Grafana dashboard
-
-A starter dashboard ships at `contrib/grafana/skava.json`. Panels:
-
-* Requests/s by route
-* p50 / p95 / p99 latency per route
-* DB pool utilisation
-* Ingestion jobs over 24 h
-* Failed-login rate
-* Audit writes per action_prefix
-* Discovery results returned (proxy for catalogue size)
-
-Import via Grafana → + → Import → paste JSON.
 
 ## Tracing (optional)
 
-Outside Phase 1's scope but recommended for production. SKAVA's
-``request_id`` header is the natural correlation point — every
+Not built in, but recommended for production. SKAVA's
+``X-Request-ID`` header (taken from the request or generated, and
+returned on the response) is the natural correlation point — every
 log line and audit row carries it. Wiring it through to a tracing
 backend (Tempo, Jaeger, OpenTelemetry Collector) is a thin layer of
 middleware away.
 
-The roadmap covers an opt-in OpenTelemetry instrumentation in
-Phase 4.
-
-## What's NOT instrumented yet
+## What is not instrumented
 
 * Per-route memory profiling. Use ``py-spy`` ad-hoc.
 * Per-user request rate (would need a user dimension on the metrics
   — privacy review needed first).
 * SQL slow-query logging from the SKAVA side (PostgreSQL itself does
   this via ``log_min_duration_statement``).
+* DB connection-pool usage, ingestion job counts and federation
+  outcomes (use ``/admin/history`` and the federated response's
+  per-source ``status`` instead).
 
 ## On-call runbook quick links
 
-* "SKAVA returning 5xx" — [Troubleshooting → 5xx](troubleshooting#5xx)
-* "Discovery slow" — [Troubleshooting → slow discovery](troubleshooting#slow-discovery)
-* "Ingestion failing" — [Troubleshooting → ingestion errors](troubleshooting#ingestion-errors)
+* "SKAVA returning 5xx" — [Troubleshooting → 5xx](troubleshooting.md#5xx-errors)
+* "Discovery slow" — [Troubleshooting → slow discovery](troubleshooting.md#slow-discovery)
+* "Ingestion failing" — [Troubleshooting → ingestion errors](troubleshooting.md#ingestion-errors)

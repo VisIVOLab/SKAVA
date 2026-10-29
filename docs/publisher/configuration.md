@@ -1,9 +1,12 @@
 # Publisher configuration
 
 The publisher's behaviour is controlled by a single YAML file passed
-via `--config`. Environment variables can be interpolated with
-`${VAR}`. This page is the full key reference; `example-config.yaml`
-in the repo is a fully-commented example you can copy.
+via `--config` / `-c` (before the subcommand) or the
+`SKAVA_PUBLISHER_CONFIG` environment variable. Environment variables
+can be interpolated with `${VAR}` (upper-case names only; an unset
+variable becomes an empty string). This page is the full key
+reference; `example-config.yaml` in the repo is a fully-commented
+example you can copy.
 
 ## Top-level structure
 
@@ -20,7 +23,8 @@ log_level: INFO
 
 Every section is validated by Pydantic on load. Malformed config
 crashes immediately with a precise error, not later with a confusing
-HTTP 4xx.
+HTTP 4xx. Unknown top-level keys are rejected; unknown keys inside a
+section are ignored.
 
 ## `skava:` — where to publish
 
@@ -32,8 +36,9 @@ skava:
   verify_tls:       true                         # default true
 ```
 
-`internal_api_key`: the value of `INTERNAL_API_KEY` configured on the
-SKAVA api container. **Always** read from an env var so the YAML can
+`internal_api_key`: the value of `SKAVA_INTERNAL_API_KEY` configured
+on the SKAVA api container; it is sent as the `X-Internal-Api-Key`
+header. **Always** read from an env var so the YAML can
 be committed without leaking secrets.
 
 `verify_tls: false` for dev SKAVA with self-signed certs. Never in
@@ -47,13 +52,17 @@ node:
   file_serve_url_pattern: "http://pleiadi:8001/data/{relpath}" # required
 ```
 
-`code` must match a `Node.code` registered in SKAVA. Create the Node
-in the admin UI before the first publish — otherwise ingestion will
-fail with "unknown node".
+`code` (max 32 chars) must match a `Node.code` registered in SKAVA.
+Create the Node in the admin UI before the first publish — otherwise
+SKAVA skips every record with `node_not_found` ("Node not found:
+POWER9").
 
 `file_serve_url_pattern` turns a file's path RELATIVE to the scan
-root into the `access_endpoint` written on the Replica. `{relpath}`
-is the only allowed placeholder. Common patterns:
+root into the record's `access_url`, which SKAVA stores as the
+Replica's `access_endpoint`. `{relpath}` is the only placeholder and
+must be present. The URL needs a scheme (`http://`, `file://`, ...);
+for a node with a co-located VisIVO backend, `file://` URLs are what
+let the backend open the file in place. Common patterns:
 
 ```yaml
 # Production node serving via HTTP
@@ -94,12 +103,16 @@ scan:
   - —
   - One or more directories to walk depth-first.
 * - ``include``
-  - all three formats
+  - ``*.fits``, ``*.fits.gz``, ``*.h5``, ``*.hdf5``
   - Glob patterns matched against the **filename** (not the path).
+    Add ``*.fit``, ``*.fts``, ``*.fits.fz`` or ``*.sf`` (PSRFITS)
+    explicitly if you have them.
 * - ``exclude``
-  - tmp / staging
-  - Glob patterns matched against the **full relative path**, so
-    ``**/tmp/**`` excludes any ``tmp`` directory at any depth.
+  - ``**/tmp/**``, ``**/.staging/**``, ``*.partial``, ``*~``
+  - Glob patterns (``fnmatch``) matched against the **path relative
+    to the scan root**, so ``**/tmp/**`` excludes a ``tmp``
+    directory below the first level (``a/tmp/x.fits``); add
+    ``tmp/*`` for one directly under the root.
 * - ``follow_symlinks``
   - false
   - Prevents loops and cross-mount surprises. Set true only if you
@@ -137,8 +150,8 @@ state:
 
 The publisher creates the path if missing. WAL journal mode is
 enabled so abrupt crashes leave a clean DB. Only one publisher
-process at a time should write — `watch` mode holds the SQLite write
-lock implicitly.
+process at a time should use a given state DB; nothing enforces
+this, so do not let a cron run overlap a running `watch`.
 
 ## `watch:` — periodic mode
 
@@ -148,9 +161,12 @@ watch:
   interval_seconds: 21600    # 6 h
 ```
 
-`enabled` is informational; the actual `watch` subcommand reads
-`interval_seconds`. Use `--once` for a single iteration (cron) or
-omit it for a long-running daemon (SystemD service).
+With `enabled: false` the `watch` subcommand does nothing, with or
+without `--once` (a node that publishes only by hand or by `publish`).
+`interval_seconds` is the pause between iterations (minimum 60,
+overridable with `--interval`). Use
+`--once` for a single iteration (cron) or omit it for a long-running
+daemon (SystemD service).
 
 ## Top-level: safety nets
 
@@ -162,8 +178,8 @@ log_level: INFO
 * `extract_failure_threshold` — abort the scan when N records fail
   extraction. Catches "the disk filled with corrupted files" before
   thousands of garbage rows hit SKAVA.
-* `log_level` — DEBUG / INFO / WARNING / ERROR. SKAVA's HTTP
-  responses are always logged at INFO regardless.
+* `log_level` — DEBUG / INFO / WARNING / ERROR. SKAVA's response
+  to `validate` / `publish` is always printed to stdout as JSON.
 
 ## Worked example: minimal config for the Mac
 
@@ -209,7 +225,7 @@ Pydantic prints a precise message. Examples:
 ```
 ValidationError: 1 validation error for PublisherConfig
 node.file_serve_url_pattern
-  file_serve_url_pattern must contain the {relpath} placeholder.
+  Value error, file_serve_url_pattern must contain the {relpath} placeholder.
 ```
 
 ```

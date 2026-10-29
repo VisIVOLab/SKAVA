@@ -2,14 +2,15 @@
 
 Every mutating action in the admin UI and every CLI mutation writes
 a row to the `audit_log` table. This page documents what gets
-captured, how to inspect it today, and what's coming in Phase 3.
+captured and how to inspect it.
 
 ## What gets captured
 
 ```sql
+-- as created by migration 0008_add_admin_users_and_audit
 CREATE TABLE audit_log (
     id            BIGSERIAL PRIMARY KEY,
-    occurred_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    occurred_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     actor_label   VARCHAR(128) NOT NULL,
     action        VARCHAR(64) NOT NULL,
@@ -18,12 +19,10 @@ CREATE TABLE audit_log (
     ip_address    VARCHAR(45),
     user_agent    VARCHAR(255),
     request_id    VARCHAR(64),
-    changes_json  JSONB
+    changes_json  JSON
 );
-CREATE INDEX idx_audit_action  ON audit_log(action);
-CREATE INDEX idx_audit_target  ON audit_log(target_type, target_id);
-CREATE INDEX idx_audit_actor   ON audit_log(actor_user_id);
-CREATE INDEX idx_audit_when    ON audit_log(occurred_at DESC);
+-- one single-column index each on: occurred_at, actor_user_id,
+-- action, target_type, target_id, request_id
 ```
 
 Field-by-field:
@@ -35,7 +34,7 @@ Field-by-field:
 * - Column
   - Meaning
 * - ``occurred_at``
-  - UTC timestamp set by ``DEFAULT now()``. Application code never
+  - UTC timestamp set by the column default. Application code never
     forges this.
 * - ``actor_user_id``
   - FK to ``users``. ``NULL`` for anonymous events (failed login from
@@ -47,16 +46,24 @@ Field-by-field:
     ``<anonymous IP>`` for pre-auth events.
 * - ``action``
   - Dot-separated verb path. Convention: ``<entity>.<verb>``.
-    Examples: ``dataset.create``, ``node.update``, ``user.role_change``,
-    ``auth.login_failed``, ``cli.create_user``.
+    The actions written today: ``auth.login``, ``auth.logout``,
+    ``auth.login_failed``, ``auth.login_throttled``; ``node.create`` / ``.update`` /
+    ``.delete``; ``dataset.create`` / ``.update`` / ``.delete``,
+    ``dataset.extract_from_fits``; ``replica.create`` /
+    ``.delete``; ``ingestion.upload`` (``ingestion.upload.dry_run``);
+    ``cli.create_user``, ``cli.reset_password``, ``cli.set_role``,
+    ``cli.deactivate``.
 * - ``target_type`` / ``target_id``
   - Entity identifier. For row-level changes ``target_id`` is the
-    primary key; for ``auth.login_failed`` it's the attempted
-    username.
+    primary key (a node's id, not its code); for
+    ``auth.login_failed`` it's the attempted username, for
+    ``dataset.extract_from_fits`` the uploaded filename.
 * - ``ip_address``
-  - Origin IP. Behind a reverse proxy you'll see the proxy's IP
-    unless ``X-Forwarded-For`` is honoured (Phase 4: set
-    ``trusted_hosts`` config).
+  - Client IP as the application sees it. Behind a reverse proxy
+    that is the proxy's IP unless the ASGI server is configured to
+    trust ``X-Forwarded-For`` (e.g. uvicorn ``--proxy-headers`` with
+    ``--forwarded-allow-ips``); SKAVA has no setting of its own for
+    this.
 * - ``user_agent``
   - First 255 chars of the ``User-Agent`` header. Empty for CLI.
 * - ``request_id``
@@ -64,9 +71,11 @@ Field-by-field:
     audit row joins back to the surrounding log lines.
 * - ``changes_json``
   - Optional structured diff. Convention: ``{"before": {...},
-    "after": {...}}`` for updates, ``{"after": {...}}`` for creates,
-    ``{"before": {...}}`` for deletes, ``null`` for read-only events
-    (login, view audit).
+    "after": {...}}`` for updates, ``{"after": {...}}`` for node
+    creates, ``{"before": {...}}`` for deletes, ``null`` for login /
+    logout. Some actions store a summary instead (``ingestion.upload``,
+    ``replica.create``, ``dataset.extract_from_fits``,
+    ``cli.create_user``). Viewing pages is not audited.
 ```
 
 ## How rows are written
@@ -79,17 +88,21 @@ Two entry points in code:
 * ``@audited(action="...", target_type="...")`` — decorator on a
   route handler. Derives the target id from the returned entity's
   ``.id`` attribute when the handler returns one; lets you override
-  via ``request.state.audit_target_id``.
+  via ``request.state.audit_target_id``. It is available for new
+  routes; the current admin routes all call ``log_action`` directly.
 
-Both go through the same service function. The append-only
+Both go through the same service function. The CLI writes its rows
+directly to the table, with ``actor_label="<cli>"``. The append-only
 guarantee is a code convention: nothing in ``app/`` does ``UPDATE``
 or ``DELETE`` against the table.
 
-## Inspecting today (Phase 1+2)
+## Inspecting
 
 The admin UI Dashboard shows the latest 10 rows on the landing
-page. For richer queries, drop to PostgreSQL until the Phase 3
-audit page lands:
+page, and the [History](history.md) page (`/admin/history/`) filters
+the whole table by text, section, target type, actor and date range,
+shows each entry's full ``changes_json``, and exports the current
+filter as CSV. For queries beyond that, use PostgreSQL directly:
 
 ```bash
 docker compose exec db psql -U skava -d skava
@@ -127,16 +140,6 @@ WHERE  action = 'node.update' AND target_id = '4'
 ORDER  BY occurred_at DESC LIMIT 1;
 ```
 
-## Coming in Phase 3
-
-A `/admin/audit/` page with:
-
-* filters: actor, action prefix, target type+id, date range
-* JSON-formatted before/after diffs rendered as a side-by-side view
-* one-click "show me everything around this request_id" deep-link
-  that joins audit + structured logs
-* CSV export with the same filters applied
-
 ## Retention
 
 There's no built-in retention policy. The recommended pattern is:
@@ -155,7 +158,7 @@ The audit log contains user IDs and IPs. Treat the table as personal
 data and apply your local SRC privacy policy. Common controls:
 
 * deny direct DB read access to non-admins (PostgreSQL roles)
-* redact IP last-octet before export
+* redact IP last-octet before export (the History CSV export
+  includes ``ip_address`` unredacted, and every signed-in role can
+  download it)
 * honour subject-access requests via a templated query
-
-Phase 4 will add a `--redact-ip` toggle on the CSV export.

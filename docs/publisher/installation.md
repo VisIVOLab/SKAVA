@@ -6,12 +6,12 @@ in a Python venv (recommended for dev).
 ## Path 1 — Apptainer container
 
 Best for HPC nodes, shared SRCs, ppc64le / aarch64 / x86_64 with the
-same image. See [Apptainer image](apptainer) for the full recipe.
+same image. See [Apptainer image](apptainer.md) for the full recipe.
 
 Short version:
 
 ```bash
-git clone https://github.com/fvitello/SKAVA.git
+git clone https://github.com/VisIVOLab/SKAVA.git
 cd SKAVA/tools/skava-publisher
 
 apptainer build --fakeroot publisher.sif apptainer/publisher.def
@@ -63,18 +63,16 @@ skava-publisher --version
 * ``click`` — CLI ergonomics
 * ``pyyaml``, ``pydantic``, ``pydantic-settings`` — config
 * ``httpx`` — HTTP client to SKAVA
-* ``astropy`` — FITS / PSRFITS parsing (also pulls numpy, scipy)
+* ``astropy`` — FITS / PSRFITS parsing (also pulls numpy, pyerfa)
 * ``h5py`` — HDF5 parsing
 
 Total install size ~250 MB on x86_64, ~400 MB on ppc64le (where
 some wheels are built from source).
 
-### Tests (optional)
+### Tests
 
-```bash
-pip install -e ".[dev]"
-pytest -q
-```
+The ``dev`` extra (``pip install -e ".[dev]"``) installs pytest, but
+the publisher package ships no test suite of its own.
 
 ## Path 3 — pip from a local checkout (most robust)
 
@@ -92,7 +90,7 @@ For sites that want to install without cloning (needs access to the
 repo; prompts for credentials if private):
 
 ```bash
-pip install "git+https://github.com/fvitello/SKAVA.git#subdirectory=tools/skava-publisher"
+pip install "git+https://github.com/VisIVOLab/SKAVA.git#subdirectory=tools/skava-publisher"
 ```
 
 This is the right choice when the publisher is one of many
@@ -135,7 +133,7 @@ ExecStart=/usr/bin/apptainer run \
 Description=Periodic SKAVA publish
 
 [Timer]
-OnUnitActiveSec=6h
+OnCalendar=*-*-* 00/6:00:00
 Persistent=true
 
 [Install]
@@ -150,9 +148,11 @@ Enable: ``systemctl enable --now skava-publisher.timer``.
 skava-publisher --help
 skava-publisher --version
 skava-publisher --config /etc/skava-publisher.yaml status
-# Counts by status: (empty — no files seen yet)
+# State DB: /var/lib/skava-publisher/state.db
+# Counts by status:
+#   (empty — no files seen yet)
 ```
 
 If ``status`` returns without errors, the config is valid and the
 state DB is writeable. Proceed to your first scan in
-[Workflows](workflows).
+[Workflows](workflows.md).

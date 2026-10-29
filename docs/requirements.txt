@@ -12,3 +12,4 @@ myst-parser>=3.0               # Markdown source support
 sphinx-copybutton>=0.5.2       # copy-to-clipboard on code blocks
 sphinx-design>=0.6             # grids / tabs / cards in Markdown
 linkify-it-py>=2.0             # bare-URL autodetection for MyST
+sphinxcontrib-mermaid>=0.9     # ```{mermaid} diagrams (architecture, data flow, routing)

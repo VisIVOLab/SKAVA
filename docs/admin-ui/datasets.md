@@ -15,22 +15,31 @@ Paginated (50 records / page) table with:
 * Total + page counter
 * "+ Add dataset" button for `ingester` / `admin`
 * Per-row replica count, edit + delete actions for editors
+* **Export CSV** link for the current filter
 
-Search box semantics: `LIKE '%<query>%'` (case-insensitive). For
-substring or exact-match alternatives, use the TAP endpoint.
+Search box semantics: `ILIKE '%<query>%'` (case-insensitive
+substring). For exact-match or richer queries, use the TAP endpoint.
+
+## CSV export (`/admin/datasets/export.csv`)
+
+Takes the same `q`, `collection` and `dptype` parameters as the list,
+so what you see is what you download. Columns: `obs_id`,
+`obs_collection`, `dataproduct_type`, `obs_title`, `target_name`,
+`s_ra`, `s_dec`, `s_fov`, `t_min`, `t_max`, `em_min`, `em_max`,
+`replica_count`. Streamed, capped at 100,000 rows.
 
 ## Detail view (`/admin/datasets/{id}`)
 
 Three sections:
 
 1. **ObsCore** — every ObsCore-aligned column with a friendly label
-2. **Provenance** — DOI / PID / license / citation / source ref /
-   checksum / ingested-at / updated-at
+2. **Provenance** — DOI / PID / license / citation / source type /
+   source ref / checksum / ingested-at / updated-at
 3. **Replicas** — table of every physical copy with an inline
    "Add replica" form when the user has edit rights
 
 Top-right buttons: **Edit** (jumps to the edit form), **Delete**
-(with confirmation modal that shows the replica count to be
+(with a confirmation dialog that shows the replica count to be
 cascade-deleted).
 
 ## Create / edit form
@@ -62,33 +71,39 @@ file" panel:
 
 Workflow:
 
-1. The operator picks a FITS file (≤ 5 MB).
+1. The operator picks a FITS file (≤ 5 MB; larger uploads get
+   HTTP 413).
 2. The browser uploads it to `POST /admin/datasets/extract-from-fits`.
-3. SKAVA parses the primary HDU header with astropy (or the first
-   non-empty HDU in a MEF file), extracts what it can, returns a
-   JSON dict of `field_name → value`.
+3. SKAVA parses, with astropy, the header of the first HDU whose
+   `NAXIS` is non-zero (the primary HDU in a simple file, the first
+   data extension in a MEF), extracts what it can, returns a JSON
+   dict of `field_name → value`, and writes a
+   `dataset.extract_from_fits` audit row.
 4. A small in-page JS script iterates the dict and fills **only the
    empty form fields**, leaving any value the operator already
    typed in untouched.
 
 What gets extracted, best-effort:
 
+* `obs_id` ← `OBS_ID` or `OBSID`, when present
 * `target_name` ← `OBJECT`
 * `facility_name` ← `TELESCOP`
 * `instrument_name` ← `INSTRUME`
-* `s_ra`, `s_dec` ← WCS centre of the primary HDU
-* `s_fov` ← largest of (NAXISx × CDELTx)
-* `t_min`, `t_max` ← `MJD-OBS` + `EXPTIME` (or `MJD-END`)
-* `em_min`, `em_max` ← `RESTFREQ` → λ, or spectral axis bounds
+* `s_ra`, `s_dec` ← WCS centre of the image (falling back to the
+  `RA` / `DEC` keywords)
+* `s_fov` ← largest of (NAXISx × pixel scale)
+* `t_min`, `t_max` ← `MJD-OBS` plus `MJD-END` or `EXPTIME`;
+  `DATE-OBS` when `MJD-OBS` is missing
+* `em_min`, `em_max` (metres) ← spectral axis bounds (`FREQ`,
+  `WAVE`, `VOPT`, `VRAD`), or `RESTFREQ` → λ
 * `dataproduct_type` ← heuristic from NAXIS + presence of STOKES
+  (`image`, `cube` or `polarimetric`)
 * `access_format` ← `image/fits` default
 
 Limits:
 
-* obs_id is rarely in FITS headers — the operator types it manually
+* obs_id is rarely in FITS headers — usually the operator types it
 * calib_level can't be inferred portably — left empty
-* Multi-extension files are handled (skip empty primary, descend to
-  first NAXIS > 0 HDU)
 
 ## Replicas
 
@@ -103,10 +118,13 @@ Add-replica form fields:
 * **Access endpoint** — fully-qualified URL the consumer should hit
 * **Public** — visibility flag (defaults true)
 
+All but **Public** are required. New replicas get status
+``available``. Audit row: ``replica.create``.
+
 Uniqueness: one Replica per (dataset, node) pair. Attempting to add
 a duplicate gets a flash error.
 
-Remove triggers a confirmation modal. Audit row:
+Remove triggers a confirmation dialog. Audit row:
 ``replica.delete`` with a snapshot of the removed fields.
 
 ## RBAC summary
@@ -114,6 +132,7 @@ Remove triggers a confirmation modal. Audit row:
 | Action | viewer | ingester | admin |
 |---|---|---|---|
 | List + search | ✓ | ✓ | ✓ |
+| CSV export | ✓ | ✓ | ✓ |
 | View detail | ✓ | ✓ | ✓ |
 | Add new dataset | ✗ | ✓ | ✓ |
 | Edit | ✗ | ✓ | ✓ |
@@ -125,24 +144,17 @@ Remove triggers a confirmation modal. Audit row:
 
 The single-record form is for hand-edits and one-off additions.
 For **bulk** ingestion (more than a handful of records) use the
-[publisher CLI](../publisher/overview) on the node where the data
+[publisher CLI](../publisher/overview.md) on the node where the data
 lives. The publisher:
 
 * doesn't require moving the file to your laptop
 * tracks already-published files in a local SQLite, skipping
   unchanged ones on re-run
-* writes a structured audit row per record
+* records each batch as an ingestion job
 * handles HDF5 / PSRFITS natively, not just FITS
 
 The admin UI is a peer of the publisher, not a competitor.
 
-## Phase 2c: drag-drop CSV / JSON
-
-Planned: the Upload page accepts a CSV / JSON manifest from a
-browser drag-drop and feeds it into the existing
-``/internal/ingestion/run`` endpoint with a session-auth wrapper.
-This will be useful for analysts producing a small manifest
-locally and uploading without having to deal with the API key.
-
-Until that lands, use the publisher CLI or
-``/internal/ingestion/run`` directly via curl.
+For a small CSV / JSON manifest prepared by hand, use the
+[Upload](upload.md) page, which runs the same ingestion pipeline under
+your admin session.
