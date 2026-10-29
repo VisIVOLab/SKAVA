@@ -374,5 +374,5 @@ configuration with a different network layer.
   architectural pattern this page operationalises.
 * [Backend routing](backend-routing.md) — how the desktop client
   matches descriptors against Remote Backends.
-* [Power9 testbed runbook](../operations/e2e-power9-runbook.md) — a
-  worked example of this pattern on the INAF Power9 SRC.
+* [End-to-end run on INAF PLEIADI-GPU](../operations/e2e-pleiadi-gpu-runbook.md) — a
+  worked example of this pattern, recorded step by step.

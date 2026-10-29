@@ -1,0 +1,89 @@
+{
+  "environment": {
+    "timestamp": "2026-10-29T14:59:27+00:00",
+    "python": "3.11.15",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 18,
+    "database": "postgresql",
+    "target": "in-process TestClient",
+    "requests": 50,
+    "warmup": 5,
+    "seed": 20261027,
+    "database_version": "16.15 (Debian 16.15-1.pgdg13+2)"
+  },
+  "results": [
+    {
+      "workload": "datalink",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 3.212,
+      "p95_ms": 4.122,
+      "mean_ms": 3.303,
+      "min_ms": 2.8,
+      "max_ms": 4.139,
+      "seed_s": 0.68
+    },
+    {
+      "workload": "collection",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 11.834,
+      "p95_ms": 24.914,
+      "mean_ms": 13.106,
+      "min_ms": 10.003,
+      "max_ms": 34.315,
+      "seed_s": 0.68
+    },
+    {
+      "workload": "cone",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 7.351,
+      "p95_ms": 9.201,
+      "mean_ms": 7.49,
+      "min_ms": 6.129,
+      "max_ms": 9.913,
+      "seed_s": 0.68
+    },
+    {
+      "workload": "datalink",
+      "n": 1000000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 3.154,
+      "p95_ms": 4.1,
+      "mean_ms": 3.31,
+      "min_ms": 2.915,
+      "max_ms": 4.562,
+      "seed_s": 58.36
+    },
+    {
+      "workload": "collection",
+      "n": 1000000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 56.167,
+      "p95_ms": 71.265,
+      "mean_ms": 57.883,
+      "min_ms": 50.791,
+      "max_ms": 83.522,
+      "seed_s": 58.36
+    },
+    {
+      "workload": "cone",
+      "n": 1000000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 310.445,
+      "p95_ms": 331.389,
+      "mean_ms": 312.136,
+      "min_ms": 297.288,
+      "max_ms": 364.868,
+      "seed_s": 58.36
+    }
+  ]
+}

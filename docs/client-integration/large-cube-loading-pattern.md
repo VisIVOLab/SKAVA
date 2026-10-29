@@ -193,7 +193,7 @@ inherits it and Apptainer passes it into the container), or via
 
 * {doc}`slurm-backed-backend` — the SLURM + SSH tunnel deployment
   pattern this builds on top of
-* {doc}`../operations/e2e-power9-runbook` — worked example on the INAF
-  Power9 SRC testbed
+* {doc}`../operations/e2e-pleiadi-gpu-runbook` — worked example on the INAF
+  PLEIADI-GPU system
 * {doc}`../architecture/compute-next-to-data` — why Pattern B is
   preferred over per-laptop data transfer for SKA-scale cubes

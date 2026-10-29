@@ -3,6 +3,23 @@
 All notable changes to SKAVA. The repository follows
 [semantic versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+* **End-to-end run on a real node, recorded** — a runbook for INAF
+  PLEIADI-GPU from an empty account to the evidence bundle (data copied,
+  image built, backend on a GPU compute node, holdings published in place,
+  node registered, the chain run from a laptop), with
+  ``scripts/node_provenance.sh`` (host, GPU, image, data), a generic
+  ``scripts/register_node.sh`` and ``testbed/experiments/e7_real_node.py``,
+  a scripted client that times and records every step against one node.
+
+### Removed
+
+* The Power9 runbook and ``scripts/register_power9_testbed.sh``, which
+  registered a hand-written record instead of publishing the node's files.
+
 ## 0.1.2 — 2026-10-29
 
 ### Added

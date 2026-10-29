@@ -145,7 +145,7 @@ operations/backup
 operations/upgrades
 operations/troubleshooting
 operations/admin-ui-runbook
-operations/e2e-power9-runbook
+operations/e2e-pleiadi-gpu-runbook
 ```
 
 ```{toctree}
