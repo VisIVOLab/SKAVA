@@ -398,14 +398,10 @@ the internal key. Print it on the catalogue's host:
 python -m app.security.node_token INAF-CT
 ```
 
-and give it to the node's backend:
-
-```bash
-VISIVO_SKAVA_TELEMETRY_URL=https://skava.example.org
-VISIVO_NODE_CODE=INAF-CT
-VISIVO_SKAVA_NODE_TOKEN=<the printed token>
-VISIVO_SKAVA_TELEMETRY_INTERVAL=10      # seconds, optional
-```
+and give it to the operator of the node's backend, with this catalogue's
+URL and the node's code. How the VisIVO Visual Analytics backend is set up
+to report is described in its own documentation:
+[Running a backend as an SRC node](https://visivo.readthedocs.io/en/latest/user-guide/skava-discovery.html#running-a-backend-as-an-src-node).
 
 Changing `INTERNAL_API_KEY` revokes every node token. The node must still
 have a `visivo_backend_url` for the policy to rank it on telemetry: that is

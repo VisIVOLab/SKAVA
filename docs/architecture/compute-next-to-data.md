@@ -125,8 +125,10 @@ The original design had the backend query SKAVA on every open. We
 simplified to: **the client already did the discovery query, it
 already has the access URL — just forward it**. Result:
 
-* Backend has zero dependency on SKAVA. No `httpx`, no env var
-  `VISIVO_SKAVA_URL`, no networking from the SRC inward.
+* Opening a dataset needs nothing from SKAVA on the backend's side: no
+  query to the catalogue, no catalogue URL in its configuration. (A backend
+  the catalogue cannot reach may be configured to report its status to it;
+  that is the only call from a node to SKAVA, and it is optional.)
 * One less HTTP round-trip on every open.
 * Backend is testable in isolation with synthetic
   `(obs_id, access_url)` tuples.

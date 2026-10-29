@@ -265,55 +265,16 @@ Read by the publisher itself:
 
 ## VisIVO backend (compute next to data)
 
-Read by the VisIVO backend running on a node, where they matter to SKAVA
-(`/v1/datasets/open_skava`, the node SODA service, the `/v1/node/status`
-document the prober reads):
+The VisIVO Visual Analytics backend on a node has its own settings, read by
+the backend and not by SKAVA; their reference is in the VisIVO
+documentation,
+[Running a backend as an SRC node](https://visivo.readthedocs.io/en/latest/user-guide/skava-discovery.html#running-a-backend-as-an-src-node).
+Three of them have to agree with this catalogue:
 
-```{list-table}
-:header-rows: 1
-:widths: 32 14 54
-
-* - Name
-  - Default
-  - Notes
-* - ``VISIVO_DATA_ROOT`` / ``VISIVO_DATA_ROOTS``
-  - —
-  - **Strongly recommended in production.** Path jail for the
-    ``file://`` replicas the node opens (``open_skava``, SODA ``ID``).
-    ``VISIVO_DATA_ROOTS`` takes several directories (``os.pathsep``
-    separated); either is honoured.
-* - ``VISIVO_TOKEN``
-  - random
-  - Token clients (and SKAVA, via ``SKAVA_VISIVO_BACKEND_TOKEN``) must
-    present as ``X-Visivo-Token``.
-* - ``VISIVO_TOKENS``
-  - —
-  - Additional accepted tokens (comma/whitespace separated). A backend
-    with ``VISIVO_TOKENS`` set serves no filesystem path until
-    ``VISIVO_DATA_ROOTS`` is declared.
-* - ``VISIVO_WORKERS``
-  - 4
-  - ``ProcessPoolExecutor`` size (reported as ``workers.total``).
-* - ``VISIVO_SESSION_TTL``
-  - 1800 s
-  - Idle session expiry.
-* - ``VISIVO_NODE_STATUS_PUBLIC``
-  - 1
-  - ``0`` makes ``/v1/node/status`` require the token.
-* - ``VISIVO_NODE_CODE``
-  - —
-  - Node code reported in ``/v1/node/status``.
-* - ``VISIVO_NODE_GPU``
-  - —
-  - Declares whether the node has a GPU (``1``/``0``), reported in the
-    status document.
-* - ``VISIVO_SOFIA_BIN``
-  - ``sofia2`` / ``sofia`` on PATH
-  - SoFiA-2 executable for node-side source finding.
-* - ``VISIVO_FINDER_TIMEOUT_S``
-  - 3600
-  - Maximum run time of a source finder.
-```
+* the backend's token is what ``SKAVA_VISIVO_BACKEND_TOKEN`` must hold,
+  when the backend requires one for its status document;
+* its data roots must contain the ``file://`` locations the node publishes;
+* its node code should be the node's ``code`` here.
 
 ## Apptainer-specific
 
