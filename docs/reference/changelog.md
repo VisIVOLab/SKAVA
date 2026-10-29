@@ -63,7 +63,11 @@ Everything below, to the next heading of this level, is in 0.1.0.
   dry runs are checked alike. A node holding the dataset beside others
   whose new record contradicts the catalogue (its file changed) is refused
   and its replica quarantined, out of the ranking, until a record proves the
-  copy again with an equal checksum. The federated search no longer merges two
+  copy again with an equal checksum. The same holds for a holder of a
+  shared dataset whose record states no checksum while the catalogue has one.
+  The only holder republishing without a checksum withdraws the stored one,
+  and the first checksum of a dataset several nodes hold quarantines the
+  others until they show the same. The federated search no longer merges two
   different products listed under one ``obs_id``: they are returned apart,
   flagged ``identity_conflict``.
 * **DataLink ``content_length``** is in bytes, as DataLink defines it: the

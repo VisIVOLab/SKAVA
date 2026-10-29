@@ -291,7 +291,10 @@ or `node_not_found`.
     or the catalogue states no checksum. With ``SKAVA_REPLICA_IDENTITY=checksum``
     (the default) a replica is accepted only on equal checksums; publish them
     (``scan.compute_checksum``), raise ``scan.checksum_max_bytes`` for large
-    files, or declare the replica in the admin UI.
+    files, or declare the replica in the admin UI. A node that already holds
+    the dataset beside others gets the same answer when its record states no
+    checksum while the catalogue has one: nothing shows its file is still the
+    same copy, and its replica is quarantined until a record proves it.
 * - ``<field> is longer than <n> characters``
   - A text value longer than its column (128 for ``target_name``, 512
     for ``access_url``, ...).
@@ -307,7 +310,14 @@ or `node_not_found`.
     beside others (its file changed), that node's replica is also
     quarantined: it leaves the ranking until a record of the node proves
     its copy again, with a checksum equal to the catalogue's. Two copies
-    that disagree are never served under one dataset.
+    that disagree are never served under one dataset. The only holder
+    republishing without a checksum withdraws the stored one (it described
+    the old file); a holder bringing the first checksum of a dataset others
+    hold too quarantines their replicas until their records show the same
+    checksum. These are guarantees on the catalogue after each ingestion: a
+    file changed in place is seen only at the publisher's next scan, so
+    sites must keep replicas immutable or replace them through the
+    publisher.
 ```
 
 ## History

@@ -271,6 +271,74 @@ def test_a_quarantined_replica_returns_only_with_proof(client):
     assert codes == ["replica_conflict", "replica_unverified"]
 
 
+def test_a_holder_republishing_without_a_checksum_is_withdrawn(client):
+    # Two equal copies; A's file changes (same size and type) and A publishes
+    # it without a checksum, as for a file above the publisher's hashing limit.
+    _run_ingestion(client, [_record("obs-390", "A", checksum="xxx", access_estsize=10),
+                            _record("obs-390", "B", checksum="xxx", access_estsize=10)],
+                   source_type="manual")
+    for dry_run in (True, False):
+        silent = _run_ingestion(client, [_record("obs-390", "A", access_estsize=10)],
+                                source_type="manual", dry_run=dry_run)
+        assert silent.validation_errors[0].code == "replica_unverified"
+        assert "quarantined" in silent.validation_errors[0].message
+    with app.state.testing_session_local() as db:
+        dataset = db.query(Dataset).filter(Dataset.obs_id == "obs-390").one()
+        assert dataset.checksum == "xxx"
+        status = {r.node.code: r.status for r in
+                  db.query(DatasetReplica).filter(DatasetReplica.dataset_id == dataset.id)}
+        assert status == {"A": "quarantined", "B": "available"}
+    assert [r["code"] for r in client.get("/datalink/obs-390").json()["routing"]["replicas"]] == ["B"]
+    # A republishes with the checksum of the same copy: it is served again.
+    assert _run_ingestion(client, [_record("obs-390", "A", checksum="xxx", access_estsize=10)],
+                          source_type="manual").skipped_records == 0
+    assert len(client.get("/datalink/obs-390").json()["routing"]["replicas"]) == 2
+
+
+def test_a_holder_may_add_the_checksum_the_catalogue_lacks(client, monkeypatch):
+    # A catalogue built before checksums (metadata identity) acquires them.
+    from app.config import settings
+    monkeypatch.setattr(settings, "replica_identity", "metadata")
+    _run_ingestion(client, [_record("obs-395", "A", access_estsize=10),
+                            _record("obs-395", "B", access_estsize=10)], source_type="manual")
+    monkeypatch.setattr(settings, "replica_identity", "checksum")
+    added = _run_ingestion(client, [_record("obs-395", "A", checksum="zzz", access_estsize=10)],
+                           source_type="manual")
+    assert added.skipped_records == 0
+    with app.state.testing_session_local() as db:
+        assert db.query(Dataset).filter(Dataset.obs_id == "obs-395").one().checksum == "zzz"
+        status = {r.node.code: r.status for r in db.query(DatasetReplica).join(Dataset)
+                  .filter(Dataset.obs_id == "obs-395")}
+        assert status == {"A": "available", "B": "quarantined"}      # B has proved nothing yet
+    # B proves the same copy and is served again.
+    assert _run_ingestion(client, [_record("obs-395", "B", checksum="zzz", access_estsize=10)],
+                          source_type="manual").skipped_records == 0
+    with app.state.testing_session_local() as db:
+        assert {r.status for r in db.query(DatasetReplica).join(Dataset)
+                .filter(Dataset.obs_id == "obs-395")} == {"available"}
+
+
+def test_a_sole_holder_without_a_checksum_stops_vouching_for_the_old_one(client):
+    # A replaces its file and republishes without a checksum: the stored
+    # checksum described the old file, so no copy can join on it.
+    _run_ingestion(client, [_record("obs-397", "A", checksum="old", access_estsize=10)], source_type="manual")
+    assert _run_ingestion(client, [_record("obs-397", "A", access_estsize=10)],
+                          source_type="manual").skipped_records == 0
+    with app.state.testing_session_local() as db:
+        assert db.query(Dataset).filter(Dataset.obs_id == "obs-397").one().checksum is None
+    late = _run_ingestion(client, [_record("obs-397", "B", checksum="old", access_estsize=10)],
+                          source_type="manual")
+    assert late.validation_errors[0].code == "replica_unverified"
+    # The same within one batch, dry and real.
+    batch = [_record("obs-398", "A", checksum="old", access_estsize=10),
+             _record("obs-398", "A", access_estsize=10),
+             _record("obs-398", "B", checksum="old", access_estsize=10)]
+    for dry_run in (True, False):
+        codes = [e.code for e in _run_ingestion(client, batch, source_type="manual",
+                                                dry_run=dry_run).validation_errors]
+        assert codes == ["replica_unverified"]
+
+
 def test_a_dry_run_reports_the_quarantine_without_doing_it(client):
     _run_ingestion(client, [_record("obs-360", "A", checksum="xxx"), _record("obs-360", "B", checksum="xxx")],
                    source_type="manual")

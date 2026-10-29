@@ -1,7 +1,7 @@
 # Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
 # SPDX-License-Identifier: Apache-2.0
 from html import escape
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, unquote, urlencode, urlsplit
 
 from app.config import settings
 from app.schemas.datalink import DataLinkResponse
@@ -118,6 +118,21 @@ def _datalink_row(
     )
 
 
+# The media type a node's SODA sends for a file it returns as stored, by the
+# file's name, as the VisIVO backend decides it (app/routers/soda.py,
+# _media_type): the row states what the response will carry.
+def _as_served(local_url: str) -> str:
+    # The node decodes the URL's path before it opens the file.
+    name = unquote(urlsplit(local_url).path).rsplit("/", 1)[-1].lower()
+    if name.endswith((".fits", ".fit", ".fts")):
+        return "application/fits"
+    if name.endswith((".h5", ".hdf5", ".he5")):
+        return "application/x-hdf5"
+    if name.endswith(".gz"):
+        return "application/gzip"
+    return "application/octet-stream"
+
+
 def _fault_row(oid: str, message: str) -> str:
     """A row carrying only the ID, the fault and #this (DataLink 1.1, 3.2.4)."""
     trailing = len(_DATALINK_FIELDS) - 5
@@ -203,7 +218,7 @@ def _datalink_rows(datalink: DataLinkResponse, auth_required: bool, prefix: str 
             service_def=None,
             description=f"Copy on node {link.node_id}, local to the node: the file as stored, "
                         "from the node's SODA service",
-            content_type=link.content_type,
+            content_type=_as_served(link.href),
             content_length=datalink.primary_access.content_length,
             link_auth="true" if backend.requires_auth else "false",
             local_access_url=link.href))

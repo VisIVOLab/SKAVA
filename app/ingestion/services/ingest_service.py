@@ -65,7 +65,9 @@ class IngestService:
             conflict = self._replica_conflict(record, node)
             if conflict:
                 code, message = conflict
-                if code == "replica_conflict" and self._quarantine(record.obs_id, node):
+                # A holder that cannot show its file is the copy it was (a
+                # contradiction, or no checksum) stops being served as one.
+                if self._quarantine(record.obs_id, node):
                     message += ("; this node's own replica is withdrawn from routing (quarantined) "
                                 "until a record of its file agrees with the other copies again")
                 self._skip(summary, idx, code, message, raw)
@@ -210,13 +212,24 @@ class IngestService:
             # its copy as a newcomer does: its record must not merely omit
             # what once disagreed.
             joining = node.id not in evidence["nodes"] or node.id in evidence.get("quarantined", set())
-            if joining and settings.replica_identity == "checksum" and not (
-                    record.checksum and evidence.get("checksum")):
-                missing = "this record" if not record.checksum else "the catalogue"
-                return ("replica_unverified",
-                        f"obs_id {record.obs_id} is held by other nodes and {missing} states no checksum: "
-                        "the copy cannot be verified, so it is not accepted as a replica "
-                        "(publish checksums, or declare the replica in the admin UI)")
+            if settings.replica_identity == "checksum":
+                if joining and not (record.checksum and evidence.get("checksum")):
+                    missing = "this record" if not record.checksum else "the catalogue"
+                    return ("replica_unverified",
+                            f"obs_id {record.obs_id} is held by other nodes and {missing} states no checksum: "
+                            "the copy cannot be verified, so it is not accepted as a replica "
+                            "(publish checksums, or declare the replica in the admin UI)")
+                # A node that already holds it beside others republishes when
+                # its file may have changed: where the catalogue holds a
+                # checksum, a record without one cannot show the file is still
+                # the copy the others hold, and keeping the old checksum would
+                # vouch for a file nobody verified. (A catalogue without a
+                # checksum has none to keep: such a record updates the
+                # metadata, and a checksum it brings becomes the catalogue's.)
+                if not joining and not record.checksum and evidence.get("checksum"):
+                    return ("replica_unverified",
+                            f"obs_id {record.obs_id} is held by other nodes too and this node's new record "
+                            "states no checksum: nothing shows its file is still the same copy")
         # Accepted: what the catalogue will hold after this record.
         state = self._state(evidence)
         state["nodes"].add(node.id)
@@ -230,11 +243,40 @@ class IngestService:
             self._clear[record.obs_id] = [f for f in self._IDENTITY_FIELDS if f not in stated]
             for field in self._clear[record.obs_id]:
                 state[field] = None
+        checksum_mode = settings.replica_identity == "checksum"
+        if checksum_mode and sole_holder and not record.checksum and state["checksum"] is not None:
+            # The only holder republishes without a checksum: nothing shows its
+            # file is still the one the stored checksum describes, so the
+            # catalogue stops vouching for it (a later copy cannot join on it).
+            cleared = self._clear.setdefault(record.obs_id, [])
+            if "checksum" not in cleared:
+                cleared.append("checksum")
+            state["checksum"] = None
+        # The first checksum of a dataset several nodes already hold proves
+        # this node's copy only: the others are withdrawn until theirs agree.
+        first_proof = checksum_mode and bool(record.checksum) and state["checksum"] is None and not sole_holder
         for field, value in stated.items():
             if sole_holder or state[field] is None:
                 state[field] = value
+        if first_proof:
+            unproven = state["nodes"] - {node.id} - state["quarantined"]
+            self._withdraw(record.obs_id, unproven)
+            state["quarantined"] |= unproven
         self._batch[record.obs_id] = state
         return None
+
+    def _withdraw(self, obs_id: str, node_ids: set[int]) -> None:
+        """Quarantine the replicas of ``obs_id`` on ``node_ids`` (not in a dry run)."""
+        if self.dry_run or not node_ids:
+            return
+        replicas = self.db.scalars(
+            select(DatasetReplica).join(Dataset, DatasetReplica.dataset_id == Dataset.id)
+            .where(Dataset.obs_id == obs_id, DatasetReplica.node_id.in_(node_ids))).all()
+        for replica in replicas:
+            replica.status = "quarantined"
+        self.db.flush()
+        logger.info("replicas_withdrawn_until_proven",
+                    extra={"obs_id": obs_id, "replicas": len(replicas)})
 
     def _state(self, evidence: dict[str, Any] | None) -> dict[str, Any]:
         """A copy of ``evidence`` this batch can change (an empty one for a new dataset)."""

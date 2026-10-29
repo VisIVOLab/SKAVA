@@ -4,8 +4,9 @@
 
 What a generic VO client does, against the running testbed: the catalogue's
 TAP (ObsCore query, VOSI tables and capabilities), its DataLink document for
-a dataset (the ``#this`` row, the node's SODA services advertised as adhoc
-service descriptors), the node's SODA sync service (a cutout through the
+a dataset (the ``#this`` rows, each followed from outside the node and
+compared byte for byte with the catalogued file, and the node's SODA
+services advertised as adhoc service descriptors), the node's SODA sync service (a cutout through the
 descriptor pyvo found, and through ``SodaQuery`` directly), the node's UWS
 job list (a moment-map job, its document parsed by pyvo's UWS reader), and
 the node's VOSI documents. Runs inside the testbed network (``make
@@ -138,6 +139,79 @@ def _datalink():
     assert sync["inputs"].get("ID"), f"the sync descriptor carries no ID: {sync['inputs']}"
     state.update(dl=dl, sync=sync, asyn=asyn)
     return f"{len(list(dl))} rows, services {sorted(kinds)}, node {sync['accessURL']}"
+
+
+@check("DataLink #this: every copy retrieved from outside the node is the catalogued file")
+def _this_rows():
+    # What the {links} rows promise a generic client: following a "#this"
+    # access_url gives the dataset itself. A file on a node's storage is
+    # linked through the node's SODA with no constraint; this check follows
+    # every such link from this container (not a node), as an HTTP client,
+    # and compares status, type, size and SHA-256 with what the catalogue
+    # declares (content_length, content_type, the record's checksum).
+    needs("dl", "obs_id")
+    import hashlib
+
+    obs_id = state["obs_id"]
+    catalogued = session.get(f"{SKAVA}/discovery/dataset/{obs_id}").json()
+    checksum = ((catalogued.get("metadata") or {}).get("checksum") or "").removeprefix("sha256:")
+    assert checksum, f"the catalogue states no checksum for {obs_id}"
+    rows = [r for r in state["dl"].bysemantics("#this")]
+    assert rows, "no #this row"
+    # The node token goes only to the nodes' own backends (the #auxiliary rows
+    # name them), never to a direct copy elsewhere, and no request follows a
+    # redirect with it.
+    from urllib.parse import urlsplit
+
+    def origin(url: str) -> tuple[str, str]:
+        parts = urlsplit(url)
+        return parts.scheme, parts.netloc
+
+    nodes = {origin(str(r.access_url)) for r in state["dl"].bysemantics("#auxiliary")}
+    anonymous = BoundedSession()
+    deadline = float(os.environ.get("TESTBED_CONFORMANCE_DOWNLOAD_S", "600"))
+    seen = []
+    for row in rows:
+        url = str(row.access_url)
+        assert not url.startswith("file:"), f"a #this access_url a client cannot follow: {url}"
+        declared = int(row.content_length)
+        client = session if origin(url) in nodes else anonymous
+        digest, got = hashlib.sha256(), {"size": 0, "status": None, "media": "", "error": None}
+
+        def fetch() -> None:
+            # The whole exchange (connection, headers, body) in a daemon
+            # thread, so the deadline holds at every step: a fetch past it is
+            # abandoned (it ends with the script) and the check fails.
+            try:
+                with client.get(url, stream=True, allow_redirects=False) as resp:
+                    got["status"] = resp.status_code
+                    got["media"] = resp.headers.get("content-type", "").split(";")[0]
+                    if resp.status_code != 200:
+                        return
+                    for chunk in resp.iter_content(1 << 20):
+                        digest.update(chunk)
+                        got["size"] += len(chunk)
+                        if got["size"] > declared:
+                            raise AssertionError(f"{url}: more than the {declared} bytes declared")
+            except Exception as exc:  # noqa: BLE001 - reported below
+                got["error"] = exc
+
+        import threading
+
+        fetcher = threading.Thread(target=fetch, daemon=True)
+        fetcher.start()
+        fetcher.join(deadline)
+        assert not fetcher.is_alive(), f"{url}: not done in {deadline:g} s"
+        if got["error"] is not None:
+            raise got["error"]
+        assert got["status"] == 200, f"{url}: HTTP {got['status']}"
+        media, size = got["media"], got["size"]
+        node = row["node_id"]
+        assert media == str(row.content_type), f"{node}: served {media}, row says {row.content_type}"
+        assert size == declared, f"{node}: {size} bytes, row says {declared}"
+        assert digest.hexdigest() == checksum, f"{node}: SHA-256 differs from the catalogue's"
+        seen.append(f"{node} {size} B")
+    return f"{len(rows)} copies, each the catalogued file ({', '.join(seen)})"
 
 
 @check("SODA sync: a cutout through the descriptor pyvo found (SodaQuery.from_resource)")

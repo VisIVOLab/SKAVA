@@ -4,6 +4,8 @@
 row leads a client to the dataset, and content_length is in bytes."""
 from xml.etree import ElementTree as ET
 
+import pytest
+
 from app.main import app
 from app.models.dataset import Dataset
 from app.models.replica import DatasetReplica
@@ -61,6 +63,7 @@ def test_a_node_local_copy_is_reached_through_the_nodes_soda(client):
         assert row["access_url"].startswith("http://backend:8000/soda/sync?ID=file%3A%2F%2F%2Fdata%2F")
         assert row["local_access_url"] == f"file:///data/{row['node_id']}/cube.fits"
         assert row["link_auth"] == "true"
+        assert row["content_type"] == "application/fits"     # what the node's SODA sends
         # Unconstrained, the node's SODA returns the file as stored.
         assert row["content_length"] == "1000"
     assert not any(r["access_url"].startswith("file:") for r in rows)
@@ -103,3 +106,12 @@ def test_an_exact_size_without_an_estimate_is_not_trusted(client):
     # size describes the old file.
     _set(size_bytes=102_400, estsize=None, endpoint="https://{node}.example.org/cube.fits")
     assert {r["content_length"] for r in _copies(_rows(client))} == {""}
+
+
+@pytest.mark.parametrize("name, media", [("cube.fits", "application/fits"), ("cube%2Efits", "application/fits"),
+                                         ("cube.fits.gz", "application/gzip"),
+                                         ("search.sf", "application/octet-stream"),
+                                         ("beam.h5", "application/x-hdf5")])
+def test_a_node_local_row_states_the_type_the_node_will_send(client, name, media):
+    _set(size_bytes=1000, endpoint="file:///data/{node}/" + name, backend="http://backend:8000")
+    assert {r["content_type"] for r in _copies(_rows(client))} == {media}
