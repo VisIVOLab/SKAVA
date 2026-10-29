@@ -3,6 +3,32 @@
 All notable changes to SKAVA. The repository follows
 [semantic versioning](https://semver.org).
 
+## 0.1.1 — 2026-10-29
+
+### Fixed
+
+* **Replica identity on updates** — a node holding a dataset beside others
+  whose record states no checksum, while the catalogue has one, is refused
+  (``replica_unverified``) and its replica quarantined until a record shows
+  the same checksum. The only holder republishing without a checksum
+  withdraws the stored one, so no copy can join on it later. The first
+  checksum of a dataset several nodes hold quarantines the others until
+  they show the same.
+* **DataLink ``#this`` rows** through a node's SODA state the media type the
+  node sends (``application/fits`` for FITS, by the file's name otherwise).
+
+### Added
+
+* **Testbed conformance** — ``make conformance`` follows every ``#this``
+  link of a dataset from outside the nodes and compares status, media
+  type, size and SHA-256 with what the catalogue declares.
+
+### Changed
+
+* The VisIVO backend's own settings are documented by VisIVO Visual
+  Analytics; these pages name only what must agree with the catalogue and
+  link there.
+
 ## 0.1.0 — 2026-10-29 (first public release)
 
 Everything below, to the next heading of this level, is in 0.1.0.
@@ -63,11 +89,7 @@ Everything below, to the next heading of this level, is in 0.1.0.
   dry runs are checked alike. A node holding the dataset beside others
   whose new record contradicts the catalogue (its file changed) is refused
   and its replica quarantined, out of the ranking, until a record proves the
-  copy again with an equal checksum. The same holds for a holder of a
-  shared dataset whose record states no checksum while the catalogue has one.
-  The only holder republishing without a checksum withdraws the stored one,
-  and the first checksum of a dataset several nodes hold quarantines the
-  others until they show the same. The federated search no longer merges two
+  copy again with an equal checksum. The federated search no longer merges two
   different products listed under one ``obs_id``: they are returned apart,
   flagged ``identity_conflict``.
 * **DataLink ``content_length``** is in bytes, as DataLink defines it: the

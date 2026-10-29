@@ -8,7 +8,7 @@ def get_capabilities() -> CapabilitiesResponse:
     return CapabilitiesResponse(
         service="SKAVA Data Discovery and Access",
         profile="VO-aligned Production Service",
-        version="0.1.0",
+        version="0.1.1",
         vosi={"availability": "/availability", "capabilities": "/capabilities"},
         interfaces=[
             CapabilityInterface(

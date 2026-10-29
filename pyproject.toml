@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skava-discovery-service"
-version = "0.1.0"
+version = "0.1.1"
 license = {text = "Apache-2.0"}
 description = "VO-aligned production service for SKAVA data discovery and access orchestration"
 readme = "README.md"

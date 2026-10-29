@@ -224,7 +224,8 @@ Coding conventions, tests, and how to add a new extractor.
 SKAVA is archived on Zenodo. Cite
 [10.5281/zenodo.23765262](https://doi.org/10.5281/zenodo.23765262) for the
 software in general (it resolves to the latest version), or the DOI of the
-version you used: 0.1.0 is
+version you used: 0.1.1 is
+[10.5281/zenodo.23766136](https://doi.org/10.5281/zenodo.23766136) and 0.1.0
 [10.5281/zenodo.23765263](https://doi.org/10.5281/zenodo.23765263).
 [`CITATION.cff`](https://github.com/VisIVOLab/SKAVA/blob/main/CITATION.cff)
 has the full metadata.
