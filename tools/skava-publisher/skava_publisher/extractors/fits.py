@@ -47,20 +47,46 @@ def _select_primary_header(hdul):
     return hdul[0].header
 
 
+class _WithPrimary:
+    """The data HDU's header, falling back to the primary header for a
+    keyword the data HDU does not carry: a multi-extension product (an ESO
+    archive cube, say) keeps TELESCOP, INSTRUME, OBJECT, the observation
+    dates in the primary HDU and the data with its WCS in an extension.
+    Only for descriptive keywords: the WCS is read from the data HDU alone."""
+
+    def __init__(self, data, primary):
+        self.data, self.primary = data, primary
+
+    def get(self, key, default=None):
+        if key in self.data:
+            return self.data.get(key, default)
+        if self.primary is not None and key in self.primary:
+            return self.primary.get(key, default)
+        return default
+
+
 def _dataproduct_type(header) -> str | None:
+    """image, cube or polarimetric, from the axes that have more than one
+    pixel: a degenerate Stokes or frequency axis (length 1, common in radio
+    images and cubes) does not make a product polarimetric or a cube."""
     naxis = header.get("NAXIS", 0)
-    if not isinstance(naxis, int):
+    if not isinstance(naxis, int) or naxis < 1:
         return None
+    significant = 0
     for ax in range(1, naxis + 1):
-        ctype = str(header.get(f"CTYPE{ax}", "")).upper()
-        if "STOKES" in ctype:
+        try:
+            length = int(header.get(f"NAXIS{ax}", 1) or 1)
+        except (TypeError, ValueError):
+            length = 1
+        if length <= 1:
+            continue
+        if "STOKES" in str(header.get(f"CTYPE{ax}", "")).upper():
             return "polarimetric"
-    if naxis == 2:
+        significant += 1
+    if significant == 2:
         return "image"
-    if naxis == 3:
+    if significant == 3:
         return "cube"
-    if naxis == 4:
-        return "polarimetric"
     return None
 
 
@@ -125,43 +151,101 @@ def _time(header) -> dict[str, float]:
     return out
 
 
+def _rest_frequency(header, wcsprm=None) -> float | None:
+    """The rest frequency in Hz: RESTFRQ/RESTFREQ, or from RESTWAV/RESTWAVE."""
+    if wcsprm is not None:
+        if wcsprm.restfrq and wcsprm.restfrq > 0:
+            return float(wcsprm.restfrq)
+        if wcsprm.restwav and wcsprm.restwav > 0:
+            return _C_M_S / float(wcsprm.restwav)
+    f = _opt_float(header.get("RESTFRQ") or header.get("RESTFREQ"))
+    if f is not None and f > 0:
+        return f
+    w = _opt_float(header.get("RESTWAV") or header.get("RESTWAVE"))
+    return _C_M_S / w if w is not None and w > 0 else None
+
+
 def _spectral(header) -> dict[str, float]:
+    """The ObsCore em_min/em_max (metres) the spectral axis spans.
+
+    WCSLIB, through astropy, interprets the header: CD or PC with CDELT,
+    cross terms, and the legacy AIPS conventions (VELO-xxx with VELREF,
+    FELO) that it translates to the standard types. The spectral world
+    coordinate is evaluated at every corner of the pixel grid and turned
+    into wavelengths with the Doppler convention of its type (radio for
+    VRAD, optical for VOPT, relativistic for VELO), through the rest
+    frequency. Without a spectral axis that can be converted, the rest
+    wavelength alone, when the header gives one.
+    """
     out: dict[str, float] = {}
-    restfreq = _opt_float(header.get("RESTFREQ") or header.get("RESTFRQ"))
-    if restfreq is not None and restfreq > 0:
-        wave = _C_M_S / restfreq
-        out["em_min"] = wave
-        out["em_max"] = wave
-    naxis = header.get("NAXIS", 0) or 0
-    for ax in range(1, int(naxis) + 1):
-        ctype = str(header.get(f"CTYPE{ax}", "")).upper()
-        if ctype.startswith(("FREQ", "WAVE", "VOPT", "VRAD")):
-            n = _opt_float(header.get(f"NAXIS{ax}"))
-            crval = _opt_float(header.get(f"CRVAL{ax}"))
-            cdelt = _opt_float(header.get(f"CDELT{ax}"))
-            crpix = _opt_float(header.get(f"CRPIX{ax}"))
-            if None in (n, crval, cdelt, crpix):
-                continue
-            v_lo = crval + (1 - crpix) * cdelt
-            v_hi = crval + (n - crpix) * cdelt
-            if v_lo > v_hi:
-                v_lo, v_hi = v_hi, v_lo
-            cunit = str(header.get(f"CUNIT{ax}", "")).strip()
-            try:
-                from astropy import units as u
-                q_lo = v_lo * u.Unit(cunit or "Hz")
-                q_hi = v_hi * u.Unit(cunit or "Hz")
-                if ctype.startswith("FREQ"):
-                    lo_m = _C_M_S / q_hi.to_value("Hz")
-                    hi_m = _C_M_S / q_lo.to_value("Hz")
-                else:
-                    lo_m = q_lo.to_value("m")
-                    hi_m = q_hi.to_value("m")
-                out["em_min"] = float(min(lo_m, hi_m))
-                out["em_max"] = float(max(lo_m, hi_m))
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Spectral axis conversion failed: %s", exc)
-            break
+    restfreq = _rest_frequency(header)
+    if restfreq is not None:
+        out["em_min"] = out["em_max"] = _C_M_S / restfreq
+    try:
+        import itertools
+        import warnings
+
+        import numpy as np
+        from astropy import units as u
+        from astropy.io import fits
+        from astropy.wcs import WCS
+
+        hdr = header if isinstance(header, fits.Header) else fits.Header(dict(header))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            wcs = WCS(hdr)
+        if not wcs.has_spectral:
+            return out
+        axis = wcs.wcs.spec
+        if str(wcs.wcs.ctype[axis]).upper().startswith("AWAV"):
+            # ObsCore wants vacuum wavelengths: WCSLIB converts air to vacuum.
+            wcs.wcs.sptr("WAVE-???")
+        ctype = str(wcs.wcs.ctype[axis]).upper()
+        unit = u.Unit(wcs.wcs.cunit[axis] or "")
+        restfreq = _rest_frequency(header, wcs.wcs) or restfreq
+        # Only the pixel axes the spectral coordinate depends on (the
+        # correlation matrix: cross terms included), and only those longer
+        # than one pixel, vary between their two ends; the rest stay at 1.
+        shape = [max(1, int(hdr.get(f"NAXIS{k + 1}", 1) or 1)) for k in range(wcs.pixel_n_dim)]
+        depends = wcs.axis_correlation_matrix[axis]
+        ends = [(1.0, float(n)) if depends[k] and n > 1 else (1.0,) for k, n in enumerate(shape)]
+        if sum(len(e) > 1 for e in ends) > 8:
+            return out              # not a product layout this extractor knows
+        corners = np.array(list(itertools.product(*ends)))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            world = wcs.all_pix2world(corners, 1)[:, axis]
+        values = world * unit
+        kind = ctype[:4]
+        if kind in ("FREQ",):
+            metres = values.to(u.m, equivalencies=u.spectral())
+        elif kind == "WAVE":
+            metres = values.to(u.m)
+        elif kind in ("VRAD", "VOPT", "VELO", "ZOPT"):
+            if restfreq is None:
+                return out
+            rest = restfreq * u.Hz
+            if kind == "ZOPT":
+                metres = (_C_M_S / restfreq) * (1 + values.to_value(u.dimensionless_unscaled)) * u.m
+            else:
+                convention = {"VRAD": u.doppler_radio, "VOPT": u.doppler_optical,
+                              "VELO": u.doppler_relativistic}[kind]
+                with np.errstate(all="ignore"):
+                    metres = values.to(u.m, equivalencies=convention(rest))
+        else:
+            return out
+        metres = np.asarray(metres.to_value(u.m), dtype=float)
+        if not np.all(np.isfinite(metres)) or np.any(metres <= 0):
+            # Not a wavelength range under the axis's own convention: the
+            # header's unit does not match its values (km/s declared, m/s
+            # written, say). No band is better than a wrong one.
+            logger.warning("spectral axis %s (%s) gives no valid wavelength range; CUNIT is probably "
+                           "wrong for its values", ctype, unit)
+            return out
+        out["em_min"] = float(metres.min())
+        out["em_max"] = float(metres.max())
+    except Exception as exc:  # noqa: BLE001 - a header WCSLIB cannot read gives no band
+        logger.debug("Spectral axis conversion failed: %s", exc)
     return out
 
 
@@ -179,20 +263,23 @@ class FitsExtractor(Extractor):
         out: dict[str, Any] = {}
         with fits.open(path, memmap=True) as hdul:
             header = _select_primary_header(hdul)
+            # Descriptive keywords may live in the primary HDU of a
+            # multi-extension file; the WCS-derived fields use ``header``.
+            described = _WithPrimary(header, hdul[0].header if header is not hdul[0].header else None)
 
-            obs_id = _opt_str(header.get("OBS_ID") or header.get("OBSID"))
+            obs_id = _opt_str(described.get("OBS_ID") or described.get("OBSID"))
             if obs_id:
                 out["obs_id"] = obs_id
 
-            obj = _opt_str(header.get("OBJECT"))
+            obj = _opt_str(described.get("OBJECT"))
             if obj:
                 out["target_name"] = obj
 
-            telescop = _opt_str(header.get("TELESCOP"))
+            telescop = _opt_str(described.get("TELESCOP"))
             if telescop:
                 out["facility_name"] = telescop
 
-            instrume = _opt_str(header.get("INSTRUME"))
+            instrume = _opt_str(described.get("INSTRUME"))
             if instrume:
                 out["instrument_name"] = instrume
 
@@ -201,7 +288,7 @@ class FitsExtractor(Extractor):
                 out["dataproduct_type"] = dptype
 
             out.update(_spatial(header))
-            out.update(_time(header))
+            out.update(_time(described))
             out.update(_spectral(header))
             out.setdefault("access_format", "image/fits")
         return out

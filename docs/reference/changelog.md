@@ -15,6 +15,19 @@ All notable changes to SKAVA. The repository follows
   ``scripts/register_node.sh`` and ``testbed/experiments/e7_real_node.py``,
   a scripted client that times and records every step against one node.
 
+### Fixed
+
+* **Publisher: FITS metadata of real survey products** — a degenerate
+  Stokes axis (length 1) no longer makes a cube ``polarimetric`` (ASKAP,
+  MeerKAT and WSRT cubes were catalogued so, and their cube operations not
+  advertised); descriptive keywords (``TELESCOP``, ``INSTRUME``, ``OBJECT``,
+  dates) are read from the primary HDU when the data sit in an extension (ESO
+  archive products); the spectral range is computed through WCSLIB at the
+  pixel grid's corners, so velocity axes (``VRAD``, ``VOPT``, legacy
+  ``VELO-xxx`` and ``FELO``), ``CD``/``PC`` matrices and air wavelengths give
+  the right vacuum wavelengths, and a header whose unit contradicts its
+  values gives no band rather than a wrong one.
+
 ### Removed
 
 * The Power9 runbook and ``scripts/register_power9_testbed.sh``, which

@@ -360,3 +360,114 @@ def test_two_roots_with_one_relative_path_are_two_files(tmp_path, config, monkey
     out = CliRunner().invoke(cli.main, ["-c", str(config), "publish", "--yes"])
     assert "already published from" in out.output
     assert posted == [["obs-55"]]
+
+
+# ── The FITS extractor's product type, keywords and spectral range ─────────
+
+def _header_file(path: Path, header: dict, shape: tuple, primary: dict | None = None) -> Path:
+    data = np.zeros(shape, dtype=np.float32)
+    if primary is None:
+        hdu = fits.PrimaryHDU(data)
+        hdu.header.update(header)
+        hdu.writeto(path)
+    else:
+        prim = fits.PrimaryHDU()
+        prim.header.update(primary)
+        ext = fits.ImageHDU(data)
+        ext.header.update(header)
+        fits.HDUList([prim, ext]).writeto(path)
+    return path
+
+
+def _extract(path: Path) -> dict:
+    return find_extractor(discover(), path).extract(path)
+
+
+def test_a_degenerate_stokes_axis_does_not_make_a_product_polarimetric(tmp_path):
+    # numpy shape is reversed: (stokes, freq, y, x) = NAXIS4..1
+    cube = _header_file(tmp_path / "c.fits", {"CTYPE1": "RA---SIN", "CTYPE2": "DEC--SIN",
+                                              "CTYPE3": "FREQ", "CTYPE4": "STOKES"}, (1, 5, 4, 4))
+    image = _header_file(tmp_path / "i.fits", {"CTYPE1": "RA---SIN", "CTYPE2": "DEC--SIN",
+                                               "CTYPE3": "FREQ", "CTYPE4": "STOKES"}, (1, 1, 4, 4))
+    pol = _header_file(tmp_path / "p.fits", {"CTYPE1": "RA---SIN", "CTYPE2": "DEC--SIN",
+                                             "CTYPE3": "FREQ", "CTYPE4": "STOKES"}, (4, 5, 4, 4))
+    assert _extract(cube)["dataproduct_type"] == "cube"
+    assert _extract(image)["dataproduct_type"] == "image"
+    assert _extract(pol)["dataproduct_type"] == "polarimetric"
+
+
+def test_descriptive_keywords_come_from_the_primary_of_a_multi_extension_file(tmp_path):
+    path = _header_file(tmp_path / "mef.fits", {"CTYPE1": "GLON-CAR", "CTYPE2": "GLAT-CAR", "CTYPE3": "VRAD"},
+                        (3, 4, 4), primary={"TELESCOP": "APEX-12m", "INSTRUME": "APEXHET", "OBJECT": "G10"})
+    out = _extract(path)
+    assert (out["facility_name"], out["instrument_name"], out["target_name"]) == ("APEX-12m", "APEXHET", "G10")
+
+
+@pytest.mark.parametrize("ctype, unit, crval, step, lo, hi", [
+    # radio convention, CD matrix instead of CDELT, CUNIT given
+    ("VRAD", "m/s", -100e3, None, 2.0e-3 / (1 + 100e3 / 299_792_458.0), None),
+    # AIPS VELO without CUNIT: m/s by the standard
+    ("VELO-HEL", None, 0.0, 1000.0, None, None),
+    # optical convention
+    ("VOPT", "km/s", 0.0, 10.0, 2.0e-3, 2.0e-3 * (1 + 20e3 / 299_792_458.0)),
+])
+def test_a_velocity_axis_gives_a_wavelength_range(tmp_path, ctype, unit, crval, step, lo, hi):
+    header = {"CTYPE1": "RA---SIN", "CTYPE2": "DEC--SIN", "CTYPE3": ctype, "CRVAL3": crval, "CRPIX3": 1.0,
+              "RESTFREQ": 299_792_458.0 / 2.0e-3}
+    if unit:
+        header["CUNIT3"] = unit
+    if step is None:
+        header["CD3_3"] = 50e3
+    else:
+        header["CDELT3"] = step
+    out = _extract(_header_file(tmp_path / "v.fits", header, (3, 4, 4)))
+    assert out["em_min"] < out["em_max"]
+    if lo is not None:
+        assert out["em_min"] == pytest.approx(lo, rel=1e-9)
+    if hi is not None:
+        assert out["em_max"] == pytest.approx(hi, rel=1e-9)
+
+
+def test_a_radio_velocity_beyond_light_speed_gives_no_band(tmp_path):
+    # km/s declared, m/s written: under the radio convention a velocity above
+    # c is no frequency at all, so the axis gives no band (the rest
+    # wavelength remains).
+    header = {"CTYPE1": "RA---SIN", "CTYPE2": "DEC--SIN", "CTYPE3": "VRAD", "CUNIT3": "km/s",
+              "CRVAL3": 166450.0, "CDELT3": 6590.0, "CRPIX3": 1.0, "RESTFRQ": 1420405711.83}
+    out = _extract(_header_file(tmp_path / "bad.fits", header, (398, 2, 2)))
+    assert out["em_min"] == out["em_max"] == pytest.approx(299_792_458.0 / 1420405711.83)
+
+
+def test_an_optical_velocity_beyond_light_speed_is_a_redshift(tmp_path):
+    # VOPT = 2c is lambda = 3 lambda0, not an error.
+    c = 299_792_458.0
+    header = {"CTYPE1": "RA---SIN", "CTYPE2": "DEC--SIN", "CTYPE3": "VOPT", "CUNIT3": "m/s",
+              "CRVAL3": 2 * c, "CDELT3": 1000.0, "CRPIX3": 1.0, "RESTFRQ": c / 2.0e-3}
+    out = _extract(_header_file(tmp_path / "z.fits", header, (2, 2, 2)))
+    assert out["em_min"] == pytest.approx(3 * 2.0e-3, rel=1e-9)
+
+
+def test_cd_takes_precedence_over_cdelt(tmp_path):
+    # WCSLIB ignores CDELT when a CD matrix is present: 3 channels of 50 km/s.
+    header = {"CTYPE1": "RA---SIN", "CTYPE2": "DEC--SIN", "CTYPE3": "VRAD", "CUNIT3": "m/s",
+              "CRVAL3": 0.0, "CRPIX3": 1.0, "CDELT3": 1000.0, "CD3_3": 50e3, "CD1_1": -1e-3, "CD2_2": 1e-3,
+              "RESTFRQ": 299_792_458.0 / 2.0e-3}
+    out = _extract(_header_file(tmp_path / "cd.fits", header, (3, 2, 2)))
+    expected_max = 299_792_458.0 / ((299_792_458.0 / 2.0e-3) * (1 - 100e3 / 299_792_458.0))
+    assert out["em_max"] == pytest.approx(expected_max, rel=1e-9)
+
+
+def test_air_wavelengths_become_vacuum_wavelengths(tmp_path):
+    # 500 nm in air is about 500.1395 nm in vacuum; ObsCore wants vacuum.
+    header = {"CTYPE1": "RA---TAN", "CTYPE2": "DEC--TAN", "CTYPE3": "AWAV", "CUNIT3": "m",
+              "CRVAL3": 5e-7, "CDELT3": 1e-9, "CRPIX3": 1.0}
+    out = _extract(_header_file(tmp_path / "air.fits", header, (2, 2, 2)))
+    assert out["em_min"] == pytest.approx(500.1395e-9, rel=2e-6)
+
+
+def test_many_degenerate_axes_cost_nothing(tmp_path):
+    # A 2-D image whose WCS declares many axes: only the spectral one varies.
+    header = {"WCSAXES": 30, "CTYPE1": "RA---TAN", "CTYPE2": "DEC--TAN", "CTYPE3": "FREQ",
+              "CRVAL3": 1.4e9, "CDELT3": 1e6, "CRPIX3": 1.0}
+    out = _extract(_header_file(tmp_path / "wide.fits", header, (4, 4)))
+    assert out["em_min"] == out["em_max"] == pytest.approx(299_792_458.0 / 1.4e9)
