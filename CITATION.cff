@@ -10,6 +10,9 @@ identifiers:
     value: 10.5281/zenodo.23765262
     description: "Concept DOI: all versions, resolves to the latest"
   - type: doi
+    value: 10.5281/zenodo.23768582
+    description: "SKAVA 0.1.2"
+  - type: doi
     value: 10.5281/zenodo.23766136
     description: "SKAVA 0.1.1"
   - type: doi
