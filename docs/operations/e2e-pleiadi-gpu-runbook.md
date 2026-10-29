@@ -48,11 +48,18 @@ mkdir -p "$EVIDENCE"
 
 ```bash
 # on the frontend
-export WORK=$HOME/skava-e2e            # on a filesystem the compute nodes see
+export WORK=/scratch/$USER/skava-e2e   # writable, and seen by the compute nodes
 export DATA=$WORK/data                 # the node's holdings (the data root)
 export NODE=PLEIADI-GPU-OACT
-mkdir -p "$WORK" "$DATA"
+export APPTAINER_CACHEDIR=$WORK/apptainer-cache APPTAINER_TMPDIR=$WORK/apptainer-tmp
+export PYTHONUSERBASE=$WORK/pyuser     # where pip --user installs the publisher
+mkdir -p "$WORK" "$DATA" "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$PYTHONUSERBASE"
 ```
+
+On PLEIADI the home directory is read-only, so everything this run writes
+goes under `/scratch/$USER`: the clones, the image and its build cache, the
+data, the publisher's installation and state, and the backend's products,
+caches, logs and token (the launcher's `--workspace`).
 
 ## 0. Prerequisites
 
@@ -61,8 +68,8 @@ mkdir -p "$WORK" "$DATA"
 * Outbound internet on the frontend (git clone, conda packages, pip).
 * On the laptop: the SKAVA testbed catalogue up (`cd testbed && make up`),
   the VisIVO Visual Analytics desktop, Python 3.11 (the SKAVA virtualenv).
-* `$WORK` on a filesystem shared with the compute nodes (check with
-  `df -h $WORK`; avoid node-local `/tmp`).
+* `$WORK` on a filesystem shared with the compute nodes and writable
+  (`/scratch/$USER`; check with `df -h $WORK`; avoid node-local `/tmp`).
 
 ## 1. Clones and versions on the frontend
 
@@ -104,7 +111,7 @@ reference run uses the Apertif DR1 HI cube of field 200426041, 661 × 661 ×
 ```bash
 # on the laptop
 rsync -avP ~/Downloads/DemoData/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits \
-    $PUSER@$PLEIADI:skava-e2e/data/
+    $PUSER@$PLEIADI:/scratch/$PUSER/skava-e2e/data/
 ```
 
 Then, on the frontend, check it arrived whole:
@@ -123,7 +130,7 @@ to see the compute node's hardware:
 
 ```bash
 cd $WORK
-srun -p gpu --gres=gpu:1 --time=00:10:00 \
+srun -p gpu --gres=gpu:1 --time=00:10:00 --chdir=$WORK \
     bash skava/scripts/node_provenance.sh $WORK/backend-conda.sif $WORK/visivo $DATA/*.fits \
     > $WORK/node_provenance.txt
 less $WORK/node_provenance.txt
@@ -137,16 +144,20 @@ and opens the tunnel `localhost:18900` → compute node:
 ```bash
 # on the laptop
 cd $VISIVO_REPO
-RWORK=$(ssh $PUSER@$PLEIADI 'echo $HOME/skava-e2e')        # $WORK as the cluster spells it
+RWORK=/scratch/$PUSER/skava-e2e                            # $WORK on the cluster
 VCOMMIT=$(ssh $PUSER@$PLEIADI "git -C $RWORK/visivo rev-parse --short HEAD")
 bash scripts/visivo_slurm_tunnel.sh \
-    --frontend $PLEIADI --user $PUSER --repo-dir skava-e2e/visivo \
+    --frontend $PLEIADI --user $PUSER --repo-dir $RWORK/visivo \
     --partition gpu --gres gpu:1 --cpus 8 --mem 64G --time 04:00:00 \
     --port 18900 \
     --data-root $RWORK/data \
+    --workspace $RWORK/backend \
     --sif $RWORK/backend-conda.sif \
     --node-code $NODE --version "$VCOMMIT"
 ```
+
+`--workspace` holds what the backend writes (products, which it also
+serves as a data root, caches), the job's log and the token file.
 
 `--data-root` must be the same absolute path the publisher writes into the
 `file://` URLs (step 7 uses `$DATA`, the same directory). The helper prints
@@ -198,7 +209,8 @@ ssh -N -f -R 18080:localhost:18000 $PUSER@$PLEIADI
 ```bash
 # on the frontend: install the publisher for the image's Python (once)
 cd $WORK
-apptainer exec backend-conda.sif python -m pip install --user ./skava/tools/skava-publisher
+apptainer exec --env PYTHONUSERBASE=$PYTHONUSERBASE backend-conda.sif \
+    python -m pip install --user --no-cache-dir ./skava/tools/skava-publisher
 
 cat > $WORK/publisher.yaml <<EOF
 skava:
@@ -218,7 +230,7 @@ state:
   db_path: $WORK/publisher-state.db
 EOF
 
-apptainer exec --bind $DATA backend-conda.sif \
+apptainer exec --env PYTHONUSERBASE=$PYTHONUSERBASE --bind $WORK backend-conda.sif \
     python -m skava_publisher -c $WORK/publisher.yaml publish --yes 2>&1 | tee $WORK/publish.log
 ```
 
@@ -279,8 +291,9 @@ In VisIVO Visual Analytics:
 
 ```bash
 # on the laptop
-scp $PUSER@$PLEIADI:skava-e2e/node_provenance.txt $PUSER@$PLEIADI:skava-e2e/publish.log $EVIDENCE/
-ssh $PUSER@$PLEIADI "ls -t ~/.visivo_logs/visivo_backend_*.log | head -1 | xargs grep -E 'open_skava|soda|moment|Started|Uvicorn'" \
+RWORK=/scratch/$PUSER/skava-e2e
+scp $PUSER@$PLEIADI:$RWORK/node_provenance.txt $PUSER@$PLEIADI:$RWORK/publish.log $EVIDENCE/
+ssh $PUSER@$PLEIADI "ls -t $RWORK/backend/logs/visivo_backend_*.log | head -1 | xargs grep -E 'open_skava|soda|moment|Started|Uvicorn'" \
     > $EVIDENCE/backend_log_excerpt.txt
 curl -s -H "X-Internal-Api-Key: testbed-internal-api-key" http://localhost:18000/internal/telemetry \
     > $EVIDENCE/telemetry.json
@@ -323,7 +336,11 @@ rankings.
   - What to check
 * - The helper cannot parse the launcher's output
   - The job did not start (partition, GPU quota, time limit). Its log is in
-    ``~/.visivo_logs/`` on the frontend; ``squeue -u $USER`` shows why it waits.
+    ``$WORK/backend/logs/`` on the frontend; ``squeue -u $USER`` shows why it waits.
+* - ``Read-only file system`` anywhere
+  - Something still writes under ``$HOME``: check that ``APPTAINER_CACHEDIR``,
+    ``APPTAINER_TMPDIR`` and ``PYTHONUSERBASE`` are exported in that shell,
+    and that the backend was started with ``--workspace``.
 * - ``/v1/node/status`` shows no node code or GPU
   - The launcher on the frontend predates ``--node-code``: update the
     VisIVO clone there.
