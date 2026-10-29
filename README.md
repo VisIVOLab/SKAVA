@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://github.com/VisIVOLab/SKAVA/actions/workflows/tests.yml"><img src="https://github.com/VisIVOLab/SKAVA/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="https://skava.readthedocs.io"><img src="https://readthedocs.org/projects/skava/badge/?version=latest" alt="Documentation"></a>
+  <a href="https://doi.org/10.5281/zenodo.23765262"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23765262.svg" alt="DOI 10.5281/zenodo.23765262"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
 </p>
@@ -152,7 +153,10 @@ and [Testing](https://skava.readthedocs.io/en/latest/development/testing.html).
 
 If you use SKAVA in your work, please cite it using the metadata in
 [`CITATION.cff`](CITATION.cff); GitHub's "Cite this repository" button gives
-it in BibTeX and APA.
+it in BibTeX and APA. The software is archived on Zenodo:
+[10.5281/zenodo.23765262](https://doi.org/10.5281/zenodo.23765262) cites all
+versions, [10.5281/zenodo.23765263](https://doi.org/10.5281/zenodo.23765263)
+is 0.1.0.
 
 ## License
 

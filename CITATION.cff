@@ -3,6 +3,15 @@ message: "If you use SKAVA, please cite it as below."
 title: "SKAVA: federated data discovery with compute-next-to-data routing"
 type: software
 version: 0.1.0
+date-released: 2026-10-29
+doi: 10.5281/zenodo.23765262
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23765262
+    description: "Concept DOI: all versions, resolves to the latest"
+  - type: doi
+    value: 10.5281/zenodo.23765263
+    description: "SKAVA 0.1.0"
 license: Apache-2.0
 repository-code: "https://github.com/VisIVOLab/SKAVA"
 url: "https://skava.readthedocs.io"
