@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Federated discovery: the local catalogue and the siblings, merged on the
 logical dataset identity, asked with the caller's token, degraded sibling by
 sibling."""
@@ -19,9 +21,9 @@ def _local_rows(client, limit=5):
     return client.get("/discovery/search", params={"limit": limit}).json()["results"]
 
 
-def _entry(obs_id, best_node="ZA-1", access_url="file:///za/x.fits", replicas=2):
+def _entry(obs_id, best_node="ZA-1", access_url="file:///za/x.fits", replicas=2, dptype="cube", **metadata):
     return {
-        "metadata": {"obs_id": obs_id, "obs_collection": "sibling", "dataproduct_type": "cube"},
+        "metadata": {"obs_id": obs_id, "obs_collection": "sibling", "dataproduct_type": dptype, **metadata},
         "replicas": [{"code": f"{best_node}-{i}", "name": "n", "is_enabled": True, "is_available": True,
                       "access_endpoint": access_url} for i in range(replicas)],
         "best_node": best_node,
@@ -72,10 +74,13 @@ def test_without_siblings_the_answer_is_the_local_catalogue(client):
     assert body["duplicates_merged"] == 0 and body["returned"] == len(local)
 
 
-def test_siblings_are_merged_on_obs_id_local_first(client, siblings):
+def test_siblings_are_merged_on_obs_id_local_first(client, siblings, monkeypatch):
+    monkeypatch.setattr(settings, "replica_identity", "metadata")
     local = _local_rows(client, limit=10)
     shared = local[1]["metadata"]["obs_id"]
-    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([_entry(shared), _entry("za-only")]))
+    shared_type = local[1]["metadata"]["dataproduct_type"]
+    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([_entry(shared, dptype=shared_type),
+                                                                      _entry("za-only")]))
     siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([_entry("za-only", "AU-1", "file:///au/x.fits", 1),
                                                                     _entry("au-only")]))
     body = client.get("/federation/search", params={"limit": 10}).json()
@@ -180,10 +185,88 @@ def test_sources_lists_the_configured_siblings(client, siblings):
 
 
 def test_service_merges_without_a_local_catalogue(siblings):
-    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([_entry("x")]))
-    siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([_entry("x", "AU-1")]))
+    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([_entry("x", checksum="sha256:x")]))
+    siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([_entry("x", "AU-1", checksum="sha256:x")]))
     answer = federation_service.FederationService(token="t").search({"obs_id": "x", "POS": None}, 10)
     assert [r.metadata.obs_id for r in answer.results] == ["x"]
     assert answer.results[0].source == SIBLING and answer.results[0].also_at[0].source == OTHER
     assert [s.status for s in answer.sources] == ["ok", "ok"]
     assert json.loads(answer.model_dump_json())["duplicates_merged"] == 1
+
+
+def test_a_different_product_under_the_same_obs_id_is_not_merged(client, siblings, monkeypatch):
+    monkeypatch.setattr(settings, "replica_identity", "metadata")
+    # The sibling lists, under a local obs_id, a product of another size:
+    # the two are returned apart with the difference, never as copies.
+    local = _local_rows(client, limit=3)
+    shared = local[0]["metadata"]
+    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([
+        _entry(shared["obs_id"], dptype=shared["dataproduct_type"], access_estsize=123456789)]))
+    siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([]))
+    body = client.get("/federation/search", params={"limit": 50}).json()
+    same = [x for x in body["results"] if x["metadata"]["obs_id"] == shared["obs_id"]]
+    if shared.get("access_estsize") is None:
+        # The local record states no size: nothing to compare, so they merge.
+        assert len(same) == 1 and body["identity_conflicts"] == 0
+        return
+    assert len(same) == 2 and body["identity_conflicts"] == 1
+    local_one, sibling_one = same
+    assert local_one["source"] == "local" and local_one["also_at"] == []
+    assert sibling_one["source"] == SIBLING and "access_estsize 123456789" in sibling_one["identity_conflict"]
+    assert local_one["identity_conflict"]
+
+
+def test_conflicts_are_found_when_the_first_listing_says_nothing(client, siblings, monkeypatch):
+    monkeypatch.setattr(settings, "replica_identity", "metadata")
+    # A local listing without checksum, then two siblings disagreeing with
+    # each other: one product merges with the local, the other stands apart.
+    local = _local_rows(client, limit=50)
+    shared = local[0]["metadata"]
+    kind = shared["dataproduct_type"]
+    size = shared.get("access_estsize")
+    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([
+        _entry(shared["obs_id"], dptype=kind, access_estsize=size, checksum="aaa")]))
+    siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([
+        _entry(shared["obs_id"], dptype=kind, access_estsize=size, checksum="bbb")]))
+    body = client.get("/federation/search", params={"limit": 50}).json()
+    same = [x for x in body["results"] if x["metadata"]["obs_id"] == shared["obs_id"]]
+    assert len(same) == 2 and body["identity_conflicts"] == 1
+    assert [a["source"] for a in same[0]["also_at"]] == [SIBLING]
+    assert same[1]["source"] == OTHER and "checksum bbb against aaa" in same[1]["identity_conflict"]
+
+
+
+def test_without_equal_checksums_listings_stay_apart(client, siblings):
+    # Fail-closed (the default): a sibling's listing of a local obs_id with
+    # no checksum on either side is not merged, and is flagged unverified;
+    # one with the same checksum as another sibling's merges with it.
+    local = _local_rows(client, limit=50)
+    shared = local[0]["metadata"]
+    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([
+        _entry(shared["obs_id"], dptype=shared["dataproduct_type"]),
+        _entry("za-copy", checksum="sha256:c")]))
+    siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([_entry("za-copy", checksum="sha256:c")]))
+    body = client.get("/federation/search", params={"limit": 50}).json()
+    same = [x for x in body["results"] if x["metadata"]["obs_id"] == shared["obs_id"]]
+    assert len(same) == 2 and body["identity_unverified"] == 1 and body["identity_conflicts"] == 0
+    assert "no equal checksums" in same[1]["identity_conflict"]
+    copies = [x for x in body["results"] if x["metadata"]["obs_id"] == "za-copy"]
+    assert len(copies) == 1 and [a["source"] for a in copies[0]["also_at"]] == [OTHER]
+
+
+
+def test_blank_checksums_prove_nothing_and_disagreeing_siblings_conflict(client, siblings):
+    local = _local_rows(client, limit=50)
+    shared = local[0]["metadata"]
+    kind = shared["dataproduct_type"]
+    # Blank checksums on both siblings: not merged with each other.
+    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([_entry("blank", checksum=" ")]))
+    siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([_entry("blank", checksum="")]))
+    body = client.get("/federation/search", params={"limit": 50}).json()
+    assert len([x for x in body["results"] if x["metadata"]["obs_id"] == "blank"]) == 2
+    # A local listing without checksum, then siblings that disagree with each
+    # other: the second sibling is a conflict, not merely unverified.
+    siblings[SIBLING] = lambda req: httpx.Response(200, json=_answer([_entry(shared["obs_id"], dptype=kind, checksum="aaa")]))
+    siblings[OTHER] = lambda req: httpx.Response(200, json=_answer([_entry(shared["obs_id"], dptype=kind, checksum="bbb")]))
+    body = client.get("/federation/search", params={"limit": 50}).json()
+    assert body["identity_conflicts"] == 1 and body["identity_unverified"] == 1

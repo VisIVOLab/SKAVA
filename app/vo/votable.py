@@ -1,4 +1,7 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from html import escape
+from urllib.parse import urlencode
 
 from app.config import settings
 from app.schemas.datalink import DataLinkResponse
@@ -105,13 +108,11 @@ def _datalink_row(
     )
 
 
-def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False) -> str:
-    """Serialise a DataLink response as a conformant IVOA DataLink VOTable.
+def _datalink_rows(datalink: DataLinkResponse, auth_required: bool, prefix: str = "") -> tuple[list[str], str]:
+    """The {links} rows of one dataset and its service-descriptor RESOURCEs.
 
-    Emits the standard ``{links}`` results table plus a service-descriptor
-    RESOURCE (``utype="adhoc:service"``) for the SODA cutout operation, so
-    tools like pyvo/TOPCAT can invoke ``/soda/execute`` with POS/BAND/TIME
-    against this dataset.
+    ``prefix`` makes the RESOURCE IDs unique when several datasets share a
+    document (their node services would otherwise carry the same ID).
     """
     oid = datalink.dataset.obs_id
     rows: list[str] = []
@@ -205,7 +206,7 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
             _datalink_row(
                 oid=oid,
                 access_url=None,
-                service_def=desc.service_id,
+                service_def=f"{prefix}{desc.service_id}",
                 semantics=_NODE_SERVICES[desc.service_type],
                 description=desc.description,
                 content_type="application/fits",
@@ -215,18 +216,22 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
             )
         )
 
+    service_resources = "".join(_service_resource(desc, prefix) for desc in services)
+    return rows, service_resources
+
+
+def _links_document(rows: list[str], service_resources: str, id_param: str = "",
+                    status: str = "OK") -> str:
     field_xml = "\n      ".join(
         _datalink_field(name, dt, ucd, unit) for name, dt, ucd, unit in _DATALINK_FIELDS
     )
     row_xml = "\n          ".join(rows)
-    service_resources = "".join(_service_resource(desc) for desc in services)
-
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
   <RESOURCE type="results">
-    <INFO name="QUERY_STATUS" value="OK"/>
-    <TABLE name="datalink">
-      <PARAM name="ID" datatype="char" arraysize="*" value="{_attr(oid)}" ID="{_PRIMARY_ID_REF}"/>
+    <INFO name="QUERY_STATUS" value="{status}"/>
+    <INFO name="standardID" value="ivo://ivoa.net/std/DataLink#links-1.1"/>
+    <TABLE name="datalink">{id_param}
       {field_xml}
       <DATA>
         <TABLEDATA>
@@ -237,6 +242,42 @@ def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False)
   </RESOURCE>{service_resources}
 </VOTABLE>
 """
+
+
+def datalink_to_votable(datalink: DataLinkResponse, auth_required: bool = False) -> str:
+    """One dataset's DataLink {links} VOTable (the ``/datalink/{obs_id}``
+    resource): the standard results table plus a service-descriptor RESOURCE
+    per node service, with the dataset's ID as a table PARAM."""
+    rows, service_resources = _datalink_rows(datalink, auth_required)
+    id_param = (f'\n      <PARAM name="ID" datatype="char" arraysize="*" '
+                f'value="{_attr(datalink.dataset.obs_id)}" ID="{_PRIMARY_ID_REF}"/>')
+    return _links_document(rows, service_resources, id_param)
+
+
+def datalink_links_votable(entries: list[tuple[str, DataLinkResponse | str | None]],
+                           auth_required: bool = False, overflow: bool = False) -> str:
+    """The response of the standard {links} endpoint for one or more IDs
+    (DataLink 1.1): the rows of every dataset found, in the order asked, and
+    for an ID that resolves to nothing one row carrying only that ID and its
+    fault in ``error_message`` (a string entry is the fault text; None means
+    ``NotFoundFault``). ``overflow`` marks a request cut
+    at the service's limit on IDs."""
+    rows: list[str] = []
+    resources = []
+    many = len(entries) > 1
+    for index, (requested, datalink) in enumerate(entries):
+        if not isinstance(datalink, DataLinkResponse):
+            # An ID that resolved to no dataset: one row with only the ID, the
+            # fault in error_message, and #this (DataLink 1.1, 3.2.4).
+            fault = datalink or f"NotFoundFault: {requested}"
+            rows.append("<TR>" + _cell(requested) + _cell(None) + _cell(None) + _cell(fault)
+                        + _cell("#this") + "".join(_cell(None) for _ in range(8)) + "</TR>")
+            continue
+        found_rows, found_resources = _datalink_rows(datalink, auth_required,
+                                                     prefix=f"id{index + 1}-" if many else "")
+        rows.extend(found_rows)
+        resources.append(found_resources)
+    return _links_document(rows, "".join(resources), status="OVERFLOW" if overflow else "OK")
 
 
 # Node services published as DataLink service descriptors, with the
@@ -274,7 +315,7 @@ _PARAM_META = {
 }
 
 
-def _service_resource(desc) -> str:
+def _service_resource(desc, prefix: str = "") -> str:
     """A DataLink service descriptor RESOURCE for one node service.
 
     Fixed parameters (the replica's ID on that node, the OPERATION) carry their
@@ -293,7 +334,7 @@ def _service_resource(desc) -> str:
                 if desc.standard_id else "")
     inputs = "\n      ".join(params)
     return f"""
-  <RESOURCE type="meta" ID="{_attr(desc.service_id)}" utype="adhoc:service">
+  <RESOURCE type="meta" ID="{_attr(prefix + desc.service_id)}" utype="adhoc:service">
     <DESCRIPTION>{escape(desc.description or "")}</DESCRIPTION>{standard}
     <PARAM name="accessURL" datatype="char" arraysize="*" value="{_attr(desc.access_url)}"/>
     <GROUP name="inputParams">
@@ -325,7 +366,7 @@ def discovery_results_to_votable(results: list[DiscoveryResult]) -> str:
     for result in results:
         metadata = result.metadata
         cells = [_cell(getattr(metadata, name, None)) for name, _ in meta_fields]
-        cells.append(_cell(f"{base}/datalink/{metadata.obs_id}?RESPONSEFORMAT=votable"))
+        cells.append(_cell(f"{base}/datalink?{urlencode({'ID': metadata.obs_id})}"))
         cells.append(_cell(DATALINK_ACCESS_FORMAT))
         rows.append("<TR>" + "".join(cells) + "</TR>")
 

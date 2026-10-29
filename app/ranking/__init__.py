@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from app.config import settings
 from app.ranking.base import RankedReplica, RankingPolicy
 from app.ranking.default import DefaultRankingPolicy

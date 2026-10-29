@@ -1,0 +1,6 @@
+what,dataset,policy,requests,p50_ms,p95_ms,mean_ms,probes_per_s,rtt_ms,telemetry_read_ms,nodes
+datalink,tb-cube-s,resource_aware,200,2.63,3.39,2.74,,,,
+datalink,tb-cube-m,resource_aware,200,2.55,3.05,2.64,,,,
+datalink,tb-cube-l,resource_aware,200,2.61,3.62,2.72,,,,
+search,,resource_aware,200,3.34,4.02,3.45,,,,
+probe,,resource_aware,20,,,,0.333,"{'FAR': 90.984, 'BUSY': 2.059, 'BIG': 1.8, 'SMALL': 1.443}",3.02,4

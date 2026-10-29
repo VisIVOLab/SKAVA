@@ -1,0 +1,18 @@
+\begin{table*}
+\centering
+\caption{Counterfactual policy evaluation on recorded telemetry: the node each policy would have chosen for each cube from the telemetry the resource-aware run recorded at its decision, and that node's first-slice and moment-0 times as Table~\ref{tab:placement} gives them (seconds, median of 10 runs). The simpler policies were not run; their choices are read off the same recorded state. Nodes within 1\,ms of round trip or 5\% of CPU pressure cannot be told apart by the probe; where a policy ties several nodes, or picks at random, the time is the mean over them (the expected cost). The static row is the static policy's own choice; the memory filter applies to the resource-aware row only.}
+\label{tab:baselines}
+\small
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}llrrlrrlrr}
+\toprule
+ & \multicolumn{3}{c}{s (64\,MB)} & \multicolumn{3}{c}{m (512\,MB)} & \multicolumn{3}{c}{l (3.0\,GB)} \\
+Policy & Node & Slice & M0 & Node & Slice & M0 & Node & Slice & M0 \\
+\midrule
+static (declared scores) & \emph{SMALL} & \textbf{0.01} & 0.05 & \emph{BUSY} & 0.10 & 1.12 & \emph{SMALL} & \textbf{0.13} & 2.84 \\
+latency only & \emph{BIG}, \emph{SMALL} & \textbf{0.01} & 0.05 & \emph{BIG}, \emph{BUSY} & 0.07 & 0.71 & any & 0.20 & 3.81 \\
+CPU pressure only & any & 0.19 & 0.05 & \emph{BIG}, \emph{FAR} & 0.40 & 0.35 & \emph{BIG}, \emph{SMALL} & 0.13 & 2.57 \\
+random replica & any & 0.19 & 0.05 & any & 0.30 & 0.61 & any & 0.20 & 3.81 \\
+resource-aware & \emph{BIG} & \textbf{0.01} & \textbf{0.05} & \emph{BIG} & \textbf{0.04} & \textbf{0.31} & \emph{BIG} & 0.14 & \textbf{2.30} \\
+\bottomrule
+\end{tabular*}
+\end{table*}

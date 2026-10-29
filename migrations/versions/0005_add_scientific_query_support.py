@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """add scientific query support fields and indexes
 
 Revision ID: 0005_scientific_query_support

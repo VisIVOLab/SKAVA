@@ -1,0 +1,20 @@
+n=10000 k=1 ...
+/Users/fvitello/Documents/GitHub/SKAVA/.venv/lib/python3.11/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+{"timestamp": "2026-10-29T10:07:20.544926+00:00", "level": "WARNING", "logger": "skava.admin.auth", "message": "ADMIN_SESSION_SECRET not set \u2014 generated a transient one. Sessions will be invalidated on every restart. Set ADMIN_SESSION_SECRET to a stable random value before deploying.", "request_id": null}
+n=10000 k=3 ...
+n=10000 k=10 ...
+n=10000 k=30 ...
+workload           n   k    p50 ms    p95 ms
+datalink       10000   1      2.60      3.22
+collection     10000   1      7.16      8.60
+cone           10000   1      6.47      8.00
+datalink       10000   3      2.69      3.00
+collection     10000   3      9.45     23.66
+cone           10000   3      7.03      9.66
+datalink       10000  10      2.96      3.49
+collection     10000  10     17.62     32.87
+cone           10000  10      7.22      8.69
+datalink       10000  30      3.59      4.71
+collection     10000  30     55.02     59.44
+cone           10000  30      6.78      8.68

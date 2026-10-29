@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Rank replicas by what their nodes can take on now, as the nodes report it.
 
 The static policy trusts scores an operator declared when the node was

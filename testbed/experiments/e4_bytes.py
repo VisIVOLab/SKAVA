@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """E4: bytes moved, measured on the node's link.
 
 For each dataset, what crosses the data node's network interface (the

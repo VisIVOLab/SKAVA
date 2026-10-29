@@ -1,0 +1,7 @@
+20:34:54 tb-cube-s broker on SMALL: 7.6 s (job 7.272), 14929 B out, 5 sources
+20:34:56 tb-cube-s download+local: 2.0 s (transfer 0.039, run 1.735), 67239115 B out, 5 sources
+20:35:12 tb-cube-m broker on BIG: 15.5 s (job 15.237), 21538 B out, 5 sources
+20:35:27 tb-cube-m download+local: 14.9 s (transfer 0.215, run 14.189), 537607991 B out, 5 sources
+20:37:39 tb-cube-l broker on BIG: 131.6 s (job 131.421), 112382 B out, 5 sources
+20:40:22 tb-cube-l download+local: 162.4 s (transfer 1.383, run 160.272), 3225528320 B out, 5 sources
+20:40:22 written /Users/fvitello/Documents/GitHub/SKAVA/testbed/results/e5_finder.json

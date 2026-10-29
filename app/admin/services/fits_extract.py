@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Extract ObsCore-shaped metadata from a FITS file's headers.
 
 The admin UI's "Pre-fill from FITS" button uploads a file, this module

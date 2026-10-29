@@ -183,16 +183,19 @@ reach those stacks over HTTPS only.
   - The file lives outside the configured jail. Adjust the root(s)
     or move the file.
 * - Routing always picks the same node although another is idle
-  - The ranking policy is ``static`` (the default): it uses the
-    declared scores. Set ``SKAVA_RANKING_POLICY=resource_aware`` and
-    a ``SKAVA_TELEMETRY_INTERVAL_SECONDS``; check what the nodes
-    report with ``GET /internal/telemetry``.
+  - The ranking policy is ``static``, or the nodes have no fresh
+    telemetry, so the declared scores decide. Check
+    ``SKAVA_RANKING_POLICY`` (default ``resource_aware``) and
+    ``SKAVA_TELEMETRY_INTERVAL_SECONDS`` (default 10, ``0`` stops the
+    prober); see what the nodes report with ``GET /internal/telemetry``.
 * - ``resource_aware`` avoids a node that is up
   - Its last probe failed or is older than
     ``SKAVA_TELEMETRY_TTL_SECONDS``. ``GET /internal/telemetry`` shows
     ``probe_ok`` / ``probe_error``; the node needs a
     ``visivo_backend_url``, and ``SKAVA_VISIVO_BACKEND_TOKEN`` when it
-    requires auth. ``POST /internal/telemetry/probe`` probes now.
+    requires auth. ``POST /internal/telemetry/probe`` probes now. A
+    node the catalogue cannot reach should report itself (see
+    [node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node)).
 ```
 
 (5xx)=

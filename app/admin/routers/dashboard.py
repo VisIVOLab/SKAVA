@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Dashboard — the admin landing page.
 
 Phase 3 rebuilds this into a real metrics overview:

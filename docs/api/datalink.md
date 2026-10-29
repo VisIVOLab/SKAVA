@@ -3,15 +3,32 @@
 `GET /datalink/{obs_id}` — IVOA DataLink-aligned resolution of a
 single dataset into access URLs and service descriptors.
 
-## Endpoint
+## Endpoints
 
 ```
-GET /datalink/{obs_id}[?RESPONSEFORMAT=votable]
+GET|POST /datalink?ID=<id>[&ID=<id>...]     the DataLink 1.1 {links} endpoint (VOTable)
+GET      /datalink/{obs_id}[?RESPONSEFORMAT=votable]   SKAVA's resource for one dataset (JSON)
 ```
 
-Open unless the deployment requires tokens (static
-`SKAVA_ACCESS_TOKENS` or OIDC; see [Authentication](auth.md)). Returns
-404 when the obs_id is unknown. JSON is the default; `RESPONSEFORMAT`
+**`/datalink`** is the standard `{links}` endpoint: one or more `ID`
+(repeated, by GET or as POST form fields, at most 100; beyond that the first
+100 are answered and `QUERY_STATUS` is `OVERFLOW`; no `ID` gives an empty
+table), a VOTable by default,
+`RESPONSEFORMAT` accepted only for VOTable types (anything else is a 400).
+Every row carries the `ID` it answers. An unknown ID gives one row with
+`semantics` `#this` and `NotFoundFault: <id>` in `error_message`; a dataset no
+node can serve now gives `TransientFault: ...`; the other IDs are answered
+normally. The results resource declares
+`standardID = ivo://ivoa.net/std/DataLink#links-1.1`. When several IDs share
+a response, each dataset's service-descriptor `RESOURCE` IDs are prefixed
+(`id1-`, `id2-`, ...) so they stay unique. The `access_url` of every TAP row
+points here.
+
+**`/datalink/{obs_id}`** is SKAVA's application resource for one dataset:
+
+Both are open unless the deployment requires tokens (static
+`SKAVA_ACCESS_TOKENS` or OIDC; see [Authentication](auth.md)). The resource
+returns 404 when the obs_id is unknown. JSON is the default; `RESPONSEFORMAT`
 (or `FORMAT`) set to `votable`, `application/x-votable+xml`,
 `application/xml` or `xml` returns the VOTable described below.
 

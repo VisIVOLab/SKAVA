@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Federated discovery: the local catalogue and the configured sibling SKAVA
 instances, asked together and merged.
 
@@ -38,6 +40,41 @@ def _client() -> httpx.Client:
     return httpx.Client(timeout=settings.federation_timeout_seconds)
 
 
+
+_IDENTITY_FIELDS = ("checksum", "access_estsize", "dataproduct_type")
+
+
+def _identity(metadata) -> dict[str, str]:
+    """What a listing states about which product it is."""
+    out = {}
+    for field in _IDENTITY_FIELDS:
+        value = getattr(metadata, field, None)
+        # A blank value states nothing: two empty checksums prove no copy.
+        if value is not None and str(value).strip():
+            out[field] = str(value).strip()
+    return out
+
+
+def _same_product(evidence: dict[str, str], incoming: dict[str, str]) -> bool:
+    """Whether a listing may be merged as a copy of a product: nothing
+    contradicts it and, under ``replica_identity = "checksum"`` (the
+    default), both state the same checksum."""
+    if _contradiction(evidence, incoming):
+        return False
+    if settings.replica_identity == "checksum":
+        return "checksum" in evidence and "checksum" in incoming
+    return True
+
+
+def _contradiction(evidence: dict[str, str], incoming: dict[str, str]) -> str | None:
+    """How a listing contradicts what is known of a product, or None when it
+    may be a copy of it (fields stated on one side only do not count)."""
+    differences = [f"{field} {incoming[field]} against {evidence[field]}"
+                   for field in _IDENTITY_FIELDS
+                   if field in evidence and field in incoming and evidence[field] != incoming[field]]
+    return "; ".join(differences) or None
+
+
 class FederationService:
     def __init__(self, token: str | None = None, sources: list[str] | None = None) -> None:
         self._token = token
@@ -65,24 +102,51 @@ class FederationService:
             with _client() as http, ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(self._sources))) as pool:
                 answers.extend(pool.map(lambda url: self._ask(http, url, query), self._sources))
 
-        merged: dict[str, FederatedResult] = {}
-        order: list[str] = []
-        duplicates = 0
+        # Per obs_id, the distinct products listed under it: each a result
+        # (the first source to list it decides) and the identity evidence its
+        # members accumulated. A new listing joins the first product it does
+        # not contradict, or starts another, flagged as a conflict.
+        groups: dict[str, list[tuple[FederatedResult, dict[str, Any]]]] = {}
+        order: list[FederatedResult] = []
+        duplicates = conflicts = unverified = 0
         for name, _source, results in answers:
             for result in results:
-                key = result.metadata.obs_id
-                if key in merged:
+                variants = groups.setdefault(result.metadata.obs_id, [])
+                incoming = _identity(result.metadata)
+                match = next(((r, ev) for r, ev in variants if _same_product(ev, incoming)), None)
+                if match is not None:
+                    first, evidence = match
                     duplicates += 1
-                    merged[key].also_at.append(AlsoAt(source=name, best_node=result.best_node,
-                                                      access_url=result.access_url,
-                                                      replicas=len(result.replicas)))
-                else:
-                    merged[key] = FederatedResult(**result.model_dump(), source=name)
-                    order.append(key)
-        results = [merged[key] for key in order[:limit]]
+                    first.also_at.append(AlsoAt(source=name, best_node=result.best_node,
+                                                access_url=result.access_url,
+                                                replicas=len(result.replicas)))
+                    for field, value in incoming.items():
+                        evidence.setdefault(field, value)
+                    continue
+                entry = FederatedResult(**result.model_dump(), source=name)
+                if variants:
+                    # The same obs_id, but not shown to be the same product:
+                    # listed apart, with the reason, never routed to as a copy.
+                    contradicted = next(((r, d) for r, ev in variants
+                                         if (d := _contradiction(ev, incoming))), None)
+                    if contradicted:
+                        conflicts += 1
+                        entry.identity_conflict = ("differs from the product "
+                                                   f"{contradicted[0].source} lists under this obs_id: "
+                                                   f"{contradicted[1]}")
+                    else:
+                        unverified += 1
+                        entry.identity_conflict = ("not shown to be the product "
+                                                   f"{variants[0][0].source} lists under this obs_id: no equal checksums")
+                    if variants[0][0].identity_conflict is None:
+                        variants[0][0].identity_conflict = "another source lists a product under this obs_id that is not shown to be this one"
+                variants.append((entry, dict(incoming)))
+                order.append(entry)
+        results = order[:limit]
         return FederatedSearchResponse(results=results, returned=len(results), limit=limit,
                                        sources=[source for _n, source, _r in answers],
-                                       duplicates_merged=duplicates)
+                                       duplicates_merged=duplicates, identity_conflicts=conflicts,
+                                       identity_unverified=unverified)
 
     def _ask(self, http: httpx.Client, url: str, query: dict[str, Any]) -> tuple[str, FederationSource, list]:
         headers = {"Accept": "application/json"}

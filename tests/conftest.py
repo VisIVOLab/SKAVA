@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 import os
 
 import pytest
@@ -10,6 +12,8 @@ os.environ["SKAVA_DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["SKAVA_PUBLIC_BASE_URL"] = "http://testserver"
 os.environ["SKAVA_ENV"] = "dev"
 os.environ["INTERNAL_API_KEY"] = "test-internal-key"
+# No background prober in tests: the tests that need probes run them by hand.
+os.environ["SKAVA_TELEMETRY_INTERVAL_SECONDS"] = "0"
 
 from app.db import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402

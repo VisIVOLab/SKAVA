@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Auth + CSRF behaviour for the admin UI."""
 from __future__ import annotations
 

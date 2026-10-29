@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """E6, federation: two catalogues, one search.
 
 The testbed's second site (``skava-2``) catalogues the far and busy nodes and

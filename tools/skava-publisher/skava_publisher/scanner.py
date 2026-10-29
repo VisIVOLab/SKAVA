@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Filesystem scanner — walks configured roots, applies include/exclude.
 
 Returns a stream of ``(absolute_path, relative_path)`` tuples ordered

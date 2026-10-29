@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Build the ObsCore JSON manifest for SKAVA's ingestion API.
 
 A manifest is a list of dicts; each dict carries all ObsCore fields the
@@ -73,6 +75,9 @@ def build_record(
     prov.setdefault("rel_path", rel_path.as_posix())
     if sha256:
         prov.setdefault("sha256", sha256)
+        # The catalogue proves that two nodes hold the same product by this
+        # checksum before it counts them as replicas of one dataset.
+        record.setdefault("checksum", f"sha256:{sha256}")
     if cfg.defaults.publisher_label:
         prov.setdefault("publisher_label", cfg.defaults.publisher_label)
     record["provenance_json"] = prov

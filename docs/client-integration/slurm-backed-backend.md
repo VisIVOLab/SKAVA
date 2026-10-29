@@ -77,13 +77,15 @@ SSH tunnel exits to on every consuming laptop. SKAVA emits it as the
 visivo-backend descriptor's `endpoint`; the desktop matches it
 against its registered Remote Backends.
 
-This works with SKAVA's default `static` ranking policy. With
-`SKAVA_RANKING_POLICY=resource_aware` SKAVA itself probes
-`/v1/ping` and `/v1/node/status` at the VisIVO backend URL, from
-SKAVA's host: a `localhost` URL there does not reach the compute node,
-and the node is excluded as "backend unreachable". In that case give
-the Node a backend URL SKAVA can reach (a stable proxy, see below) and
-let the desktops match by `SRC code`.
+SKAVA's default `resource_aware` policy probes `/v1/ping` and
+`/v1/node/status` at the VisIVO backend URL, from SKAVA's host: a
+`localhost` URL there does not reach the compute node, and the node
+would be excluded as "backend unreachable". Let the backend report
+itself instead: it posts its status to SKAVA, and SKAVA stops probing it
+while the reports are fresh
+([node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node)). Or give the
+Node a backend URL SKAVA can reach (a stable proxy, see below) and let
+the desktops match by `SRC code`, or set `SKAVA_RANKING_POLICY=static`.
 
 ### 2. Publish the catalogue once
 

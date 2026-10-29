@@ -1,0 +1,69 @@
+{
+  "meta": {
+    "when": "2026-10-28T19:41:25+00:00",
+    "host": "MacBook-Pro-di-Fabio.local",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "skava_commit": "4ea8d34",
+    "visivo_commit": "5bf171b",
+    "profile": "paper",
+    "poll_s": 0.1,
+    "requests": 200,
+    "host_clock_skew_s": 0.0
+  },
+  "rows": [
+    {
+      "what": "datalink",
+      "dataset": "tb-cube-s",
+      "policy": "resource_aware",
+      "requests": 200,
+      "p50_ms": 2.63,
+      "p95_ms": 3.39,
+      "mean_ms": 2.74
+    },
+    {
+      "what": "datalink",
+      "dataset": "tb-cube-m",
+      "policy": "resource_aware",
+      "requests": 200,
+      "p50_ms": 2.55,
+      "p95_ms": 3.05,
+      "mean_ms": 2.64
+    },
+    {
+      "what": "datalink",
+      "dataset": "tb-cube-l",
+      "policy": "resource_aware",
+      "requests": 200,
+      "p50_ms": 2.61,
+      "p95_ms": 3.62,
+      "mean_ms": 2.72
+    },
+    {
+      "what": "search",
+      "dataset": "",
+      "policy": "resource_aware",
+      "requests": 200,
+      "p50_ms": 3.34,
+      "p95_ms": 4.02,
+      "mean_ms": 3.45
+    },
+    {
+      "what": "probe",
+      "dataset": "",
+      "policy": "resource_aware",
+      "requests": 20,
+      "p50_ms": null,
+      "p95_ms": null,
+      "mean_ms": null,
+      "probes_per_s": 0.333,
+      "rtt_ms": {
+        "FAR": 90.984,
+        "BUSY": 2.059,
+        "BIG": 1.8,
+        "SMALL": 1.443
+      },
+      "telemetry_read_ms": 3.02,
+      "nodes": 4
+    }
+  ]
+}

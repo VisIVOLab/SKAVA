@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from app.main import app
 from app.models.dataset import Dataset
 from app.models.node import Node
@@ -218,3 +220,96 @@ def test_no_available_nodes_returns_503(client):
     assert resp.status_code == 503
     data = resp.json()
     assert data["error"]["code"] == "no_available_nodes"
+
+
+def test_cone_search_scales_ra_by_cos_dec(client):
+    # At Dec 60 a 1.5 deg RA offset is 0.75 deg on the sky: inside a 1 deg
+    # circle. The flat-sky distance used to put it at 1.5 deg and miss it.
+    from app.main import app
+    from app.ingestion.services.ingest_service import IngestService
+    with app.state.testing_session_local() as db:
+        IngestService(db, source_type="manual").ingest_records([{
+            "obs_id": "high-dec", "dataproduct_type": "image", "node_id": "A",
+            "access_url": "https://node-a.example.org/high-dec.fits",
+            "s_ra": 101.5, "s_dec": 60.0,
+        }])
+    found = client.get("/discovery/search", params={"POS": "CIRCLE 100 60 1"}).json()["results"]
+    assert [r["metadata"]["obs_id"] for r in found] == ["high-dec"]
+    # And it is not inside a circle that is too small for 0.75 deg.
+    assert client.get("/discovery/search", params={"POS": "CIRCLE 100 60 0.5"}).json()["results"] == []
+
+
+def test_cone_search_around_the_pole_ignores_ra(client):
+    from app.main import app
+    from app.ingestion.services.ingest_service import IngestService
+    with app.state.testing_session_local() as db:
+        IngestService(db, source_type="manual").ingest_records([{
+            "obs_id": "near-pole", "dataproduct_type": "image", "node_id": "A",
+            "access_url": "https://node-a.example.org/near-pole.fits",
+            "s_ra": 280.0, "s_dec": 89.5,
+        }])
+    found = client.get("/discovery/search", params={"POS": "CIRCLE 10 89.6 1"}).json()["results"]
+    assert "near-pole" in [r["metadata"]["obs_id"] for r in found]
+
+
+
+def _ingest(**fields):
+    from app.main import app
+    from app.ingestion.services.ingest_service import IngestService
+    record = {"dataproduct_type": "image", "node_id": "A",
+              "access_url": f"https://node-a.example.org/{fields['obs_id']}.fits", **fields}
+    with app.state.testing_session_local() as db:
+        IngestService(db, source_type="manual").ingest_records([record])
+
+
+def _found(client, circle):
+    return [r["metadata"]["obs_id"] for r in
+            client.get("/discovery/search", params={"POS": f"CIRCLE {circle}"}).json()["results"]]
+
+
+def test_cone_search_is_spherical_near_the_pole(client):
+    # 0.866 deg from the centre: the small-angle distance said 1.16 deg.
+    _ingest(obs_id="pole-a", s_ra=60.0, s_dec=89.5)
+    assert "pole-a" in _found(client, "0 89 0.9")
+    assert "pole-a" not in _found(client, "0 89 0.8")
+
+
+def test_cone_search_counts_the_dataset_footprint_at_both_poles(client):
+    # Centres 0.7 deg apart, radii 0.1 + 1.0: they overlap.
+    _ingest(obs_id="north-wide", s_ra=180.0, s_dec=89.8, s_fov=2.0)
+    _ingest(obs_id="south-wide", s_ra=180.0, s_dec=-89.8, s_fov=2.0)
+    assert "north-wide" in _found(client, "0 89.5 0.1")
+    assert "south-wide" in _found(client, "0 -89.5 0.1")
+
+
+def test_cone_search_across_ra_zero(client):
+    _ingest(obs_id="wrap", s_ra=359.8, s_dec=10.0)
+    assert "wrap" in _found(client, "0.1 10 0.4")
+
+
+
+def test_a_tiny_cone_finds_the_dataset_at_its_centre(client):
+    _ingest(obs_id="centre", s_ra=0.0, s_dec=10.0)
+    assert "centre" in _found(client, "0 10 0.00000001")
+
+
+def test_sqlite_math_functions_keep_null_semantics():
+    from app.db import engine
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT sin(NULL), cos(NULL), radians(NULL)")).fetchone() == (None, None, None)
+
+
+def test_rest_pos_overlaps_the_footprint_and_tap_contains_tests_the_centre(client):
+    # A dataset 2 deg across, its centre 0.7 deg from a 0.2 deg cone: the
+    # cone intersects its footprint (0.7 < 0.2 + 1.0) but holds no centre.
+    _ingest(obs_id="extended", s_ra=10.0, s_dec=0.0, s_fov=2.0)
+    assert "extended" in _found(client, "10.7 0 0.2")
+    query = ("SELECT * FROM ivoa.obscore WHERE "
+             "1 = CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 10.7, 0, 0.2))")
+    rows = client.get("/tap/sync", params={"QUERY": query, "FORMAT": "json"}).json()["results"]
+    assert "extended" not in [r["metadata"]["obs_id"] for r in rows]
+    # Centre inside: both find it.
+    query_centre = query.replace("10.7, 0, 0.2", "10.1, 0, 0.2")
+    rows = client.get("/tap/sync", params={"QUERY": query_centre, "FORMAT": "json"}).json()["results"]
+    assert "extended" in [r["metadata"]["obs_id"] for r in rows]

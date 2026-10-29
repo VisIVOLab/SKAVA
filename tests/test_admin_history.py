@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Audit-history viewer + CSV export (Phase 3)."""
 from __future__ import annotations
 

@@ -1,0 +1,11 @@
+what,case,returned,unique,local_first,local_returned,second_returned,duplicates_merged,expected_duplicates,second_status,second_elapsed_ms,also_at_ok,ok,second_error,status,challenge_ivoa_bearer,challenge_names_the_iam,n,failed,p50_ms,p95_ms,mean_ms,trials,request_ms_p50,request_ms_max,recovery_s
+merge,signed-in,3,True,True,3,3,3,3,ok,4.26,True,True,,,,,,,,,,,,,
+auth,anonymous-federated,3,,,,,,,unauthorized,,,True,HTTP 401,,,,,,,,,,,,
+auth,anonymous-direct,,,,,,,,,,,True,,401,True,True,,,,,,,,,
+auth,garbage-token-direct,,,,,,,,,,,True,,401,,,,,,,,,,,
+auth,signed-in-direct,3,,,,,,,,,,True,,200,,,,,,,,,,,
+latency,local,,,,,,,,,,,True,,,,,200,0,2.68,3.12,2.8,,,,
+latency,federated,,,,,,,,,,,True,,,,,200,0,8.65,10.75,9.0,,,,
+latency,second-site-direct,,,,,,,,,,,True,,,,,200,0,2.68,3.81,2.81,,,,
+degraded,site-down,3,,,,,,,error,,,True,[Errno -2] Name or service not known,,,,,,,,,5,9.11,14.97,
+degraded,site-back,,,,,,3,,ok,,,True,,,,,,,,,,,,,2.7

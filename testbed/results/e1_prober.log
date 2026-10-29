@@ -1,0 +1,6 @@
+20:40:23 datalink tb-cube-s (resource_aware): p50 2.63 ms, p95 3.39 ms
+20:40:23 datalink tb-cube-m (resource_aware): p50 2.55 ms, p95 3.05 ms
+20:40:24 datalink tb-cube-l (resource_aware): p50 2.61 ms, p95 3.62 ms
+20:41:25 probe: 20 probes in 60 s, rtt {'FAR': 90.984, 'BUSY': 2.059, 'BIG': 1.8, 'SMALL': 1.443}
+20:41:25 written /Users/fvitello/Documents/GitHub/SKAVA/testbed/results/e1_prober.json
+CHAIN_B_DONE

@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -48,8 +50,11 @@ class TapService:
 
         pos, conditions = self._parse_query(query)
         limit = self._parse_limit(query, maxrec)
+        # ADQL CONTAINS(POINT(s_ra, s_dec), CIRCLE(...)) is centre containment,
+        # not the footprint overlap of the discovery API's POS.
         return DiscoveryService(self.db).search(
             pos=pos,
+            pos_footprint=False,
             extra_conditions=conditions,
             limit=limit,
             offset=0,

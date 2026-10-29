@@ -77,7 +77,8 @@ The overrides pass only the variables listed in `.env.prod.example`
 `SKAVA_VISIVO_BACKEND_TOKEN`, `SKAVA_SODA_BACKEND_TIMEOUT_SECONDS`, …).
 OIDC (`IAM_WELLKNOWN_ENDPOINT`, `SKAVA_OIDC_*`), federation
 (`SKAVA_FEDERATED_SRC_URLS`) and routing/telemetry
-(`SKAVA_RANKING_POLICY`, `SKAVA_TELEMETRY_*`) settings must be added to the
+(`SKAVA_RANKING_POLICY`, `SKAVA_TELEMETRY_*`, when they differ from the
+defaults) settings must be added to the
 `skava-discovery` service's `environment:` block when you use them — see
 [configuration](configuration.md).
 

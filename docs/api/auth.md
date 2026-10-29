@@ -59,6 +59,23 @@ value (`openssl rand -hex 32`).
 
 Treat it as a service-to-service shared secret. Rotate yearly.
 
+## Node reports — per-node token
+
+`POST /internal/telemetry/report` takes a node's own status report. It
+does not accept the internal key: each node presents its own token,
+
+```
+X-Skava-Node-Token: <HMAC-SHA256(INTERNAL_API_KEY, "skava-node-telemetry:" + node code), hex>
+```
+
+printed by `python -m app.security.node_token CODE`. A token speaks for
+one node only, and rotating the internal key revokes all of them. The
+body is `{"node_code", "status", "rtt_ms"}`, where `status` is the
+node's `/v1/node/status` document; the answer is
+`{"node", "accepted"}`, with `accepted` false when a newer observation
+was already stored. See
+[node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node).
+
 ## Admin UI — session cookie
 
 * `/admin/*`

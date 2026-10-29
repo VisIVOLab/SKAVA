@@ -1,0 +1,111 @@
+{
+  "meta": {
+    "when": "2026-10-28T22:05:08+00:00",
+    "host": "MacBook-Pro-di-Fabio.local",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "skava_commit": "4ea8d34",
+    "visivo_commit": "5bf171b",
+    "profile": "paper",
+    "poll_s": 0.1,
+    "requests": 200,
+    "trials": 5,
+    "second_site": "http://skava-2:8000",
+    "iam": "http://localhost:18300/realms/srcnet/.well-known/openid-configuration",
+    "host_clock_skew_s": 0.0
+  },
+  "rows": [
+    {
+      "what": "merge",
+      "case": "signed-in",
+      "returned": 3,
+      "unique": true,
+      "local_first": true,
+      "local_returned": 3,
+      "second_returned": 3,
+      "duplicates_merged": 3,
+      "expected_duplicates": 3,
+      "second_status": "ok",
+      "second_elapsed_ms": 4.26,
+      "also_at_ok": true,
+      "ok": true
+    },
+    {
+      "what": "auth",
+      "case": "anonymous-federated",
+      "returned": 3,
+      "second_status": "unauthorized",
+      "second_error": "HTTP 401",
+      "ok": true
+    },
+    {
+      "what": "auth",
+      "case": "anonymous-direct",
+      "status": 401,
+      "challenge_ivoa_bearer": true,
+      "challenge_names_the_iam": true,
+      "ok": true
+    },
+    {
+      "what": "auth",
+      "case": "garbage-token-direct",
+      "status": 401,
+      "ok": true
+    },
+    {
+      "what": "auth",
+      "case": "signed-in-direct",
+      "status": 200,
+      "returned": 3,
+      "ok": true
+    },
+    {
+      "what": "latency",
+      "case": "local",
+      "n": 200,
+      "failed": 0,
+      "ok": true,
+      "p50_ms": 2.68,
+      "p95_ms": 3.12,
+      "mean_ms": 2.8
+    },
+    {
+      "what": "latency",
+      "case": "federated",
+      "n": 200,
+      "failed": 0,
+      "ok": true,
+      "p50_ms": 8.65,
+      "p95_ms": 10.75,
+      "mean_ms": 9.0
+    },
+    {
+      "what": "latency",
+      "case": "second-site-direct",
+      "n": 200,
+      "failed": 0,
+      "ok": true,
+      "p50_ms": 2.68,
+      "p95_ms": 3.81,
+      "mean_ms": 2.81
+    },
+    {
+      "what": "degraded",
+      "case": "site-down",
+      "trials": 5,
+      "second_status": "error",
+      "second_error": "[Errno -2] Name or service not known",
+      "request_ms_p50": 9.11,
+      "request_ms_max": 14.97,
+      "returned": 3,
+      "ok": true
+    },
+    {
+      "what": "degraded",
+      "case": "site-back",
+      "recovery_s": 2.7,
+      "second_status": "ok",
+      "duplicates_merged": 3,
+      "ok": true
+    }
+  ]
+}

@@ -154,14 +154,23 @@ enabled node's co-located VisIVO backend (`/v1/ping` round trip,
 * - Env var
   - Default
   - Purpose
+* - `SKAVA_REPLICA_IDENTITY`
+  - `checksum`
+  - `checksum`: a node joins a dataset's replicas only with a checksum equal
+    to the catalogue's (fail-closed: two products of one observation are
+    never merged for lack of evidence). `metadata`: accepted unless checksum,
+    size or type contradict, for curated catalogues whose `obs_id`
+    convention is trusted. The federated search merges by the same rule.
 * - `SKAVA_RANKING_POLICY`
-  - `static`
-  - `static` ranks by the scores declared on each node;
-    `resource_aware` ranks by the measured telemetry.
+  - `resource_aware`
+  - `resource_aware` ranks by the measured telemetry, and keeps the
+    declared order for nodes it cannot measure; `static` ranks by the
+    scores declared on each node only.
 * - `SKAVA_TELEMETRY_INTERVAL_SECONDS`
-  - `0`
+  - `10`
   - Prober period. `0` disables the background prober; telemetry is
-    then refreshed only by `POST /internal/telemetry/probe`.
+    then refreshed only by `POST /internal/telemetry/probe` and by the
+    nodes' own reports (see [node reports](#node-reports-telemetry-pushed-by-the-node)).
 * - `SKAVA_TELEMETRY_TTL_SECONDS`
   - `60`
   - A measurement older than this is not trusted by the policy.
@@ -369,3 +378,35 @@ pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
 
 This is on purpose — a half-configured SKAVA is worse than a refusing
 SKAVA.
+
+## Node reports: telemetry pushed by the node
+
+The prober needs to reach each node's backend. A node it cannot reach (a
+firewall, a NAT, a backend behind an SSH tunnel) can report its state
+itself instead: its VisIVO backend posts its `/v1/node/status` document to
+`POST /internal/telemetry/report` every few seconds, and the prober leaves
+the node alone while the last report is younger than
+`SKAVA_TELEMETRY_TTL_SECONDS`. The policy reads a report as it reads a
+probe; the round-trip time is the one the node measured on its previous
+report.
+
+Each node authenticates with its own token, derived from the internal key
+and the node's code, so it can report for itself only and does not hold
+the internal key. Print it on the catalogue's host:
+
+```bash
+python -m app.security.node_token INAF-CT
+```
+
+and give it to the node's backend:
+
+```bash
+VISIVO_SKAVA_TELEMETRY_URL=https://skava.example.org
+VISIVO_NODE_CODE=INAF-CT
+VISIVO_SKAVA_NODE_TOKEN=<the printed token>
+VISIVO_SKAVA_TELEMETRY_INTERVAL=10      # seconds, optional
+```
+
+Changing `INTERNAL_API_KEY` revokes every node token. The node must still
+have a `visivo_backend_url` for the policy to rank it on telemetry: that is
+the address the clients use, even when the catalogue cannot reach it.

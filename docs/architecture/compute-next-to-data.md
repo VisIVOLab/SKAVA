@@ -279,9 +279,10 @@ job then runs as a task on that node, next to the file. The testbed's
    `file://` replica.
 
 That's it — desktop clients pick it up automatically. No schema
-migration. With `SKAVA_RANKING_POLICY=resource_aware` and
-`SKAVA_TELEMETRY_INTERVAL_SECONDS` set, the prober also starts reading
-the node's telemetry on its next cycle.
+migration. The prober (on by default, every 10 s) starts reading the
+node's telemetry on its next cycle. If the catalogue cannot reach the
+backend, configure the node to report itself instead
+([node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node)).
 
 ## Multi-node example
 

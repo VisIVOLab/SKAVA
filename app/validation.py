@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 def validate_pos(value: str | None) -> str | None:
     from app.vo.parsers import parse_pos
 

@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Jinja2 environment setup for the admin templates.
 
 Adds the helpers the templates rely on:

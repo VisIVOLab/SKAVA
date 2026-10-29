@@ -15,4 +15,10 @@ __pycache__/
 
 # Testbed: generated data and experiment output
 /testbed/data/
-/testbed/results/
+# Experiment results are kept (small: JSON, CSV, logs, the paper's tables
+# and figures); the runner's scratch and superseded runs are not.
+/testbed/results/*.pid
+/testbed/results/run_*.sh
+/testbed/results/ci/
+/testbed/results/previous/
+/testbed/results/archive-*/

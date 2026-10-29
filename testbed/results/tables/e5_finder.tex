@@ -1,0 +1,20 @@
+\begin{table*}
+\centering
+\caption{SoFiA-2 on each cube (same threshold), through the broker on the node it was placed on, and by a client that pulled the cube and ran it under the big node's limits (4 CPUs, 8g). Seconds from the submission to the catalogue; the transfer and the run are the client's own clocks; bytes are what the data node's link sent. A run that failed is marked.}
+\label{tab:finder}
+\small
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}llrrrrr}
+\toprule
+Cube & Mode & Placed on & Total (s) & Transfer (s) & Finder (s) & Bytes sent \\
+\midrule
+s (64\,MB) & broker & \emph{SMALL} & 7.56 & 0.00 & 7.27 & 15\,kB \\
+ & download + local & client & 2.02 & 0.04 & 1.74 & 64\,MB \\
+\addlinespace
+m (512\,MB) & broker & \emph{BIG} & 15.5 & 0.00 & 15.2 & 21\,kB \\
+ & download + local & client & 14.9 & 0.21 & 14.2 & 513\,MB \\
+\addlinespace
+l (3.0\,GB) & broker & \emph{BIG} & 131.6 & 0.00 & 131.4 & 110\,kB \\
+ & download + local & client & 162.4 & 1.38 & 160.3 & 3.0\,GB \\
+\bottomrule
+\end{tabular*}
+\end{table*}

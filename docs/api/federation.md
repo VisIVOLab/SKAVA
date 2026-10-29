@@ -24,7 +24,8 @@ search goes on without it. The token is never stored or returned. See [Authentic
 
 ## Merge
 
-The answers are merged on the logical dataset identity, `obs_id`:
+The answers are merged on the logical dataset identity, `obs_id`, as long
+as the listings agree on which product it is:
 
 * the local catalogue's results come first, in its order, each with
   `source: "local"`;
@@ -33,6 +34,15 @@ The answers are merged on the logical dataset identity, `obs_id`:
   `access_url` and replica count;
 * a dataset only a sibling has is appended with that sibling's base URL as
   its `source`;
+* a listing that contradicts the product already listed under its `obs_id`
+  (a different `checksum`, `access_estsize` or `dataproduct_type`, where both
+  state it) is not merged: it is returned as a separate result with
+  `identity_conflict` saying how it differs, the first listing is flagged
+  too, and the response counts them in `identity_conflicts`;
+* with `SKAVA_REPLICA_IDENTITY=checksum` (the default), listings merge only
+  when both state the same checksum; a listing that contradicts nothing but
+  cannot be shown to be the same product is also returned apart, flagged, and
+  counted in `identity_unverified`;
 * the merged list is cut at `limit` (local results first).
 
 The ranking stays each site's own: a site ranks the replicas it holds with

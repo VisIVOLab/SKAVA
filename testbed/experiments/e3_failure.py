@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """E3: a node dies in the middle of a session.
 
 The dataset is opened on the node SKAVA ranked first; that node's container

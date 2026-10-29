@@ -1,6 +1,8 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Form, Query
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -30,6 +32,31 @@ def soda_sync(
     _: str | None = Depends(require_access_token),
     db: Session = Depends(get_db),
 ) -> SodaSyncResponse | RedirectResponse:
+    return _soda_sync(db, dataset_id=dataset_id, pos=pos, circle=circle, polygon=polygon,
+                      band=band, time_value=time_value, responseformat=responseformat)
+
+
+@router.post("/sync", response_model=SodaSyncResponse, responses={303: {"description": "Redirect to the node's SODA service"}})
+def soda_sync_post(
+    dataset_id: str | None = Form(default=None, alias="ID"),
+    pos: str | None = Form(default=None, alias="POS"),
+    circle: str | None = Form(default=None, alias="CIRCLE"),
+    polygon: str | None = Form(default=None, alias="POLYGON"),
+    band: str | None = Form(default=None, alias="BAND"),
+    time_value: str | None = Form(default=None, alias="TIME"),
+    responseformat: str | None = Form(default=None, alias="RESPONSEFORMAT"),
+    _: str | None = Depends(require_access_token),
+    db: Session = Depends(get_db),
+) -> SodaSyncResponse | RedirectResponse:
+    """SODA sync by POST (DALI), the parameters in the form body. A 303 makes
+    the client repeat the request as a GET with no body, so the redirect
+    carries every parameter in the node's URL."""
+    return _soda_sync(db, dataset_id=dataset_id, pos=pos, circle=circle, polygon=polygon,
+                      band=band, time_value=time_value, responseformat=responseformat)
+
+
+def _soda_sync(db: Session, *, dataset_id, pos, circle, polygon, band, time_value,
+               responseformat) -> SodaSyncResponse | RedirectResponse:
     if not dataset_id:
         raise InvalidQueryError("ID is required")
     spatial = [name for name, value in (("POS", pos), ("CIRCLE", circle), ("POLYGON", polygon)) if value]

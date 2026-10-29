@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Admin user account model.
 
 The Admin UI (see ``app/admin``) authenticates against this table using

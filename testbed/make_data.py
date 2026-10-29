@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Generate the testbed's science data: synthetic HI-like cubes, mirrored on nodes.
 
 Each cube is written once and copied into every node directory that holds a

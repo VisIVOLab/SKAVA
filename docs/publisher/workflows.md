@@ -240,6 +240,26 @@ sqlite3 /var/lib/skava-publisher/state.db \
 
 ## Forcing a re-publish
 
+```{important}
+**Upgrading from a publisher that did not send checksums.** Earlier builds
+of the publisher kept each file's SHA-256 only in ``provenance_json``; the
+current one also sends it as the record's ``checksum``, which the catalogue
+requires (by default) before it counts a second node's file as a replica of
+the same product. Files published by an earlier build are skipped as
+unchanged, so after upgrading, on every node, holder nodes first:
+
+1. make sure checksums are computed for the files that have replicas:
+   ``scan.compute_checksum: true``, and ``scan.checksum_max_bytes`` above the
+   size of the largest such file (50 GB by default; files above the limit get
+   no checksum);
+2. run one forced publish: ``skava-publisher -c <config> publish -y --force``.
+
+A node joining an already-catalogued dataset is refused as
+``replica_unverified`` unless both its record and the catalogue state equal
+checksums; the first node to publish a dataset, and a node updating its own
+replica, are accepted without one.
+```
+
 State.db skips files marked `published`. To force a re-run (e.g.
 after fixing a bug in the extractor):
 

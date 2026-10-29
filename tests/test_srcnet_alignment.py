@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """SKAVA speaking the interfaces of the SRCNet architecture (v0.2/v0.3).
 
 * TAP accepts the query shape SRCNet documents for its global TAP service:
@@ -172,7 +174,7 @@ def test_tap_votable_is_obscore_with_datalink_access(client):
         assert col in names
     row = dict(zip(names, [td.text or "" for td in root.find(".//v:TR", NS).findall("v:TD", NS)]))
     assert row["access_format"] == "application/x-votable+xml;content=datalink"
-    assert row["access_url"].endswith("/datalink/dataset-3?RESPONSEFORMAT=votable")
+    assert row["access_url"].endswith("/datalink?ID=dataset-3")   # the DataLink {links} endpoint
 
 
 # ── OIDC ────────────────────────────────────────────────────────────────────

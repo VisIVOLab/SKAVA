@@ -96,9 +96,9 @@ make -C docs livehtml
 ```
 
 A browser opens to the live-reloading site. Edit; it refreshes.
-``make -C docs linkcheck`` checks the external links. On every push
-to ``main`` that changes ``docs/``, a workflow mirrors the tree to the
-public documentation site.
+``make -C docs linkcheck`` checks the external links. Read the Docs
+builds the public site (<https://skava.readthedocs.io>) from this
+repository on every push to ``main``, with ``.readthedocs.yaml``.
 
 Style guide:
 

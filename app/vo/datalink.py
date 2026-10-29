@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from app.config import settings
 from app.models.dataset import Dataset
 from app.models.node import Node

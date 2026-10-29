@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """The resource-aware ranking policy: filters, cost, fallbacks and reasons."""
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace

@@ -1,0 +1,20 @@
+23:05:02 signed in at the IAM
+23:05:02 merge: 3 datasets, 3 merged, second site ok in 4.26 ms, ok=True
+23:05:02 auth: anonymous-federated ok=True, anonymous-direct ok=True, garbage-token-direct ok=True, signed-in-direct ok=True
+23:05:02 latency local: p50 2.68 ms, p95 3.12 ms, 0 failed
+23:05:04 latency federated: p50 8.65 ms, p95 10.75 ms, 0 failed
+23:05:05 latency second-site-direct: p50 2.68 ms, p95 3.81 ms, 0 failed
+ Container testbed-skava-2-1 Stopping 
+ Container testbed-skava-2-1 Stopped 
+23:05:05 second site stopped
+23:05:05 site down: federated search answers 3 datasets in 9.11 ms (second site error)
+ Container testbed-db-1 Waiting 
+ Container testbed-keycloak-1 Waiting 
+ Container testbed-keycloak-1 Healthy 
+ Container testbed-db-1 Healthy 
+ Container testbed-skava-2-1 Starting 
+ Container testbed-skava-2-1 Started 
+23:05:08 site back after 2.7 s: second site ok
+23:05:08 wrote /Users/fvitello/Documents/GitHub/SKAVA/testbed/results/e6_federation.json all ok
+EXIT 0
+CHAIN_E6_DONE

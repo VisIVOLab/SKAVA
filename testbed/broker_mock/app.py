@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """A stand-in for the SRCNet Computing Broker: batch jobs placed next to the data.
 
 The SRCNet architecture runs batch work through a Computing Broker: a client

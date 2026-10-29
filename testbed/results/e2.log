@@ -1,0 +1,27 @@
+20:26:17 policy static: restarting SKAVA
+20:26:19   tb-cube-s: order ['SMALL', 'BIG', 'FAR'], excluded {}
+20:26:21     SMALL: open 0.005 slice 0.012 m0 0.055 (worst 0.116, warm-up 0.118, cell 1.8 s)
+20:26:23     BIG: open 0.005 slice 0.012 m0 0.054 (worst 0.108, warm-up 0.114, cell 1.6 s)
+20:26:29     FAR: open 0.168 slice 0.515 m0 0.053 (worst 0.522, warm-up 0.528, cell 6.1 s)
+20:26:29   tb-cube-m: order ['BUSY', 'BIG', 'FAR'], excluded {}
+20:26:36     BUSY: open 0.005 slice 0.091 m0 1.093 (worst 1.194, warm-up 1.103, cell 7.5 s)
+20:26:38     BIG: open 0.005 slice 0.036 m0 0.299 (worst 0.341, warm-up 0.332, cell 1.5 s)
+20:26:45     FAR: open 0.175 slice 0.979 m0 0.401 (worst 0.822, warm-up 0.792, cell 7.6 s)
+20:26:45   tb-cube-l: order ['SMALL', 'BUSY', 'BIG'], excluded {}
+20:26:58     SMALL: open 0.005 slice 0.141 m0 2.814 (worst 2.916, warm-up 2.941, cell 12.2 s)
+20:27:24     BUSY: open 0.005 slice 0.315 m0 6.172 (worst 6.286, warm-up 6.593, cell 26.7 s)
+20:27:35     BIG: open 0.006 slice 0.139 m0 2.422 (worst 2.511, warm-up 2.411, cell 10.5 s)
+20:27:35 policy resource_aware: restarting SKAVA
+20:27:52   tb-cube-s: order ['BIG', 'SMALL', 'FAR'], excluded {}
+20:27:53     BIG: open 0.005 slice 0.012 m0 0.054 (worst 0.117, warm-up 0.116, cell 0.5 s)
+20:27:53     SMALL: open 0.005 slice 0.012 m0 0.051 (worst 0.117, warm-up 0.119, cell 0.5 s)
+20:27:59     FAR: open 0.176 slice 0.61 m0 0.056 (worst 0.521, warm-up 0.524, cell 5.1 s)
+20:27:59   tb-cube-m: order ['BIG', 'BUSY', 'FAR'], excluded {}
+20:28:00     BIG: open 0.005 slice 0.037 m0 0.323 (worst 0.436, warm-up 0.327, cell 1.7 s)
+20:28:05     BUSY: open 0.005 slice 0.101 m0 1.116 (worst 1.221, warm-up 1.182, cell 5.2 s)
+20:28:13     FAR: open 0.173 slice 0.914 m0 0.428 (worst 0.808, warm-up 0.787, cell 7.6 s)
+20:28:13   tb-cube-l: order ['BIG', 'BUSY'], excluded {'SMALL': 'not enough memory: rtt 1.6 ms, cpu pressure 0%, 0.0 tasks/worker, needs 3.0 GB of 1.5 GB free'}
+20:28:24     BIG: open 0.005 slice 0.139 m0 2.438 (worst 2.499, warm-up 2.495, cell 10.6 s)
+20:28:50     BUSY: open 0.005 slice 0.324 m0 6.246 (worst 6.35, warm-up 6.365, cell 26.4 s)
+20:29:02     SMALL: open 0.005 slice 0.136 m0 2.918 (worst 3.02, warm-up 2.945, cell 12.4 s)
+20:29:03 written /Users/fvitello/Documents/GitHub/SKAVA/testbed/results/e2_placement.json

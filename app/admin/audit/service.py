@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Direct write-side helper for the audit log.
 
 Most handlers use the ``@audited`` decorator instead; this module is

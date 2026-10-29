@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """D2.2 representative sample datasets (WP2 / T2.2).
 
 Seeds SKAVA's catalogue with a curated set of real-world test datasets

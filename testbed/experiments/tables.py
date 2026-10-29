@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """The paper's tables and summary figures, from results/*.json, as LaTeX
 snippets in results/tables/ (one file per table, to be ``\\input``) and a
 few numbers printed for the text. Like the figures, everything is drawn
@@ -76,7 +78,8 @@ def table_placement() -> None:
         "\\begin{table*}",
         "\\centering",
         "\\caption{Placement quality on the testbed (paper profile). For each cube, every node holding a replica was "
-        "timed on the operations a session begins with (median of %d runs after a warm-up, seconds): opening in "
+        "timed on the operations a session begins with (median of %d runs after a warm-up, seconds; for the "
+        "moment map also the 95th percentile): opening in "
         "place, the first channel slice, and a moment-0 map as a SODA job (the job's own clock on the node). "
         "The policy columns say what each policy did with that replica: \\textbf{chosen}, ranked lower, or set "
         "aside (\\emph{excl.}, with the reason the catalogue gave). A node both policies measured shows the "
@@ -84,9 +87,9 @@ def table_placement() -> None:
         "run failed.}" % d["meta"]["repeats"],
         "\\label{tab:placement}",
         "\\small",
-        "\\begin{tabular*}{\\linewidth}{@{\\extracolsep{\\fill}}llrrr" + "l" * len(policies) + "}",
+        "\\begin{tabular*}{\\linewidth}{@{\\extracolsep{\\fill}}llrrrr" + "l" * len(policies) + "}",
         "\\toprule",
-        "Cube & Node & Open & Slice & Moment 0 & " + " & ".join(p.replace("_", "-") for p in policies) + " \\\\",
+        "Cube & Node & Open & Slice & Moment 0 & p95 & " + " & ".join(p.replace("_", "-") for p in policies) + " \\\\",
         "\\midrule",
     ]
     for ds in datasets:
@@ -113,6 +116,10 @@ def table_placement() -> None:
                 if v is not None and v == best[key]:
                     cell = f"\\textbf{{{cell}}}"
                 cells.append(cell)
+            p95s = [percentile([x["t_m0"] for x in r.get("samples") or [] if x.get("t_m0") is not None], 95)
+                    for r in mine if r["node"] == node]
+            p95s = [v for v in p95s if v is not None]
+            cells.append(seconds(statistics.median(p95s)) if p95s else "--")
             verdicts = []
             for p in policies:
                 r = by_policy.get(p)
@@ -154,6 +161,104 @@ def table_placement() -> None:
         if worst and r["t_m0_wall"] and worst > 3 * r["t_m0_wall"]:
             print(f"E2 erratic: {r['policy']} {r['dataset']} on {r['node']}: median {r['t_m0_wall']} s, "
                   f"worst {worst} s, cell {r.get('cell_seconds')} s")
+
+
+def percentile(values: list[float], q: float) -> float | None:
+    """The q-th percentile by nearest rank (no interpolation): with 10 runs the
+    95th is the slowest but none, an observed value."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, min(len(ordered) - 1, -(-len(ordered) * q // 100) - 1))
+    return ordered[int(index)]
+
+
+def table_baselines() -> None:
+    """tab:baselines: what simpler dynamic policies would have chosen, read on
+    the same measurements. The resource-aware run timed every replica and
+    recorded the telemetry each decision saw (round trip, CPU pressure), so a
+    latency-only, a CPU-only and a random choice can be evaluated on the very
+    times and telemetry the resource-aware policy had, not on another run."""
+    import re
+    d = load("e2_placement")
+    if not d:
+        return
+    rows = [r for r in d["rows"] if r["policy"] == "resource_aware" and r["t_m0"] is not None]
+    static_rows = [r for r in d["rows"] if r["policy"] == "static" and r["chosen"]]
+    datasets = list(dict.fromkeys(r["dataset"] for r in rows))
+
+    def telemetry(r):
+        rtt = re.search(r"rtt ([\d.]+) ms", r["rank_reason"])
+        cpu = re.search(r"cpu pressure (\d+)%", r["rank_reason"])
+        return (float(rtt.group(1)) if rtt else None, float(cpu.group(1)) if cpu else None)
+
+    RTT_TIE_MS, CPU_TIE_PCT = 1.0, 5.0       # below these the probe cannot tell nodes apart
+    choices: dict[str, dict[str, list[str]]] = {}
+    for ds in datasets:
+        mine = {r["node"]: r for r in rows if r["dataset"] == ds}
+        tel = {n: telemetry(r) for n, r in mine.items()}
+        rtts = {n: v[0] for n, v in tel.items() if v[0] is not None}
+        cpus = {n: v[1] for n, v in tel.items() if v[1] is not None}
+        choices[ds] = {
+            "static (declared scores)": [r["node"] for r in static_rows if r["dataset"] == ds],
+            "latency only": [n for n, v in rtts.items() if v - min(rtts.values()) <= RTT_TIE_MS],
+            "CPU pressure only": [n for n, v in cpus.items() if v - min(cpus.values()) <= CPU_TIE_PCT],
+            "random replica": list(mine),
+            "resource-aware": [r["node"] for r in mine.values() if r["chosen"]],
+        }
+    policies = list(next(iter(choices.values())))
+
+    # The time of a node is the one Table~tab:placement shows: the median over
+    # the policies that measured it, so the two tables read the same numbers.
+    def shown(ds, node, key):
+        vals = [r[key] for r in d["rows"] if r["dataset"] == ds and r["node"] == node and r[key] is not None]
+        return statistics.median(vals) if vals else None
+
+    def cell(ds, nodes, key):
+        vals = [v for v in (shown(ds, n, key) for n in nodes) if v is not None]
+        return statistics.mean(vals) if vals else None
+
+    best = {(ds, k): min(v for v in (shown(ds, r["node"], k) for r in rows if r["dataset"] == ds) if v is not None)
+            for ds in datasets for k in ("t_slice", "t_m0")}
+    lines = [
+        "\\begin{table*}",
+        "\\centering",
+        "\\caption{Counterfactual policy evaluation on recorded telemetry: the node each policy would have "
+        "chosen for each cube from the telemetry the resource-aware run recorded at its decision, and that "
+        "node's first-slice and moment-0 times as Table~\\ref{tab:placement} gives them (seconds, median of %d "
+        "runs). The simpler policies were not run; their choices are read off the same recorded state. "
+        "Nodes within %.0f\\,ms of round trip or %.0f\\%% of CPU pressure cannot be told apart by the probe; where a "
+        "policy ties several nodes, or picks at random, the time is the mean over them (the expected cost). The static "
+        "row is the static policy's own choice; the memory filter applies to the resource-aware row only.}"
+        % (d["meta"]["repeats"], RTT_TIE_MS, CPU_TIE_PCT),
+        "\\label{tab:baselines}",
+        "\\small",
+        "\\begin{tabular*}{\\linewidth}{@{\\extracolsep{\\fill}}l" + "lrr" * len(datasets) + "}",
+        "\\toprule",
+        " & " + " & ".join(f"\\multicolumn{{3}}{{c}}{{{cube_label(ds, rows[[r['dataset'] for r in rows].index(ds)]['dataset_bytes'])}}}"
+                           for ds in datasets) + " \\\\",
+        "Policy & " + " & ".join("Node & Slice & M0" for _ in datasets) + " \\\\",
+        "\\midrule",
+    ]
+    for pol in policies:
+        cells = []
+        for ds in datasets:
+            nodes = choices[ds][pol]
+            label = ", ".join(f"\\emph{{{tex(n)}}}" for n in nodes) if len(nodes) < 3 else "any"
+            vals = []
+            for key in ("t_slice", "t_m0"):
+                v = cell(ds, nodes, key)
+                text = seconds(v)
+                if v is not None and abs(v - best[(ds, key)]) < 1e-9:
+                    text = f"\\textbf{{{text}}}"
+                vals.append(text)
+            cells.append(f"{label} & " + " & ".join(vals))
+        lines.append(f"{pol} & " + " & ".join(cells) + " \\\\")
+    lines += ["\\bottomrule", "\\end{tabular*}", "\\end{table*}", ""]
+    save("e2_baselines", "\n".join(lines))
+    for pol in policies:
+        print("E2 baseline", pol, {ds: (choices[ds][pol], round(cell(ds, choices[ds][pol], "t_m0") or 0, 3),
+                                        round(cell(ds, choices[ds][pol], "t_slice") or 0, 3)) for ds in datasets})
 
 
 # ── E3 ──────────────────────────────────────────────────────────────────────
@@ -348,6 +453,7 @@ def table_federation() -> None:
 
 def main() -> None:
     table_placement()
+    table_baselines()
     summary_failure()
     table_bytes()
     table_finder()

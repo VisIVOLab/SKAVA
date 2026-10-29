@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Add VisIVO backend coordinates to nodes table
 
 Each node may expose a co-located VisIVO backend (FastAPI service that

@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """HTTP client for SKAVA's internal ingestion endpoints.
 
 Wraps ``/internal/ingestion/dry-run`` and ``/internal/ingestion/run``

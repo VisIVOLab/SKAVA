@@ -1,0 +1,23 @@
+\begin{table*}
+\centering
+\caption{Placement quality on the testbed (paper profile). For each cube, every node holding a replica was timed on the operations a session begins with (median of 10 runs after a warm-up, seconds; for the moment map also the 95th percentile): opening in place, the first channel slice, and a moment-0 map as a SODA job (the job's own clock on the node). The policy columns say what each policy did with that replica: \textbf{chosen}, ranked lower, or set aside (\emph{excl.}, with the reason the catalogue gave). A node both policies measured shows the median of both cells. The best time per cube and operation is in bold; $\dagger$ marks a node where a run failed.}
+\label{tab:placement}
+\small
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}llrrrrll}
+\toprule
+Cube & Node & Open & Slice & Moment 0 & p95 & static & resource-aware \\
+\midrule
+s (64\,MB) & \emph{BIG} & \textbf{0.01} & \textbf{0.01} & \textbf{0.05} & 0.06 & rank 2 & \textbf{chosen} \\
+ & \emph{SMALL} & \textbf{0.01} & \textbf{0.01} & 0.05 & 0.09 & \textbf{chosen} & rank 2 \\
+ & \emph{FAR} & 0.17 & 0.56 & 0.05 & 0.06 & rank 3 & rank 3 \\
+\addlinespace
+m (512\,MB) & \emph{BIG} & \textbf{0.01} & \textbf{0.04} & \textbf{0.31} & 0.34 & rank 2 & \textbf{chosen} \\
+ & \emph{FAR} & 0.17 & 0.77 & 0.40 & 0.42 & rank 3 & rank 3 \\
+ & \emph{BUSY} & 0.01 & 0.10 & 1.12 & 1.18 & \textbf{chosen} & rank 2 \\
+\addlinespace
+l (3.0\,GB) & \emph{BIG} & \textbf{0.01} & 0.14 & \textbf{2.30} & 2.44 & rank 3 & \textbf{chosen} \\
+ & \emph{SMALL} & \textbf{0.01} & \textbf{0.13} & 2.84 & 3.06 & \textbf{chosen} & excl.\ (not enough memory) \\
+ & \emph{BUSY} & 0.01 & 0.33 & 6.29 & 6.53 & rank 2 & rank 2 \\
+\bottomrule
+\end{tabular*}
+\end{table*}

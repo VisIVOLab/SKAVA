@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Failed-login throttle for the admin UI.
 
 Counts failed sign-ins per client address over a sliding minute; once a

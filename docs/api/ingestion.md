@@ -285,6 +285,24 @@ or `node_not_found`.
   - Range inverted (likewise ``em_min``/``em_max``).
 * - ``access_url must include a scheme``
   - URL had no ``scheme://``.
+* - ``replica_unverified``: ``obs_id X is held by other nodes and ... states
+    no checksum``
+  - A node that does not yet hold the dataset sent a record, and this record
+    or the catalogue states no checksum. With ``SKAVA_REPLICA_IDENTITY=checksum``
+    (the default) a replica is accepted only on equal checksums; publish them
+    (``scan.compute_checksum``), raise ``scan.checksum_max_bytes`` for large
+    files, or declare the replica in the admin UI.
+* - ``<field> is longer than <n> characters``
+  - A text value longer than its column (128 for ``target_name``, 512
+    for ``access_url``, ...).
+* - ``replica_conflict``: ``obs_id X is already catalogued as a different
+    product on other nodes``
+  - Another node holds a product under this ``obs_id`` whose
+    ``checksum``, ``access_estsize`` or ``dataproduct_type`` differs from
+    this record's (where both state it). Records sharing an ``obs_id`` are
+    replicas of one product; a different product needs its own
+    ``obs_id``. The only node holding a dataset may replace its file: the
+    identity fields its new record does not restate are then cleared.
 ```
 
 ## History

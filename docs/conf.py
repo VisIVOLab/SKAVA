@@ -66,6 +66,7 @@ html_context = {
 # ── HTML output ─────────────────────────────────────────────────────────────
 html_theme  = "furo"
 html_static_path = ["_static"]
+html_logo = "_static/skava-logo.png"
 html_css_files   = ["custom.css"]
 html_title       = "SKAVA documentation"
 

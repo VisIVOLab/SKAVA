@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """CSRF protection for admin forms.
 
 A token is generated per session on first access (lazy), embedded in

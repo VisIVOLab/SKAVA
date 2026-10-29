@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from datetime import datetime, timezone
 import logging
 from typing import Any
@@ -8,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.ingestion.base import IngestError, IngestSummary, IngestionRecord
 from app.ingestion.normalizers.obscore_normalizer import normalize_record
 from app.ingestion.validators.metadata_validator import validate_record
+from app.config import settings
 from app.models.dataset import Dataset
 from app.models.node import Node
 from app.models.replica import DatasetReplica
@@ -32,6 +35,13 @@ class IngestService:
 
     def ingest_records(self, raw_records: list[dict[str, Any]]) -> IngestSummary:
         summary = IngestSummary()
+        # What this batch has accepted so far, per obs_id: the nodes holding
+        # it and the product's identity (checksum, size, type). Earlier
+        # records of the batch are not yet in the database (no autoflush; in a
+        # dry run, never), so the replica check reads this first.
+        self._batch: dict[str, dict[str, Any]] = {}
+        # Identity fields of a replaced file that its new record does not restate.
+        self._clear: dict[str, list[str]] = {}
 
         for idx, raw in enumerate(raw_records):
             summary.total_records += 1
@@ -52,7 +62,15 @@ class IngestService:
                 self._skip(summary, idx, "node_not_found", f"Node not found: {record.node_id}", raw)
                 continue
 
+            conflict = self._replica_conflict(record, node)
+            if conflict:
+                self._skip(summary, idx, conflict[0], conflict[1], raw)
+                continue
+
             dataset, dataset_action = self._upsert_dataset(record)
+            if not self.dry_run:
+                for field in self._clear.pop(record.obs_id, []):
+                    setattr(dataset, field, None)
             if dataset_action == "inserted":
                 summary.inserted_datasets += 1
             else:
@@ -63,6 +81,10 @@ class IngestService:
                 summary.inserted_replicas += 1
             else:
                 summary.updated_replicas += 1
+            if not self.dry_run:
+                # Later records of the batch look datasets and replicas up by
+                # query; with autoflush off they must be written first.
+                self.db.flush()
 
         if self.dry_run:
             self.db.rollback()
@@ -134,6 +156,76 @@ class IngestService:
             self.db.add(dataset)
             self.db.flush()
         return dataset, "inserted"
+
+    _IDENTITY_FIELDS = ("checksum", "access_estsize", "dataproduct_type")
+
+    def _evidence(self, obs_id: str) -> dict[str, Any] | None:
+        """The catalogued product under ``obs_id``: its holders and identity,
+        as this batch left it, else as the database has it, else None."""
+        if obs_id in self._batch:
+            return self._batch[obs_id]
+        existing = self.db.scalar(select(Dataset).where(Dataset.obs_id == obs_id))
+        if existing is None:
+            return None
+        nodes = set(self.db.scalars(select(DatasetReplica.node_id)
+                                    .where(DatasetReplica.dataset_id == existing.id)).all())
+        return {"nodes": nodes, **{f: getattr(existing, f) for f in self._IDENTITY_FIELDS}}
+
+    def _replica_conflict(self, record: IngestionRecord, node: Node) -> tuple[str, str] | None:
+        """Why this record cannot be counted as a copy of the product already
+        catalogued under its ``obs_id``, as (code, message), or None (and the
+        record is then counted in).
+
+        Records sharing an ``obs_id`` are taken as replicas of one product, so
+        a node must not join the copies other nodes hold unless it holds the
+        same product. A record that contradicts the catalogue (another
+        checksum, size or product type, where both state it) is a
+        ``replica_conflict``. Under ``replica_identity = "checksum"`` (the
+        default) a node that does not yet hold the dataset must also prove the
+        copy, by a checksum equal to the catalogue's; without one the record
+        is ``replica_unverified``: two products of one observation of equal
+        size and type, with no checksum, are not merged. A node that already
+        holds the dataset updates its own replica (which is how a catalogue
+        without checksums acquires them), and an operator can still declare a
+        replica by hand in the admin UI. Earlier records of the batch count.
+        """
+        evidence = self._evidence(record.obs_id)
+        if evidence is not None and evidence["nodes"] - {node.id}:
+            differences = []
+            for field in self._IDENTITY_FIELDS:
+                mine, theirs = getattr(record, field), evidence.get(field)
+                if mine is not None and theirs is not None and str(mine) != str(theirs):
+                    differences.append(f"{field} {mine} here, {theirs} in the catalogue")
+            if differences:
+                return ("replica_conflict",
+                        f"obs_id {record.obs_id} is already catalogued as a different product on other "
+                        f"nodes ({'; '.join(differences)}); not accepted as a replica")
+            joining = node.id not in evidence["nodes"]
+            if joining and settings.replica_identity == "checksum" and not (
+                    record.checksum and evidence.get("checksum")):
+                missing = "this record" if not record.checksum else "the catalogue"
+                return ("replica_unverified",
+                        f"obs_id {record.obs_id} is held by other nodes and {missing} states no checksum: "
+                        "the copy cannot be verified, so it is not accepted as a replica "
+                        "(publish checksums, or declare the replica in the admin UI)")
+        # Accepted: what the catalogue will hold after this record.
+        state = {"nodes": set(), **{f: None for f in self._IDENTITY_FIELDS}} if evidence is None else \
+            {"nodes": set(evidence["nodes"]), **{f: evidence.get(f) for f in self._IDENTITY_FIELDS}}
+        state["nodes"].add(node.id)
+        sole_holder = state["nodes"] == {node.id}
+        stated = {f: getattr(record, f) for f in self._IDENTITY_FIELDS if getattr(record, f) is not None}
+        changed = sole_holder and any(state[f] is not None and str(state[f]) != str(v) for f, v in stated.items())
+        if changed:
+            # The file was replaced: what the record does not restate about it
+            # belongs to the old file and is forgotten, here and in the catalogue.
+            self._clear[record.obs_id] = [f for f in self._IDENTITY_FIELDS if f not in stated]
+            for field in self._clear[record.obs_id]:
+                state[field] = None
+        for field, value in stated.items():
+            if sole_holder or state[field] is None:
+                state[field] = value
+        self._batch[record.obs_id] = state
+        return None
 
     def _upsert_replica(self, dataset: Dataset, node: Node, record: IngestionRecord) -> str:
         dataset_id = dataset.id

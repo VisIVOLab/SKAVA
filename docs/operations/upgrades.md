@@ -149,8 +149,9 @@ production.
 * - ``0009_add_node_telemetry``
   - Five nullable columns on ``nodes`` (``probe_ok``,
     ``probe_rtt_ms``, ``probe_error``, ``telemetry_json``,
-    ``telemetry_at``). Additive; the default ``static`` ranking policy
-    does not read them.
+    ``telemetry_at``). Additive. The ``resource_aware`` policy, the
+    default since 0.1.0, reads them; nodes without telemetry keep the
+    declared order.
 * - ``0008_add_admin_users_and_audit``
   - Adds the admin subsystem (``users``, ``audit_log``). No effect on
     existing API behaviour. Run ``python -m app.admin.cli create-user

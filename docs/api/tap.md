@@ -88,8 +88,11 @@ Supported:
   qualifiers (`obscore.s_ra`, `ivoa.obscore.t_min`) are stripped.
 * The cone predicate
   `1 = CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', ra, dec, radius))`,
-  or the SRCNet form `CONTAINS(s_pos, CIRCLE('ICRS', ra, dec, radius)) = 1`
-  (same centre-based approximation as the discovery `POS` filter).
+  or the SRCNet form `CONTAINS(s_pos, CIRCLE('ICRS', ra, dec, radius)) = 1`,
+  with ADQL's meaning: the dataset's centre `(s_ra, s_dec)` lies inside the
+  circle (exact on the sphere). This differs on purpose from the discovery
+  API's `POS`, which matches datasets whose footprint (a circle of radius
+  `s_fov/2` around the centre) intersects the cone.
 
 Queryable columns: `obs_id`, `obs_collection`, `obs_title`,
 `dataproduct_type`, `target_name`, `facility_name`, `instrument_name`,
@@ -142,7 +145,7 @@ The columns are always `obs_id`, `obs_collection`, `obs_title`,
 `instrument_name`, `s_ra`, `s_dec`, `s_fov`, `t_min`, `t_max`,
 `em_min`, `em_max`, `access_url`, `access_format`. `access_url` is the
 dataset's DataLink document
-(`{base}/datalink/{obs_id}?RESPONSEFORMAT=votable`) and
+(`{base}/datalink?ID={obs_id}`, the DataLink `{links}` endpoint) and
 `access_format` is `application/x-votable+xml;content=datalink`, the
 ObsCore convention for datasets whose access needs a resolution step.
 
@@ -158,7 +161,7 @@ ObsCore convention for datasets whose access needs a resolution step.
       <FIELD name="access_format" datatype="char" arraysize="*"/>
       <DATA>
         <TABLEDATA>
-          <TR><TD>tb-cube-l</TD>...<TD>https://skava.inaf.it/datalink/tb-cube-l?RESPONSEFORMAT=votable</TD><TD>application/x-votable+xml;content=datalink</TD></TR>
+          <TR><TD>tb-cube-l</TD>...<TD>https://skava.inaf.it/datalink?ID=tb-cube-l</TD><TD>application/x-votable+xml;content=datalink</TD></TR>
         </TABLEDATA>
       </DATA>
     </TABLE>

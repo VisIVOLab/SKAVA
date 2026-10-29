@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Audit history viewer (Phase 3) — read-only browser of ``audit_log``.
 
 The audit log is append-only; this router never mutates it. It supports

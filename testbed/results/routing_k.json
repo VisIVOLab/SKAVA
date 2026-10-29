@@ -1,0 +1,161 @@
+{
+  "environment": {
+    "timestamp": "2026-10-29T10:07:33+00:00",
+    "python": "3.11.15",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 18,
+    "database": "postgresql",
+    "target": "in-process TestClient",
+    "requests": 50,
+    "warmup": 5,
+    "seed": 20261027,
+    "database_version": "16.15 (Debian 16.15-1.pgdg13+2)"
+  },
+  "results": [
+    {
+      "workload": "datalink",
+      "n": 10000,
+      "k": 1,
+      "requests": 50,
+      "p50_ms": 2.596,
+      "p95_ms": 3.217,
+      "mean_ms": 2.689,
+      "min_ms": 2.422,
+      "max_ms": 4.356,
+      "seed_s": 0.36
+    },
+    {
+      "workload": "collection",
+      "n": 10000,
+      "k": 1,
+      "requests": 50,
+      "p50_ms": 7.164,
+      "p95_ms": 8.598,
+      "mean_ms": 7.588,
+      "min_ms": 6.678,
+      "max_ms": 22.056,
+      "seed_s": 0.36
+    },
+    {
+      "workload": "cone",
+      "n": 10000,
+      "k": 1,
+      "requests": 50,
+      "p50_ms": 6.475,
+      "p95_ms": 7.997,
+      "mean_ms": 7.12,
+      "min_ms": 6.06,
+      "max_ms": 22.287,
+      "seed_s": 0.36
+    },
+    {
+      "workload": "datalink",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 2.688,
+      "p95_ms": 3.005,
+      "mean_ms": 2.718,
+      "min_ms": 2.491,
+      "max_ms": 3.016,
+      "seed_s": 0.62
+    },
+    {
+      "workload": "collection",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 9.451,
+      "p95_ms": 23.657,
+      "mean_ms": 10.403,
+      "min_ms": 8.834,
+      "max_ms": 25.65,
+      "seed_s": 0.62
+    },
+    {
+      "workload": "cone",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 7.029,
+      "p95_ms": 9.656,
+      "mean_ms": 7.3,
+      "min_ms": 6.114,
+      "max_ms": 10.891,
+      "seed_s": 0.62
+    },
+    {
+      "workload": "datalink",
+      "n": 10000,
+      "k": 10,
+      "requests": 50,
+      "p50_ms": 2.961,
+      "p95_ms": 3.492,
+      "mean_ms": 3.003,
+      "min_ms": 2.715,
+      "max_ms": 3.739,
+      "seed_s": 1.45
+    },
+    {
+      "workload": "collection",
+      "n": 10000,
+      "k": 10,
+      "requests": 50,
+      "p50_ms": 17.624,
+      "p95_ms": 32.869,
+      "mean_ms": 20.301,
+      "min_ms": 16.656,
+      "max_ms": 34.516,
+      "seed_s": 1.45
+    },
+    {
+      "workload": "cone",
+      "n": 10000,
+      "k": 10,
+      "requests": 50,
+      "p50_ms": 7.218,
+      "p95_ms": 8.685,
+      "mean_ms": 7.22,
+      "min_ms": 6.118,
+      "max_ms": 9.809,
+      "seed_s": 1.45
+    },
+    {
+      "workload": "datalink",
+      "n": 10000,
+      "k": 30,
+      "requests": 50,
+      "p50_ms": 3.589,
+      "p95_ms": 4.707,
+      "mean_ms": 3.653,
+      "min_ms": 3.288,
+      "max_ms": 4.866,
+      "seed_s": 3.68
+    },
+    {
+      "workload": "collection",
+      "n": 10000,
+      "k": 30,
+      "requests": 50,
+      "p50_ms": 55.024,
+      "p95_ms": 59.441,
+      "mean_ms": 50.724,
+      "min_ms": 37.8,
+      "max_ms": 61.068,
+      "seed_s": 3.68
+    },
+    {
+      "workload": "cone",
+      "n": 10000,
+      "k": 30,
+      "requests": 50,
+      "p50_ms": 6.783,
+      "p95_ms": 8.684,
+      "mean_ms": 7.535,
+      "min_ms": 6.073,
+      "max_ms": 24.023,
+      "seed_s": 3.68
+    }
+  ]
+}

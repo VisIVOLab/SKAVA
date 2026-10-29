@@ -1,0 +1,125 @@
+{
+  "environment": {
+    "timestamp": "2026-10-29T10:06:55+00:00",
+    "python": "3.11.15",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 18,
+    "database": "postgresql",
+    "target": "in-process TestClient",
+    "requests": 50,
+    "warmup": 5,
+    "seed": 20261027,
+    "database_version": "16.15 (Debian 16.15-1.pgdg13+2)"
+  },
+  "results": [
+    {
+      "workload": "datalink",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 2.771,
+      "p95_ms": 3.22,
+      "mean_ms": 2.8,
+      "min_ms": 2.553,
+      "max_ms": 3.317,
+      "seed_s": 0.64
+    },
+    {
+      "workload": "collection",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 9.435,
+      "p95_ms": 23.719,
+      "mean_ms": 10.47,
+      "min_ms": 8.929,
+      "max_ms": 26.534,
+      "seed_s": 0.64
+    },
+    {
+      "workload": "cone",
+      "n": 10000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 6.817,
+      "p95_ms": 8.36,
+      "mean_ms": 7.069,
+      "min_ms": 6.099,
+      "max_ms": 9.602,
+      "seed_s": 0.64
+    },
+    {
+      "workload": "datalink",
+      "n": 100000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 2.849,
+      "p95_ms": 4.089,
+      "mean_ms": 2.971,
+      "min_ms": 2.602,
+      "max_ms": 4.432,
+      "seed_s": 5.82
+    },
+    {
+      "workload": "collection",
+      "n": 100000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 11.383,
+      "p95_ms": 25.601,
+      "mean_ms": 12.501,
+      "min_ms": 10.481,
+      "max_ms": 27.734,
+      "seed_s": 5.82
+    },
+    {
+      "workload": "cone",
+      "n": 100000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 40.599,
+      "p95_ms": 43.719,
+      "mean_ms": 40.4,
+      "min_ms": 36.316,
+      "max_ms": 44.488,
+      "seed_s": 5.82
+    },
+    {
+      "workload": "datalink",
+      "n": 1000000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 3.029,
+      "p95_ms": 4.562,
+      "mean_ms": 3.254,
+      "min_ms": 2.674,
+      "max_ms": 5.188,
+      "seed_s": 56.33
+    },
+    {
+      "workload": "collection",
+      "n": 1000000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 53.096,
+      "p95_ms": 68.042,
+      "mean_ms": 53.494,
+      "min_ms": 46.176,
+      "max_ms": 72.537,
+      "seed_s": 56.33
+    },
+    {
+      "workload": "cone",
+      "n": 1000000,
+      "k": 3,
+      "requests": 50,
+      "p50_ms": 297.244,
+      "p95_ms": 304.939,
+      "mean_ms": 297.192,
+      "min_ms": 286.063,
+      "max_ms": 311.313,
+      "seed_s": 56.33
+    }
+  ]
+}

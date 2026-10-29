@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Probe the nodes' co-located backends and record what they report.
 
 For every enabled node with a ``visivo_backend_url`` the prober measures the
@@ -129,9 +131,11 @@ async def probe_node(client: httpx.AsyncClient, node: Node) -> ProbeResult:
 
 async def probe_all(db: Session) -> list[ProbeResult]:
     """Probe every enabled node that has a backend, concurrently, and store the results."""
-    nodes = list(db.scalars(
+    # Taken before the eligibility read: a report that lands after it is newer.
+    started = _now()
+    nodes = [node for node in db.scalars(
         select(Node).where(Node.is_enabled.is_(True), Node.visivo_backend_url.is_not(None))
-    ).all())
+    ).all() if not _pushed_recently(node)]
     if not nodes:
         return []
     timeout = httpx.Timeout(settings.telemetry_timeout_seconds)
@@ -140,13 +144,15 @@ async def probe_all(db: Session) -> list[ProbeResult]:
     for node, result in zip(nodes, results):
         values = {"probe_ok": result.ok, "probe_error": result.error, "telemetry_at": result.observed_at}
         if result.ok:
-            values.update(probe_rtt_ms=result.rtt_ms, telemetry_json=result.status)
-        # Conditional on age, in the database: two overlapping cycles (or two
-        # SKAVA workers) cannot replace a newer measurement with an older one.
+            values.update(probe_rtt_ms=result.rtt_ms, telemetry_json={**result.status, "source": "probe"})
+        # Conditional in the database: anything stored while this probe was in
+        # flight (a node's own report, another cycle, another SKAVA worker)
+        # is newer than what the probe saw and wins.
         accepted = db.execute(
             update(Node)
             .where(Node.id == node.id,
-                   or_(Node.telemetry_at.is_(None), Node.telemetry_at < result.observed_at))
+                   or_(Node.telemetry_at.is_(None),
+                       Node.telemetry_at < min(started, result.observed_at)))
             .values(**values)
             .execution_options(synchronize_session=False)
         ).rowcount > 0
@@ -157,6 +163,43 @@ async def probe_all(db: Session) -> list[ProbeResult]:
     db.commit()
     db.expire_all()
     return results
+
+
+def _pushed_recently(node: Node, now: datetime | None = None) -> bool:
+    """A node that reports its own state (it may sit behind a firewall the
+    probe cannot cross) is not probed while that report is within the TTL:
+    a failing ping must not mark a node unreachable that is reporting."""
+    status = node.telemetry_json if isinstance(node.telemetry_json, dict) else {}
+    if status.get("source") != "push" or node.telemetry_at is None:
+        return False
+    age = ((now or _now()) - node.telemetry_at).total_seconds()
+    return age < settings.telemetry_ttl_seconds
+
+
+def store_report(db: Session, node: Node, status: Any, rtt_ms: float | None) -> bool:
+    """Store a state the node pushed itself; True when it was the newest.
+
+    The same rule as the probe's: an older observation never replaces a newer
+    one. The round trip, when the node gives one, is what it measured on its
+    own exchange with the catalogue; without one the last known value stays.
+    """
+    observed_at = _now()
+    values: dict[str, Any] = {"probe_ok": True, "probe_error": None, "telemetry_at": observed_at,
+                              "telemetry_json": {**clean_status(status), "source": "push"}}
+    rtt = _number(rtt_ms)
+    if rtt is not None and 0.0 <= rtt < 60_000.0:
+        values["probe_rtt_ms"] = round(rtt, 3)
+    accepted = db.execute(
+        update(Node)
+        .where(Node.id == node.id,
+               or_(Node.telemetry_at.is_(None), Node.telemetry_at < observed_at))
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    ).rowcount > 0
+    db.commit()
+    db.expire_all()
+    record_probe(node.code, True, values.get("probe_rtt_ms") if accepted else None)
+    return accepted
 
 
 async def run_prober(session_factory, interval_seconds: float) -> None:

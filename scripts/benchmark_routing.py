@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Benchmark the cost of SKAVA's routing decision against catalogue size.
 
 For every (n, k) configuration the script builds a synthetic catalogue of

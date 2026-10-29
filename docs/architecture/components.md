@@ -109,6 +109,7 @@ a bearer token (static or OIDC) when either is configured.
 | `staging.py` | `/staging/jobs`: record and read metadata-cache staging jobs | token |
 | `system.py` | `/availability`, `/capabilities`, `/health/db`, `/metrics` | none |
 | `telemetry.py` | `/internal/telemetry` (what the policy sees), `/internal/telemetry/probe` (probe now) | `X-Internal-Api-Key` |
+| `telemetry.py` | `/internal/telemetry/report` (a node pushes its own status) | `X-Skava-Node-Token` (`app/security/node_token.py`) |
 | `internal_ingestion.py` | `/internal/ingestion/dry-run`, `/run`, `/history` | `X-Internal-Api-Key` |
 
 ## `app/services/` — business logic

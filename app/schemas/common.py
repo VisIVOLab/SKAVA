@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from pydantic import BaseModel
 
 
@@ -29,7 +31,6 @@ class DatalinkDescriptor(BaseModel):
     service: str
     standard_hint: str
     operations: list[str]
-    # TODO: add richer DataLink fields and ID semantics when a standard DataLink service is implemented.
 
 
 class DatasetMetadata(BaseModel):
@@ -50,6 +51,10 @@ class DatasetMetadata(BaseModel):
     em_max: float | None = None
     spatial_index_order: int | None = None
     spatial_index_cell: str | None = None
+    # What tells two products under one obs_id apart (the federation's merge
+    # and the ingestion's replica check compare them).
+    access_estsize: int | None = None
+    checksum: str | None = None
     doi: str | None = None
     pid: str | None = None
     citation: str | None = None

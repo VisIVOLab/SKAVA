@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from collections.abc import Sequence
 import logging
 import time
@@ -79,6 +81,7 @@ class DiscoveryService:
         dptype: str | None = None,
         spatial_cell: str | None = None,
         extra_conditions: list | None = None,
+        pos_footprint: bool = True,
         limit: int = 100,
         offset: int = 0,
     ) -> DiscoverySearchResponse:
@@ -99,7 +102,7 @@ class DiscoveryService:
         for condition in (extra_conditions or []):
             stmt = stmt.where(condition)
 
-        stmt = apply_pos_filter(stmt, pos)
+        stmt = apply_pos_filter(stmt, pos, footprint=pos_footprint)
         stmt = apply_band_filter(stmt, band)
         stmt = apply_time_filter(stmt, time_value)
 

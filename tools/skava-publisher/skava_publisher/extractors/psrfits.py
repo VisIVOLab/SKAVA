@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """PSRFITS extractor — pulsar / FRB search and timing files.
 
 PSRFITS is a FITS layout with mandatory ``SUBINT``, ``HISTORY``, and

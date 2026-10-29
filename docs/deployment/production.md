@@ -166,7 +166,6 @@ Recommended alerts:
 * p95 latency > 1 s for ``/discovery/search`` over 5 min
 * any increase of ``skava_db_errors_total``
 * node probes failing (``skava_node_probes_total{outcome="failed"}``)
-  when the resource-aware policy is on
 * heartbeat (``up{job="skava"} == 0`` for 2 min)
 
 ## 7. Upgrades

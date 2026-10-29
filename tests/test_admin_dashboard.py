@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Dashboard rendering + counts (Phase 3 enrichments)."""
 from __future__ import annotations
 

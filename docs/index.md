@@ -221,6 +221,7 @@ Coding conventions, tests, and how to add a new extractor.
 
 ## License
 
-SKAVA is released under the GNU General Public License v3.0. See the
-[LICENSE](https://github.com/VisIVOLab/SKAVA/blob/main/LICENSE) file in
-the repository root.
+SKAVA is released under the Apache License, Version 2.0. See the
+[LICENSE](https://github.com/VisIVOLab/SKAVA/blob/main/LICENSE) and
+[NOTICE](https://github.com/VisIVOLab/SKAVA/blob/main/NOTICE) files in the
+repository root; redistributions and derivative works must keep the NOTICE.

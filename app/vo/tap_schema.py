@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """VOSI ``/tables`` tableset for the TAP ObsCore profile.
 
 Generic VO tools (TOPCAT, pyvo) load this document to discover the

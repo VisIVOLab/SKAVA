@@ -51,17 +51,20 @@ replicas set aside are listed in `routing.excluded` with the reason.
 
 `SKAVA_RANKING_POLICY` picks one of two policies:
 
-* `static` (default) — orders replicas by the latency, load and
-  capability scores the operator declared on each Node.
-* `resource_aware` — orders them by what each node's VisIVO backend
-  reports. A prober (every `SKAVA_TELEMETRY_INTERVAL_SECONDS`, or on
-  demand through `POST /internal/telemetry/probe`) measures the round
+* `resource_aware` (default) — orders them by what each node's VisIVO
+  backend reports. A prober (every `SKAVA_TELEMETRY_INTERVAL_SECONDS`,
+  10 s by default, or on demand through
+  `POST /internal/telemetry/probe`) measures the round
   trip of the backend's `/v1/ping` and reads its `/v1/node/status`
   (CPU pressure, free memory, queued tasks per worker, finders). A
   replica is excluded when its backend did not answer the last probe or
   its node lacks the memory the dataset needs; the rest are ordered by
   a weighted cost of round trip, CPU pressure, queue and memory share.
-  Nodes without fresh telemetry follow, in the static order.
+  Nodes without fresh telemetry follow, in the static order. A node
+  the prober cannot reach can push the same document itself
+  ([node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node)).
+* `static` — orders replicas by the latency, load and capability scores
+  the operator declared on each Node.
 
 ## Node
 

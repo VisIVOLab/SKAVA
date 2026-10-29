@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """SODA execution by delegation to a node's co-located VisIVO backend.
 
 This is SKAVA's half of "compute next to data". When a dataset's best

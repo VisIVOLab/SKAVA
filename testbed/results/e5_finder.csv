@@ -1,0 +1,7 @@
+dataset,file_bytes,mode,node,rank_reason,t_total,t_transfer,t_worker,bytes_rx,bytes_tx,n_sources,error
+tb-cube-s,67112640,broker,SMALL,"rtt 1.1 ms, cpu pressure 0%, 0.0 tasks/worker, needs 64.0 MB of 1.5 GB free",7.56,0.0,7.272,5946,14929,5,
+tb-cube-s,67112640,download+local,client,,2.019,0.039,1.735,63615,67239115,5,
+tb-cube-m,536875200,broker,BIG,"rtt 1.3 ms, cpu pressure 34%, 0.0 tasks/worker, needs 512.0 MB of 7.4 GB free",15.517,0.0,15.237,11254,21538,5,
+tb-cube-m,536875200,download+local,client,,14.926,0.215,14.189,325903,537607991,5,
+tb-cube-l,3221231040,broker,BIG,"rtt 1.6 ms, cpu pressure 20%, 0.0 tasks/worker, needs 3.0 GB of 7.4 GB free",131.573,0.0,131.421,77502,112382,5,
+tb-cube-l,3221231040,download+local,client,,162.401,1.383,160.272,1836483,3225528320,5,

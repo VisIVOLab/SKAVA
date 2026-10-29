@@ -93,10 +93,16 @@ Read by `app/config.py` (pydantic settings, prefix `SKAVA_`, also from a
   - float
   - 1.0
   - Memory a dataset needs on a node, as a multiple of its ``access_estsize``.
+* - ``SKAVA_REPLICA_IDENTITY``
+  - enum
+  - ``checksum``
+  - How a new node proves it holds a copy: ``checksum`` (equal checksums
+    required, fail-closed) \| ``metadata`` (accepted unless checksum, size or
+    type contradict). Applies to ingestion and to the federated merge.
 * - ``SKAVA_RANKING_POLICY``
   - enum
-  - ``static``
-  - ``static`` (declared node scores) \| ``resource_aware`` (node telemetry).
+  - ``resource_aware``
+  - ``resource_aware`` (node telemetry; nodes without fresh telemetry keep the declared order) \| ``static`` (declared node scores only).
 * - ``SKAVA_RANKING_WEIGHT_CPU``
   - float
   - 1.0
@@ -127,8 +133,8 @@ Read by `app/config.py` (pydantic settings, prefix `SKAVA_`, also from a
   - Synchronous timeout when ``/soda/execute`` delegates a cutout to a node's co-located VisIVO backend.
 * - ``SKAVA_TELEMETRY_INTERVAL_SECONDS``
   - float
-  - 0
-  - Node prober period. ``0`` = no background prober; telemetry is then refreshed only by ``POST /internal/telemetry/probe``.
+  - 10
+  - Node prober period. ``0`` = no background prober; telemetry is then refreshed only by ``POST /internal/telemetry/probe`` and by the nodes' own reports.
 * - ``SKAVA_TELEMETRY_PING_SAMPLES``
   - int (1-20)
   - 3

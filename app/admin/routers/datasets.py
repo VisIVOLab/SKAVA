@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """CRUD for the ``datasets`` table (and inline replica management).
 
 ObsCore-shaped fields with optional provenance and per-replica

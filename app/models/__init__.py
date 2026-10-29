@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from app.models.dataset import Dataset
 from app.models.ingestion_job import IngestionJob
 from app.models.node import Node

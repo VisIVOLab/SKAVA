@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """The figures of the experiments, from results/*.json, as PDFs in
 results/figures/. Needs matplotlib (``make figures`` names a Python that
 has it). Every figure is drawn from the files alone, so re-running an
@@ -115,7 +117,7 @@ def fig_failure() -> None:
             if r.get(key) is None:
                 ax.annotate("none", (r["trial"], 0), fontsize=6, ha="center", va="bottom", color="C3")
 
-    series("t_client_fallback", "o-", "client: session resumed on the next node (after the kill)")
+    series("t_client_fallback", "o-", "client: dataset reopened on the next node (after the kill)")
     series("t_skava_detect", "s--", "SKAVA: node dropped from the ranking (after the kill)")
     series("t_skava_recover", "^:", "SKAVA: node ranked again (after its backend answered)")
     ax.set_xlabel("trial")

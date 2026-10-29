@@ -1,0 +1,6 @@
+trial,victim,fallback_node,t_client_fallback,t_skava_detect,t_skava_recover,attempts,success,error
+1,BIG,BUSY,0.314,10.216,8.2,2,True,BIG: HTTP 0: [Errno 61] Connection refused
+2,BIG,BUSY,0.405,8.675,8.7,2,True,BIG: HTTP 0: [Errno 61] Connection refused
+3,BIG,BUSY,0.391,8.701,8.679,2,True,BIG: HTTP 0: [Errno 61] Connection refused
+4,BIG,BUSY,0.323,8.716,8.672,2,True,BIG: HTTP 0: [Errno 61] Connection refused
+5,BIG,BUSY,0.353,8.698,8.658,2,True,BIG: HTTP 0: [Errno 61] Connection refused

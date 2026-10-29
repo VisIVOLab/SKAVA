@@ -111,9 +111,12 @@ platform collectors are exported as well.
     successful probe.
 ```
 
-The probe metrics move only when the prober runs
-(`SKAVA_TELEMETRY_INTERVAL_SECONDS` > 0, or
-`POST /internal/telemetry/probe`). What each node last reported, and
+The probe metrics move when the prober runs
+(`SKAVA_TELEMETRY_INTERVAL_SECONDS`, 10 s by default, or
+`POST /internal/telemetry/probe`) and when a node reports itself
+(`POST /internal/telemetry/report`, counted as a successful probe).
+`GET /internal/telemetry` tells the two apart: a node's `telemetry_json`
+carries `"source": "probe"` or `"push"`. What each node last reported, and
 the ranking policy in force, is in `GET /internal/telemetry`
 (internal API key).
 

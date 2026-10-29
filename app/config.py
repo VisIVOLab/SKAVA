@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from typing import Literal
 
 from pydantic import AliasChoices, Field, model_validator
@@ -55,8 +57,14 @@ class Settings(BaseSettings):
     # The prober runs every ``telemetry_interval_seconds`` (0 = never: the
     # telemetry is then only refreshed through POST /internal/telemetry/probe);
     # a measurement older than ``telemetry_ttl_seconds`` is not trusted.
-    ranking_policy: Literal["static", "resource_aware"] = "static"
-    telemetry_interval_seconds: float = Field(default=0.0, ge=0.0)
+    ranking_policy: Literal["static", "resource_aware"] = "resource_aware"
+    # How a record from a new node proves it holds a copy of a catalogued
+    # product: "checksum" (equal SHA-256 checksums required; without them it
+    # is refused, fail-closed) or "metadata" (accepted unless checksum, size
+    # or type contradict, for curated catalogues whose obs_id convention is
+    # trusted). The federated search merges listings by the same rule.
+    replica_identity: Literal["checksum", "metadata"] = "checksum"
+    telemetry_interval_seconds: float = Field(default=10.0, ge=0.0)
     telemetry_ttl_seconds: float = Field(default=60.0, gt=0.0)
     telemetry_timeout_seconds: float = Field(default=3.0, gt=0.0)
     telemetry_ping_samples: int = Field(default=3, ge=1, le=20)

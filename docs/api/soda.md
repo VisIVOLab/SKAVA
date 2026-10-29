@@ -25,7 +25,7 @@ cutout kept for clients that cannot follow the DataLink descriptors.
 * - Endpoint
   - Status
   - Notes
-* - ``GET /soda/sync``
+* - ``GET /soda/sync``, ``POST /soda/sync``
   - redirect / validation
   - ``303`` to the SODA service of the node that holds the dataset in
     place (the ranked first with a co-located backend), the replica's own
@@ -68,6 +68,12 @@ node's backend requires one. See
 [Compute next to data](../architecture/compute-next-to-data.md) for the design.
 
 ## Sync request
+
+A POST carries the same parameters as form fields
+(`application/x-www-form-urlencoded`). A `303` is followed with a GET and
+no body, so the redirect rebuilds every parameter the client sent (`POS`,
+`CIRCLE` or `POLYGON`, `BAND`, `TIME`, `RESPONSEFORMAT`) into the node's URL,
+with `ID` replaced by the replica's identifier there.
 
 ```bash
 curl -s -i "https://skava.inaf.it/soda/sync?ID=tb-cube-l&CIRCLE=150.0%20-30.0%200.1&BAND=0.2142%200.2150"

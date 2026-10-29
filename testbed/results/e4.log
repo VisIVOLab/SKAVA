@@ -1,0 +1,17 @@
+20:44:31 baseline: 150 B/s in, 211 B/s out
+20:44:31   tb-cube-s open+preview on BIG: 0.07 s, 1,628,427 B out, 4,723 B in
+20:44:32   tb-cube-s cutout+open on BIG: 0.15 s, 26,589 B out, 4,164 B in
+20:44:32   tb-cube-s moment0+open on BIG: 0.13 s, 331,370 B out, 4,790 B in
+20:44:35   tb-cube-s finder+catalogue on BIG: 2.32 s, 22,614 B out, 7,101 B in
+20:44:36   tb-cube-s download on BIG: 0.27 s, 67,245,953 B out, 74,583 B in
+20:44:36   tb-cube-m open+preview on BIG: 0.36 s, 11,705,470 B out, 17,197 B in
+20:44:37   tb-cube-m cutout+open on BIG: 0.64 s, 91,464 B out, 7,106 B in
+20:44:38   tb-cube-m moment0+open on BIG: 0.48 s, 1,311,496 B out, 7,640 B in
+20:44:54   tb-cube-m finder+catalogue on BIG: 15.55 s, 31,080 B out, 11,976 B in
+20:44:55   tb-cube-m download on BIG: 0.58 s, 537,955,086 B out, 599,931 B in
+20:44:57   tb-cube-l open+preview on BIG: 1.92 s, 67,615,580 B out, 92,503 B in
+20:45:00   tb-cube-l cutout+open on BIG: 3.24 s, 356,465 B out, 20,432 B in
+20:45:03   tb-cube-l moment0+open on BIG: 2.82 s, 5,237,226 B out, 26,288 B in
+20:47:16   tb-cube-l finder+catalogue on BIG: 132.53 s, 129,126 B out, 74,819 B in
+20:47:18   tb-cube-l download on BIG: 1.60 s, 3,227,713,405 B out, 3,878,715 B in
+20:47:18 written /Users/fvitello/Documents/GitHub/SKAVA/testbed/results/e4_bytes.json

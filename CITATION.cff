@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use SKAVA, please cite it as below."
+title: "SKAVA: federated data discovery with compute-next-to-data routing"
+type: software
+version: 0.1.0
+license: Apache-2.0
+repository-code: "https://github.com/VisIVOLab/SKAVA"
+url: "https://skava.readthedocs.io"
+abstract: >-
+  SKAVA is the data discovery and access service of the SKA Visual Analytics
+  project for the SKA Regional Centre network. A scientific query resolves to
+  a dataset, the dataset to its replicas across the federation's nodes, and a
+  ranking policy over the nodes' measured state picks the replica and the
+  compute service next to it, with the reason, in a standard DataLink response.
+keywords:
+  - Virtual Observatory
+  - SKA Regional Centres
+  - data discovery
+  - DataLink
+  - compute next to data
+authors:
+  - family-names: Vitello
+    given-names: Fabio
+    affiliation: "INAF - Osservatorio Astrofisico di Catania"
+  - family-names: Bufano
+    given-names: Filomena
+    affiliation: "INAF - Osservatorio Astrofisico di Catania"
+  - family-names: Cavallaro
+    given-names: Francesco
+    affiliation: "INAF - Osservatorio Astrofisico di Catania"
+  - family-names: Molinaro
+    given-names: Marco
+    affiliation: "INAF - Osservatorio Astronomico di Trieste"
+  - family-names: Riggi
+    given-names: Simone
+    affiliation: "INAF - Osservatorio Astrofisico di Catania"
+  - family-names: Sciacca
+    given-names: Eva
+    affiliation: "INAF - Osservatorio Astrofisico di Catania"

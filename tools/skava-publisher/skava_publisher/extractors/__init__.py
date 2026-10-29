@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Plugin registry for file-format-specific metadata extractors.
 
 Each extractor implements ``Extractor`` and is registered as an

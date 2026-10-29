@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """HDF5 extractor for LOFAR / generic beamformed dynamic-spectrum files.
 
 LOFAR's beamformed format (ICD-3) is the canonical structure we target,

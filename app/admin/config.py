@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Admin-UI specific configuration.
 
 Lives separately from ``app/config.py`` to keep the admin concerns

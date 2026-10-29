@@ -1,0 +1,17 @@
+20:29:05 trial 1: session on BIG; killing it
+20:29:16   fallback BUSY after 0.314 s (attempts 2); SKAVA noticed after 10.216 s
+20:29:26   ranked again after 8.2 s
+20:29:28 trial 2: session on BIG; killing it
+20:29:36   fallback BUSY after 0.405 s (attempts 2); SKAVA noticed after 8.675 s
+20:29:47   ranked again after 8.7 s
+20:29:48 trial 3: session on BIG; killing it
+20:29:57   fallback BUSY after 0.391 s (attempts 2); SKAVA noticed after 8.701 s
+20:30:08   ranked again after 8.679 s
+20:30:09 trial 4: session on BIG; killing it
+20:30:18   fallback BUSY after 0.323 s (attempts 2); SKAVA noticed after 8.716 s
+20:30:29   ranked again after 8.672 s
+20:30:30 trial 5: session on BIG; killing it
+20:30:39   fallback BUSY after 0.353 s (attempts 2); SKAVA noticed after 8.698 s
+20:30:50   ranked again after 8.658 s
+20:30:50 written /Users/fvitello/Documents/GitHub/SKAVA/testbed/results/e3_failure.json
+CHAIN_A_DONE

@@ -74,10 +74,13 @@ Parameter names follow the IVOA DAL convention (upper case) except for
   - Exact match. Returns at most one record.
 ```
 
-The cone filter compares the query circle with each dataset's centre
-(`s_ra`, `s_dec`) widened by half its `s_fov`; it is an approximate
-overlap test (RA wrap-around handled, no `cos(dec)` correction), not a
-full region intersection. `BAND` and `TIME` require both bounds of the
+The cone filter keeps the datasets whose footprint intersects the query
+circle, the footprint taken as a circle of radius `s_fov/2` around the
+centre (`s_ra`, `s_dec`): the spherical distance between the two centres is
+at most the sum of the radii, computed exactly on the sphere (haversine form;
+the poles and RA 0/360 included). The circle is an approximation of the
+footprint, not the region `s_region` would describe. TAP's ADQL `CONTAINS`
+tests the centre only (see [TAP](tap.md)). `BAND` and `TIME` require both bounds of the
 dataset to be set. Results are ordered by `obs_id`.
 
 ## Example
@@ -153,7 +156,8 @@ Response (truncated):
     ``calib_level``, ``target_name``, ``facility_name``,
     ``instrument_name``, ``s_ra``, ``s_dec``, ``s_fov``, ``t_min``,
     ``t_max``, ``em_min``, ``em_max``, ``spatial_index_order``,
-    ``spatial_index_cell``, ``doi``, ``pid``, ``citation``, ``license``).
+    ``spatial_index_cell``, ``access_estsize``, ``checksum``, ``doi``, ``pid``,
+    ``citation``, ``license``).
 * - ``replicas[]``
   - The eligible replicas of the dataset, with the host node's
     properties flattened in, already ranked by the configured policy

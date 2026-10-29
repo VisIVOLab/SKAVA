@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """``@audited`` decorator for FastAPI route handlers.
 
 Wraps a route so that on success an audit row is written, using either

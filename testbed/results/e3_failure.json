@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "when": "2026-10-28T19:30:50+00:00",
+    "host": "MacBook-Pro-di-Fabio.local",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "skava_commit": "4ea8d34",
+    "visivo_commit": "5bf171b",
+    "profile": "paper",
+    "poll_s": 0.1,
+    "trials": 5,
+    "dataset": "tb-cube-l",
+    "host_clock_skew_s": 0.0
+  },
+  "rows": [
+    {
+      "trial": 1,
+      "victim": "BIG",
+      "fallback_node": "BUSY",
+      "t_client_fallback": 0.314,
+      "t_skava_detect": 10.216,
+      "t_skava_recover": 8.2,
+      "attempts": 2,
+      "success": true,
+      "error": "BIG: HTTP 0: [Errno 61] Connection refused"
+    },
+    {
+      "trial": 2,
+      "victim": "BIG",
+      "fallback_node": "BUSY",
+      "t_client_fallback": 0.405,
+      "t_skava_detect": 8.675,
+      "t_skava_recover": 8.7,
+      "attempts": 2,
+      "success": true,
+      "error": "BIG: HTTP 0: [Errno 61] Connection refused"
+    },
+    {
+      "trial": 3,
+      "victim": "BIG",
+      "fallback_node": "BUSY",
+      "t_client_fallback": 0.391,
+      "t_skava_detect": 8.701,
+      "t_skava_recover": 8.679,
+      "attempts": 2,
+      "success": true,
+      "error": "BIG: HTTP 0: [Errno 61] Connection refused"
+    },
+    {
+      "trial": 4,
+      "victim": "BIG",
+      "fallback_node": "BUSY",
+      "t_client_fallback": 0.323,
+      "t_skava_detect": 8.716,
+      "t_skava_recover": 8.672,
+      "attempts": 2,
+      "success": true,
+      "error": "BIG: HTTP 0: [Errno 61] Connection refused"
+    },
+    {
+      "trial": 5,
+      "victim": "BIG",
+      "fallback_node": "BUSY",
+      "t_client_fallback": 0.353,
+      "t_skava_detect": 8.698,
+      "t_skava_recover": 8.658,
+      "attempts": 2,
+      "success": true,
+      "error": "BIG: HTTP 0: [Errno 61] Connection refused"
+    }
+  ]
+}

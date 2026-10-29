@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Tests for SODA execution delegated to a node's co-located VisIVO backend.
 
 These cover the compute-next-to-data path of /soda/execute:
@@ -335,3 +337,33 @@ def test_service_inputs_parse_as_fillable_values(client):
         for group in service.groups:
             for param in group.entries:
                 assert param.value is not None, (service.ID, param.name)
+
+
+def test_soda_sync_by_post_redirects_with_every_parameter(client, db_session=None):
+    # A 303 is followed with a GET and no body: the node's URL must carry
+    # every subsetting parameter the client posted.
+    from urllib.parse import parse_qs, urlparse
+    from app.main import app
+    from app.models.node import Node
+    with app.state.testing_session_local() as db:
+        node = db.query(Node).filter(Node.code == "A").one()
+        node.visivo_backend_url = "http://node-a.example.org:8000"
+        db.commit()
+    from app.ingestion.services.ingest_service import IngestService
+    with app.state.testing_session_local() as db:
+        IngestService(db, source_type="manual").ingest_records([{
+            "obs_id": "post-cube", "dataproduct_type": "cube", "node_id": "A",
+            "access_url": "file:///data/post-cube.fits"}])
+    form = {"ID": "post-cube", "POS": "CIRCLE 150 2 0.2", "BAND": "0.21 0.22",
+            "TIME": "59000 59001", "RESPONSEFORMAT": "application/fits"}
+    r = client.post("/soda/sync", data=form, follow_redirects=False)
+    assert r.status_code == 303, r.text
+    target = urlparse(r.headers["location"])
+    query = {k: v[0] for k, v in parse_qs(target.query).items()}
+    assert target.path.endswith("/soda/sync")
+    assert query["POS"] == form["POS"] and query["BAND"] == form["BAND"]
+    assert query["TIME"] == form["TIME"] and query["RESPONSEFORMAT"] == form["RESPONSEFORMAT"]
+    assert query["ID"] != "post-cube"          # the replica's own identifier on the node
+    # The same request by GET redirects to the same place.
+    g = client.get("/soda/sync", params=form, follow_redirects=False)
+    assert g.status_code == 303 and g.headers["location"] == r.headers["location"]

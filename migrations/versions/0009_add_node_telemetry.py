@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Add measured node state (telemetry) to the nodes table
 
 SKAVA probes each node's co-located VisIVO backend (``/v1/ping`` for the round

@@ -1,0 +1,18 @@
+SKAVA
+Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+
+This product includes software developed by VisIVOLab at
+INAF - Osservatorio Astrofisico di Catania, with INAF - Osservatorio
+Astronomico di Trieste, within the SKA Visual Analytics (SKAVA) project,
+funded by INAF under the Astrophysics Fundamental Research Grant
+(Techno Grant).
+
+Authors: Fabio Vitello, Filomena Bufano, Francesco Cavallaro,
+Marco Molinaro, Simone Riggi, Eva Sciacca.
+
+"SKAVA" and the SKAVA logo identify this project. The Apache License,
+Version 2.0, grants no right to use them (Section 6); a derivative work
+must not be presented under that name or logo without permission.
+
+If you use this software, or a work derived from it, in research or in a
+service, please cite it as described in CITATION.cff.

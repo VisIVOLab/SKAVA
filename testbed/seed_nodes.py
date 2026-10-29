@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Register the testbed's nodes in SKAVA (run inside the SKAVA container).
 
 The publisher can only attach replicas to nodes SKAVA already knows, so the

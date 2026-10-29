@@ -1,0 +1,53 @@
+{
+  "environment": {
+    "timestamp": "2026-10-27T11:11:45+00:00",
+    "python": "3.11.15",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "cpu_count": 18,
+    "database": "postgresql",
+    "target": "in-process TestClient",
+    "requests": 30,
+    "warmup": 5,
+    "seed": 20261027,
+    "database_version": "16.15 (Debian 16.15-1.pgdg13+2)"
+  },
+  "results": [
+    {
+      "workload": "datalink",
+      "n": 10000,
+      "k": 3,
+      "requests": 30,
+      "p50_ms": 2.312,
+      "p95_ms": 2.595,
+      "mean_ms": 2.324,
+      "min_ms": 2.092,
+      "max_ms": 2.804,
+      "seed_s": 0.62
+    },
+    {
+      "workload": "collection",
+      "n": 10000,
+      "k": 3,
+      "requests": 30,
+      "p50_ms": 8.147,
+      "p95_ms": 22.186,
+      "mean_ms": 9.171,
+      "min_ms": 7.808,
+      "max_ms": 22.698,
+      "seed_s": 0.62
+    },
+    {
+      "workload": "cone",
+      "n": 10000,
+      "k": 3,
+      "requests": 30,
+      "p50_ms": 4.572,
+      "p95_ms": 5.513,
+      "mean_ms": 4.837,
+      "min_ms": 4.302,
+      "max_ms": 5.62,
+      "seed_s": 0.62
+    }
+  ]
+}

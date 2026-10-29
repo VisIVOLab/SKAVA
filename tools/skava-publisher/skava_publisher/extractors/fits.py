@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """FITS extractor — reads the primary HDU header (or first non-empty HDU).
 
 Mirrors the logic of ``app/admin/services/fits_extract.py`` on the

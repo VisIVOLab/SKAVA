@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """E2: placement quality, static policy versus resource-aware.
 
 For each ranking policy the catalogue is asked where each dataset should be

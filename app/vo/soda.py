@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from app.errors import InvalidQueryError
 from app.vo.query_params import CirclePos, NumericInterval
 

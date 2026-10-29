@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """OIDC bearer-token validation against an SRCNet-style IAM.
 
 SRCNet services authenticate users with OIDC access tokens issued by a

@@ -1,0 +1,16 @@
+dataset,file_bytes,operation,node,seconds,bytes_rx,bytes_tx,product_bytes,complete,n_sources,placed_on,rank_reason,error,curl_seconds,curl_bytes
+tb-cube-s,67112640,open+preview,BIG,0.066,4723,1628427,0,True,,,,,,
+tb-cube-s,67112640,cutout+open,BIG,0.153,4164,26589,4199040,True,,,,,,
+tb-cube-s,67112640,moment0+open,BIG,0.128,4790,331370,267840,True,,,,,,
+tb-cube-s,67112640,finder+catalogue,BIG,2.322,7101,22614,22374,True,5,BIG,"rtt 1.3 ms, cpu pressure 0%, 0.0 tasks/worker, needs 64.0 MB of 7.5 GB free",,,
+tb-cube-s,67112640,download,BIG,0.27,74583,67245953,0,True,,,,,0.043,67112640
+tb-cube-m,536875200,open+preview,BIG,0.36,17197,11705470,0,True,,,,,,
+tb-cube-m,536875200,cutout+open,BIG,0.643,7106,91464,33557760,True,,,,,,
+tb-cube-m,536875200,moment0+open,BIG,0.479,7640,1311496,1054080,True,,,,,,
+tb-cube-m,536875200,finder+catalogue,BIG,15.552,11976,31080,22379,True,5,BIG,"rtt 2.2 ms, cpu pressure 3%, 0.5 tasks/worker, needs 512.0 MB of 7.3 GB free",,,
+tb-cube-m,536875200,download,BIG,0.576,599931,537955086,0,True,,,,,0.284,536875200
+tb-cube-l,3221231040,open+preview,BIG,1.918,92503,67615580,0,True,,,,,,
+tb-cube-l,3221231040,cutout+open,BIG,3.237,20432,356465,201332160,True,,,,,,
+tb-cube-l,3221231040,moment0+open,BIG,2.817,26288,5237226,4199040,True,,,,,,
+tb-cube-l,3221231040,finder+catalogue,BIG,132.535,74819,129126,22386,True,5,BIG,"rtt 1.8 ms, cpu pressure 38%, 0.0 tasks/worker, needs 3.0 GB of 7.4 GB free",,,
+tb-cube-l,3221231040,download,BIG,1.597,3878715,3227713405,0,True,,,,,1.292,3221231040

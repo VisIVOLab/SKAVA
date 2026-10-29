@@ -1,0 +1,233 @@
+data Wed Oct 28 15:09:41 CET 2026
+writing tb-cube-s (256, 256, 256) (64 MiB)
+writing tb-cube-m (512, 512, 512) (512 MiB)
+writing tb-cube-l (1024, 1024, 768) (3072 MiB)
+big    ['tb-cube-l.fits', 'tb-cube-m.fits', 'tb-cube-s.fits']
+small  ['tb-cube-l.fits', 'tb-cube-s.fits']
+far    ['tb-cube-m.fits', 'tb-cube-s.fits']
+busy   ['tb-cube-l.fits', 'tb-cube-m.fits']
+seed Wed Oct 28 15:10:07 CET 2026
+docker compose -f docker-compose.yml exec -T skava python /testbed/seed_nodes.py
+BIG    http://node-big:8000
+BUSY   http://node-busy:8000
+FAR    http://node-far:8000
+SMALL  http://node-small:8000
+for n in big small far busy; do docker compose -f docker-compose.yml run --rm publisher-$n || exit 1; done
+ Container testbed-skava-1 Running 
+ Container testbed-db-1 Running 
+ Container testbed-db-1 Waiting 
+ Container testbed-db-1 Healthy 
+ Container testbed-skava-1 Waiting 
+ Container testbed-skava-1 Healthy 
+ Container testbed-publisher-big-run-2d60cfb1f50f Creating 
+ Container testbed-publisher-big-run-2d60cfb1f50f Created 
+2026-10-28T14:10:09 INFO skava.publisher — Loaded extractors: fits, hdf5, psrfits
+─── Summary ────────────────────────────
+                 scanned: 3
+       skipped_unchanged: 0
+     skipped_unsupported: 0
+               extracted: 3
+          extract_failed: 0
+────────────────────────────────────────
+About to publish 3 record(s) to http://skava:8000/ as node BIG.
+2026-10-28T14:10:12 INFO httpx — HTTP Request: POST http://skava:8000/internal/ingestion/run "HTTP/1.1 200 OK"
+✓ Published 3 record(s).
+{
+  "job": {
+    "job_id": 9,
+    "started_at": "2026-10-28T14:10:12.969562",
+    "completed_at": "2026-10-28T14:10:12.981895",
+    "status": "succeeded",
+    "source_type": "skava-publisher",
+    "source_ref": "publisher@BIG",
+    "filename": "manifest.json",
+    "dry_run": false,
+    "record_count": 3,
+    "summary": {
+      "total_records": 3,
+      "inserted_datasets": 0,
+      "updated_datasets": 3,
+      "inserted_replicas": 0,
+      "updated_replicas": 3,
+      "skipped_records": 0,
+      "validation_errors": [],
+      "started_at": "2026-10-28T14:10:12.972943",
+      "finished_at": "2026-10-28T14:10:12.981809"
+    },
+    "error_message": null,
+    "triggered_by": "internal-api"
+  },
+  "summary": {
+    "processed": 3,
+    "inserted_datasets": 0,
+    "updated_datasets": 3,
+    "inserted_replicas": 0,
+    "updated_replicas": 3,
+    "skipped": 0,
+    "validation_errors": []
+  }
+}
+ Container testbed-db-1 Running 
+ Container testbed-skava-1 Running 
+ Container testbed-db-1 Waiting 
+ Container testbed-db-1 Healthy 
+ Container testbed-skava-1 Waiting 
+ Container testbed-skava-1 Healthy 
+ Container testbed-publisher-small-run-abd6df1c7b6f Creating 
+ Container testbed-publisher-small-run-abd6df1c7b6f Created 
+2026-10-28T14:10:14 INFO skava.publisher — Loaded extractors: fits, hdf5, psrfits
+─── Summary ────────────────────────────
+                 scanned: 2
+       skipped_unchanged: 0
+     skipped_unsupported: 0
+               extracted: 2
+          extract_failed: 0
+────────────────────────────────────────
+About to publish 2 record(s) to http://skava:8000/ as node SMALL.
+2026-10-28T14:10:16 INFO httpx — HTTP Request: POST http://skava:8000/internal/ingestion/run "HTTP/1.1 200 OK"
+✓ Published 2 record(s).
+{
+  "job": {
+    "job_id": 10,
+    "started_at": "2026-10-28T14:10:16.923571",
+    "completed_at": "2026-10-28T14:10:16.927717",
+    "status": "succeeded",
+    "source_type": "skava-publisher",
+    "source_ref": "publisher@SMALL",
+    "filename": "manifest.json",
+    "dry_run": false,
+    "record_count": 2,
+    "summary": {
+      "total_records": 2,
+      "inserted_datasets": 0,
+      "updated_datasets": 2,
+      "inserted_replicas": 0,
+      "updated_replicas": 2,
+      "skipped_records": 0,
+      "validation_errors": [],
+      "started_at": "2026-10-28T14:10:16.925042",
+      "finished_at": "2026-10-28T14:10:16.927640"
+    },
+    "error_message": null,
+    "triggered_by": "internal-api"
+  },
+  "summary": {
+    "processed": 2,
+    "inserted_datasets": 0,
+    "updated_datasets": 2,
+    "inserted_replicas": 0,
+    "updated_replicas": 2,
+    "skipped": 0,
+    "validation_errors": []
+  }
+}
+ Container testbed-db-1 Running 
+ Container testbed-skava-1 Running 
+ Container testbed-db-1 Waiting 
+ Container testbed-db-1 Healthy 
+ Container testbed-skava-1 Waiting 
+ Container testbed-skava-1 Healthy 
+ Container testbed-publisher-far-run-685a68baba63 Creating 
+ Container testbed-publisher-far-run-685a68baba63 Created 
+2026-10-28T14:10:18 INFO skava.publisher — Loaded extractors: fits, hdf5, psrfits
+─── Summary ────────────────────────────
+                 scanned: 2
+       skipped_unchanged: 0
+     skipped_unsupported: 0
+               extracted: 2
+          extract_failed: 0
+────────────────────────────────────────
+About to publish 2 record(s) to http://skava:8000/ as node FAR.
+2026-10-28T14:10:19 INFO httpx — HTTP Request: POST http://skava:8000/internal/ingestion/run "HTTP/1.1 200 OK"
+✓ Published 2 record(s).
+{
+  "job": {
+    "job_id": 11,
+    "started_at": "2026-10-28T14:10:19.046441",
+    "completed_at": "2026-10-28T14:10:19.050356",
+    "status": "succeeded",
+    "source_type": "skava-publisher",
+    "source_ref": "publisher@FAR",
+    "filename": "manifest.json",
+    "dry_run": false,
+    "record_count": 2,
+    "summary": {
+      "total_records": 2,
+      "inserted_datasets": 0,
+      "updated_datasets": 2,
+      "inserted_replicas": 0,
+      "updated_replicas": 2,
+      "skipped_records": 0,
+      "validation_errors": [],
+      "started_at": "2026-10-28T14:10:19.047899",
+      "finished_at": "2026-10-28T14:10:19.050283"
+    },
+    "error_message": null,
+    "triggered_by": "internal-api"
+  },
+  "summary": {
+    "processed": 2,
+    "inserted_datasets": 0,
+    "updated_datasets": 2,
+    "inserted_replicas": 0,
+    "updated_replicas": 2,
+    "skipped": 0,
+    "validation_errors": []
+  }
+}
+ Container testbed-skava-1 Running 
+ Container testbed-db-1 Running 
+ Container testbed-db-1 Waiting 
+ Container testbed-db-1 Healthy 
+ Container testbed-skava-1 Waiting 
+ Container testbed-skava-1 Healthy 
+ Container testbed-publisher-busy-run-259c456c57b2 Creating 
+ Container testbed-publisher-busy-run-259c456c57b2 Created 
+2026-10-28T14:10:20 INFO skava.publisher — Loaded extractors: fits, hdf5, psrfits
+─── Summary ────────────────────────────
+                 scanned: 2
+       skipped_unchanged: 0
+     skipped_unsupported: 0
+               extracted: 2
+          extract_failed: 0
+────────────────────────────────────────
+About to publish 2 record(s) to http://skava:8000/ as node BUSY.
+2026-10-28T14:10:23 INFO httpx — HTTP Request: POST http://skava:8000/internal/ingestion/run "HTTP/1.1 200 OK"
+✓ Published 2 record(s).
+{
+  "job": {
+    "job_id": 12,
+    "started_at": "2026-10-28T14:10:23.251151",
+    "completed_at": "2026-10-28T14:10:23.255738",
+    "status": "succeeded",
+    "source_type": "skava-publisher",
+    "source_ref": "publisher@BUSY",
+    "filename": "manifest.json",
+    "dry_run": false,
+    "record_count": 2,
+    "summary": {
+      "total_records": 2,
+      "inserted_datasets": 0,
+      "updated_datasets": 2,
+      "inserted_replicas": 0,
+      "updated_replicas": 2,
+      "skipped_records": 0,
+      "validation_errors": [],
+      "started_at": "2026-10-28T14:10:23.252691",
+      "finished_at": "2026-10-28T14:10:23.255611"
+    },
+    "error_message": null,
+    "triggered_by": "internal-api"
+  },
+  "summary": {
+    "processed": 2,
+    "inserted_datasets": 0,
+    "updated_datasets": 2,
+    "inserted_replicas": 0,
+    "updated_replicas": 2,
+    "skipped": 0,
+    "validation_errors": []
+  }
+}
+chain Wed Oct 28 15:10:23 CET 2026
+PAPER_RUN_DONE Wed Oct 28 15:24:00 CET 2026

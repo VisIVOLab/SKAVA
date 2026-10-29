@@ -1,0 +1,374 @@
+ Image testbed-skava Building 
+ Image testbed-skava-2 Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 983B done
+#1 DONE 0.0s
+
+#2 [skava internal] load build definition from Dockerfile
+#2 transferring dockerfile: 879B done
+#2 DONE 0.0s
+
+#3 [skava internal] load metadata for docker.io/library/python:3.11-slim
+#3 DONE 0.8s
+
+#4 [skava-2 internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [skava-2 builder 1/8] FROM docker.io/library/python:3.11-slim@sha256:673719e071ecf27434fd2635bbd8d00f49f4fdd81f243143438a42ced8bedf60
+#5 resolve docker.io/library/python:3.11-slim@sha256:673719e071ecf27434fd2635bbd8d00f49f4fdd81f243143438a42ced8bedf60 done
+#5 DONE 0.0s
+
+#6 [skava-2 internal] load build context
+#6 transferring context: 42.08kB done
+#6 DONE 0.0s
+
+#7 [skava-2 builder 3/8] RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+#7 CACHED
+
+#8 [skava-2 builder 2/8] WORKDIR /build
+#8 CACHED
+
+#9 [skava-2 builder 4/8] COPY pyproject.toml README.md ./
+#9 CACHED
+
+#10 [skava-2 builder 5/8] COPY app ./app
+#10 DONE 0.0s
+
+#11 [skava builder 6/8] COPY migrations ./migrations
+#11 DONE 0.0s
+
+#12 [skava-2 builder 7/8] COPY alembic.ini ./alembic.ini
+#12 DONE 0.0s
+
+#13 [skava builder 8/8] RUN pip wheel --no-cache-dir --wheel-dir /wheels .
+#13 0.456 Processing ./.
+#13 0.457   Installing build dependencies: started
+#13 1.490   Installing build dependencies: finished with status 'done'
+#13 1.490   Getting requirements to build wheel: started
+#13 1.789   Getting requirements to build wheel: finished with status 'done'
+#13 1.789   Preparing metadata (pyproject.toml): started
+#13 2.083   Preparing metadata (pyproject.toml): finished with status 'done'
+#13 2.252 Collecting fastapi>=0.115.0 (from skava-discovery-service==0.1.0)
+#13 2.351   Downloading fastapi-0.162.0-py3-none-any.whl.metadata (26 kB)
+#13 2.399 Collecting uvicorn>=0.30.0 (from uvicorn[standard]>=0.30.0->skava-discovery-service==0.1.0)
+#13 2.427   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+#13 2.615 Collecting sqlalchemy>=2.0.30 (from skava-discovery-service==0.1.0)
+#13 2.646   Downloading sqlalchemy-2.1.6-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (9.7 kB)
+#13 2.681 Collecting psycopg>=3.1.19 (from psycopg[binary]>=3.1.19->skava-discovery-service==0.1.0)
+#13 2.711   Downloading psycopg-3.3.6-py3-none-any.whl.metadata (4.4 kB)
+#13 2.747 Collecting alembic>=1.13.1 (from skava-discovery-service==0.1.0)
+#13 2.775   Downloading alembic-1.20.1-py3-none-any.whl.metadata (7.3 kB)
+#13 2.848 Collecting pydantic>=2.7.0 (from skava-discovery-service==0.1.0)
+#13 2.876   Downloading pydantic-2.14.1-py3-none-any.whl.metadata (133 kB)
+#13 2.955 Collecting pydantic-settings>=2.3.0 (from skava-discovery-service==0.1.0)
+#13 2.984   Downloading pydantic_settings-2.16.2-py3-none-any.whl.metadata (4.0 kB)
+#13 3.016 Collecting prometheus-client>=0.20.0 (from skava-discovery-service==0.1.0)
+#13 3.045   Downloading prometheus_client-0.26.0-py3-none-any.whl.metadata (2.1 kB)
+#13 3.079 Collecting python-multipart>=0.0.9 (from skava-discovery-service==0.1.0)
+#13 3.107   Downloading python_multipart-0.0.32-py3-none-any.whl.metadata (2.1 kB)
+#13 3.142 Collecting httpx>=0.27.0 (from skava-discovery-service==0.1.0)
+#13 3.172   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+#13 3.208 Collecting jinja2>=3.1.4 (from skava-discovery-service==0.1.0)
+#13 3.237   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+#13 3.269 Collecting itsdangerous>=2.2.0 (from skava-discovery-service==0.1.0)
+#13 3.299   Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+#13 3.339 Collecting bcrypt>=4.1.0 (from skava-discovery-service==0.1.0)
+#13 3.369   Downloading bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl.metadata (10 kB)
+#13 3.435 Collecting astropy>=6.1 (from skava-discovery-service==0.1.0)
+#13 3.465   Downloading astropy-8.0.2-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (11 kB)
+#13 3.501 Collecting PyJWT>=2.8 (from PyJWT[crypto]>=2.8->skava-discovery-service==0.1.0)
+#13 3.531   Downloading pyjwt-2.15.1-py3-none-any.whl.metadata (3.5 kB)
+#13 3.567 Collecting Mako (from alembic>=1.13.1->skava-discovery-service==0.1.0)
+#13 3.595   Downloading mako-1.4.3-py3-none-any.whl.metadata (2.9 kB)
+#13 3.629 Collecting typing-extensions>=4.12 (from alembic>=1.13.1->skava-discovery-service==0.1.0)
+#13 3.657   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+#13 3.694 Collecting astropy-iers-data>=0.2026.9.28.0.59.37 (from astropy>=6.1->skava-discovery-service==0.1.0)
+#13 3.724   Downloading astropy_iers_data-0.2026.10.19.0.52.1-py3-none-any.whl.metadata (3.4 kB)
+#13 3.823 Collecting numpy>=2.0 (from astropy>=6.1->skava-discovery-service==0.1.0)
+#13 3.853   Downloading numpy-2.4.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (6.6 kB)
+#13 3.887 Collecting packaging>=25.0 (from astropy>=6.1->skava-discovery-service==0.1.0)
+#13 3.915   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+#13 3.952 Collecting pyerfa>=2.0.1.3 (from astropy>=6.1->skava-discovery-service==0.1.0)
+#13 3.982   Downloading pyerfa-2.0.1.5-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (5.7 kB)
+#13 4.023 Collecting PyYAML>=6.0.0 (from astropy>=6.1->skava-discovery-service==0.1.0)
+#13 4.052   Downloading pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+#13 4.089 Collecting starlette>=0.46.0 (from fastapi>=0.115.0->skava-discovery-service==0.1.0)
+#13 4.120   Downloading starlette-1.10.0-py3-none-any.whl.metadata (6.6 kB)
+#13 4.151 Collecting typing-inspection>=0.4.2 (from fastapi>=0.115.0->skava-discovery-service==0.1.0)
+#13 4.182   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+#13 4.213 Collecting annotated-doc>=0.0.2 (from fastapi>=0.115.0->skava-discovery-service==0.1.0)
+#13 4.245   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+#13 4.279 Collecting opentelemetry-api>=1.44.0 (from fastapi>=0.115.0->skava-discovery-service==0.1.0)
+#13 4.309   Downloading opentelemetry_api-1.45.1-py3-none-any.whl.metadata (1.4 kB)
+#13 4.346 Collecting anyio (from httpx>=0.27.0->skava-discovery-service==0.1.0)
+#13 4.377   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+#13 4.413 Collecting certifi (from httpx>=0.27.0->skava-discovery-service==0.1.0)
+#13 4.442   Downloading certifi-2026.10.23-py3-none-any.whl.metadata (2.5 kB)
+#13 4.477 Collecting httpcore==1.* (from httpx>=0.27.0->skava-discovery-service==0.1.0)
+#13 4.508   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#13 4.541 Collecting idna (from httpx>=0.27.0->skava-discovery-service==0.1.0)
+#13 4.572   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+#13 4.605 Collecting h11>=0.16 (from httpcore==1.*->httpx>=0.27.0->skava-discovery-service==0.1.0)
+#13 4.636   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#13 4.682 Collecting MarkupSafe>=2.0 (from jinja2>=3.1.4->skava-discovery-service==0.1.0)
+#13 4.711   Downloading markupsafe-3.0.4-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+#13 4.788 Collecting psycopg-binary==3.3.6 (from psycopg[binary]>=3.1.19->skava-discovery-service==0.1.0)
+#13 4.818   Downloading psycopg_binary-3.3.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+#13 4.850 Collecting annotated-types>=0.6.0 (from pydantic>=2.7.0->skava-discovery-service==0.1.0)
+#13 4.879   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+#13 5.160 Collecting pydantic-core==2.50.1 (from pydantic>=2.7.0->skava-discovery-service==0.1.0)
+#13 5.189   Downloading pydantic_core-2.50.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.5 kB)
+#13 5.222 Collecting python-dotenv>=1.2.2 (from pydantic-settings>=2.3.0->skava-discovery-service==0.1.0)
+#13 5.254   Downloading python_dotenv-1.2.4-py3-none-any.whl.metadata (29 kB)
+#13 5.339 Collecting cryptography>=3.4.0 (from PyJWT[crypto]>=2.8->skava-discovery-service==0.1.0)
+#13 5.368   Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_aarch64.whl.metadata (4.4 kB)
+#13 5.444 Collecting cffi>=2.0.0 (from cryptography>=3.4.0->PyJWT[crypto]>=2.8->skava-discovery-service==0.1.0)
+#13 5.473   Downloading cffi-2.1.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (2.5 kB)
+#13 5.507 Collecting pycparser (from cffi>=2.0.0->cryptography>=3.4.0->PyJWT[crypto]>=2.8->skava-discovery-service==0.1.0)
+#13 5.536   Downloading pycparser-3.12-py3-none-any.whl.metadata (9.7 kB)
+#13 5.574 Collecting click>=7.0 (from uvicorn>=0.30.0->uvicorn[standard]>=0.30.0->skava-discovery-service==0.1.0)
+#13 5.604   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+#13 5.646 Collecting httptools>=0.8.0 (from uvicorn[standard]>=0.30.0->skava-discovery-service==0.1.0)
+#13 5.674   Downloading httptools-0.9.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+#13 5.717 Collecting uvloop>=0.15.1 (from uvicorn[standard]>=0.30.0->skava-discovery-service==0.1.0)
+#13 5.748   Downloading uvloop-0.23.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (5.1 kB)
+#13 5.800 Collecting watchfiles>=0.20 (from uvicorn[standard]>=0.30.0->skava-discovery-service==0.1.0)
+#13 5.832   Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+#13 5.897 Collecting websockets>=13.0 (from uvicorn[standard]>=0.30.0->skava-discovery-service==0.1.0)
+#13 5.926   Downloading websockets-17.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.3 kB)
+#13 5.958 Downloading alembic-1.20.1-py3-none-any.whl (270 kB)
+#13 6.019 Downloading astropy-8.0.2-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (10.4 MB)
+#13 6.189    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.4/10.4 MB 64.2 MB/s  0:00:00
+#13 6.218 Downloading astropy_iers_data-0.2026.10.19.0.52.1-py3-none-any.whl (2.0 MB)
+#13 6.237    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 128.6 MB/s  0:00:00
+#13 6.266 Downloading bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl (275 kB)
+#13 6.301 Downloading fastapi-0.162.0-py3-none-any.whl (148 kB)
+#13 6.334 Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+#13 6.364 Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+#13 6.395 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#13 6.426 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#13 6.457 Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+#13 6.487 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+#13 6.520 Downloading markupsafe-3.0.4-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (24 kB)
+#13 6.552 Downloading numpy-2.4.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (16.0 MB)
+#13 6.779    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.0/16.0 MB 69.7 MB/s  0:00:00
+#13 6.810 Downloading opentelemetry_api-1.45.1-py3-none-any.whl (60 kB)
+#13 6.841 Downloading packaging-26.3-py3-none-any.whl (129 kB)
+#13 6.872 Downloading prometheus_client-0.26.0-py3-none-any.whl (64 kB)
+#13 6.903 Downloading psycopg-3.3.6-py3-none-any.whl (215 kB)
+#13 6.938 Downloading psycopg_binary-3.3.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (6.9 MB)
+#13 7.019    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.9/6.9 MB 87.3 MB/s  0:00:00
+#13 7.048 Downloading pydantic-2.14.1-py3-none-any.whl (488 kB)
+#13 7.085 Downloading pydantic_core-2.50.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (2.0 MB)
+#13 7.103    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 117.1 MB/s  0:00:00
+#13 7.135 Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+#13 7.164 Downloading pydantic_settings-2.16.2-py3-none-any.whl (81 kB)
+#13 7.196 Downloading pyerfa-2.0.1.5-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (692 kB)
+#13 7.202    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 692.8/692.8 kB 141.0 MB/s  0:00:00
+#13 7.231 Downloading pyjwt-2.15.1-py3-none-any.whl (33 kB)
+#13 7.264 Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_aarch64.whl (4.7 MB)
+#13 7.327    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 74.1 MB/s  0:00:00
+#13 7.356 Downloading cffi-2.1.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (218 kB)
+#13 7.392 Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+#13 7.422 Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+#13 7.452 Downloading pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+#13 7.462    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.6/775.6 kB 84.8 MB/s  0:00:00
+#13 7.491 Downloading sqlalchemy-2.1.6-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.6 MB)
+#13 7.553    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 74.3 MB/s  0:00:00
+#13 7.582 Downloading starlette-1.10.0-py3-none-any.whl (80 kB)
+#13 7.612 Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+#13 7.647 Downloading idna-3.20-py3-none-any.whl (69 kB)
+#13 7.678 Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+#13 7.708 Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+#13 7.741 Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+#13 7.775 Downloading click-8.5.0-py3-none-any.whl (125 kB)
+#13 7.808 Downloading httptools-0.9.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (498 kB)
+#13 7.849 Downloading uvloop-0.23.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (3.9 MB)
+#13 7.878    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.9/3.9 MB 131.6 MB/s  0:00:00
+#13 7.907 Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (454 kB)
+#13 7.945 Downloading websockets-17.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (226 kB)
+#13 7.980 Downloading certifi-2026.10.23-py3-none-any.whl (135 kB)
+#13 8.012 Downloading mako-1.4.3-py3-none-any.whl (80 kB)
+#13 8.044 Downloading pycparser-3.12-py3-none-any.whl (62 kB)
+#13 8.101 Saved /wheels/alembic-1.20.1-py3-none-any.whl
+#13 8.102 Saved /wheels/astropy-8.0.2-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#13 8.103 Saved /wheels/astropy_iers_data-0.2026.10.19.0.52.1-py3-none-any.whl
+#13 8.103 Saved /wheels/bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl
+#13 8.103 Saved /wheels/fastapi-0.162.0-py3-none-any.whl
+#13 8.103 Saved /wheels/annotated_doc-0.0.5-py3-none-any.whl
+#13 8.103 Saved /wheels/httpx-0.28.1-py3-none-any.whl
+#13 8.103 Saved /wheels/httpcore-1.0.9-py3-none-any.whl
+#13 8.103 Saved /wheels/h11-0.16.0-py3-none-any.whl
+#13 8.103 Saved /wheels/itsdangerous-2.2.0-py3-none-any.whl
+#13 8.104 Saved /wheels/jinja2-3.1.6-py3-none-any.whl
+#13 8.104 Saved /wheels/markupsafe-3.0.4-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#13 8.106 Saved /wheels/numpy-2.4.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl
+#13 8.106 Saved /wheels/opentelemetry_api-1.45.1-py3-none-any.whl
+#13 8.106 Saved /wheels/packaging-26.3-py3-none-any.whl
+#13 8.106 Saved /wheels/prometheus_client-0.26.0-py3-none-any.whl
+#13 8.106 Saved /wheels/psycopg-3.3.6-py3-none-any.whl
+#13 8.107 Saved /wheels/psycopg_binary-3.3.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl
+#13 8.108 Saved /wheels/pydantic-2.14.1-py3-none-any.whl
+#13 8.108 Saved /wheels/pydantic_core-2.50.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+#13 8.108 Saved /wheels/annotated_types-0.8.0-py3-none-any.whl
+#13 8.109 Saved /wheels/pydantic_settings-2.16.2-py3-none-any.whl
+#13 8.109 Saved /wheels/pyerfa-2.0.1.5-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+#13 8.109 Saved /wheels/pyjwt-2.15.1-py3-none-any.whl
+#13 8.110 Saved /wheels/cryptography-50.0.2-cp311-abi3-manylinux_2_34_aarch64.whl
+#13 8.110 Saved /wheels/cffi-2.1.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl
+#13 8.111 Saved /wheels/python_dotenv-1.2.4-py3-none-any.whl
+#13 8.111 Saved /wheels/python_multipart-0.0.32-py3-none-any.whl
+#13 8.111 Saved /wheels/pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#13 8.112 Saved /wheels/sqlalchemy-2.1.6-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#13 8.112 Saved /wheels/starlette-1.10.0-py3-none-any.whl
+#13 8.112 Saved /wheels/anyio-4.15.1-py3-none-any.whl
+#13 8.112 Saved /wheels/idna-3.20-py3-none-any.whl
+#13 8.113 Saved /wheels/typing_extensions-4.16.0-py3-none-any.whl
+#13 8.113 Saved /wheels/typing_inspection-0.4.4-py3-none-any.whl
+#13 8.113 Saved /wheels/uvicorn-0.54.0-py3-none-any.whl
+#13 8.113 Saved /wheels/click-8.5.0-py3-none-any.whl
+#13 8.113 Saved /wheels/httptools-0.9.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#13 8.114 Saved /wheels/uvloop-0.23.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#13 8.115 Saved /wheels/watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+#13 8.115 Saved /wheels/websockets-17.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#13 8.115 Saved /wheels/certifi-2026.10.23-py3-none-any.whl
+#13 8.115 Saved /wheels/mako-1.4.3-py3-none-any.whl
+#13 8.115 Saved /wheels/pycparser-3.12-py3-none-any.whl
+#13 8.115 Building wheels for collected packages: skava-discovery-service
+#13 8.116   Building wheel for skava-discovery-service (pyproject.toml): started
+#13 8.445   Building wheel for skava-discovery-service (pyproject.toml): finished with status 'done'
+#13 8.445   Created wheel for skava-discovery-service: filename=skava_discovery_service-0.1.0-py3-none-any.whl size=165102 sha256=7fd55aabe753d5f7a94aec3e8f0ef10c45a6397fca81264f734892a161edcb4d
+#13 8.445   Stored in directory: /tmp/pip-ephem-wheel-cache-8cuvi0i6/wheels/de/58/76/633f094fc07d1863c26645e86c4bc9a1104f2a5bea1d5c5943
+#13 8.446 Successfully built skava-discovery-service
+#13 DONE 8.5s
+
+#14 [skava runtime 2/9] RUN addgroup --system skava && adduser --system --ingroup skava skava
+#14 CACHED
+
+#15 [skava runtime 3/9] WORKDIR /srv/app
+#15 CACHED
+
+#16 [skava-2 runtime 4/9] COPY --from=builder /wheels /wheels
+#16 DONE 0.0s
+
+#17 [skava-2 runtime 5/9] RUN pip install --no-cache-dir /wheels/*.whl && rm -rf /wheels
+#17 0.594 Processing /wheels/alembic-1.20.1-py3-none-any.whl
+#17 0.597 Processing /wheels/annotated_doc-0.0.5-py3-none-any.whl
+#17 0.598 Processing /wheels/annotated_types-0.8.0-py3-none-any.whl
+#17 0.599 Processing /wheels/anyio-4.15.1-py3-none-any.whl
+#17 0.601 Processing /wheels/astropy-8.0.2-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#17 0.609 Processing /wheels/astropy_iers_data-0.2026.10.19.0.52.1-py3-none-any.whl
+#17 0.611 Processing /wheels/bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl
+#17 0.612 Processing /wheels/certifi-2026.10.23-py3-none-any.whl
+#17 0.613 Processing /wheels/cffi-2.1.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl
+#17 0.615 Processing /wheels/click-8.5.0-py3-none-any.whl
+#17 0.616 Processing /wheels/cryptography-50.0.2-cp311-abi3-manylinux_2_34_aarch64.whl
+#17 0.619 Processing /wheels/fastapi-0.162.0-py3-none-any.whl
+#17 0.621 Processing /wheels/h11-0.16.0-py3-none-any.whl
+#17 0.622 Processing /wheels/httpcore-1.0.9-py3-none-any.whl
+#17 0.623 Processing /wheels/httptools-0.9.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#17 0.625 Processing /wheels/httpx-0.28.1-py3-none-any.whl
+#17 0.626 Processing /wheels/idna-3.20-py3-none-any.whl
+#17 0.627 Processing /wheels/itsdangerous-2.2.0-py3-none-any.whl
+#17 0.628 Processing /wheels/jinja2-3.1.6-py3-none-any.whl
+#17 0.629 Processing /wheels/mako-1.4.3-py3-none-any.whl
+#17 0.631 Processing /wheels/markupsafe-3.0.4-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#17 0.632 Processing /wheels/numpy-2.4.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl
+#17 0.641 Processing /wheels/opentelemetry_api-1.45.1-py3-none-any.whl
+#17 0.642 Processing /wheels/packaging-26.3-py3-none-any.whl
+#17 0.643 Processing /wheels/prometheus_client-0.26.0-py3-none-any.whl
+#17 0.645 Processing /wheels/psycopg-3.3.6-py3-none-any.whl
+#17 0.646 Processing /wheels/psycopg_binary-3.3.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl
+#17 0.650 Processing /wheels/pycparser-3.12-py3-none-any.whl
+#17 0.651 Processing /wheels/pydantic-2.14.1-py3-none-any.whl
+#17 0.653 Processing /wheels/pydantic_core-2.50.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+#17 0.655 Processing /wheels/pydantic_settings-2.16.2-py3-none-any.whl
+#17 0.656 Processing /wheels/pyerfa-2.0.1.5-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+#17 0.658 Processing /wheels/pyjwt-2.15.1-py3-none-any.whl
+#17 0.659 Processing /wheels/python_dotenv-1.2.4-py3-none-any.whl
+#17 0.661 Processing /wheels/python_multipart-0.0.32-py3-none-any.whl
+#17 0.662 Processing /wheels/pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#17 0.663 Processing /wheels/skava_discovery_service-0.1.0-py3-none-any.whl
+#17 0.665 Processing /wheels/sqlalchemy-2.1.6-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#17 0.668 Processing /wheels/starlette-1.10.0-py3-none-any.whl
+#17 0.669 Processing /wheels/typing_extensions-4.16.0-py3-none-any.whl
+#17 0.670 Processing /wheels/typing_inspection-0.4.4-py3-none-any.whl
+#17 0.672 Processing /wheels/uvicorn-0.54.0-py3-none-any.whl
+#17 0.673 Processing /wheels/uvloop-0.23.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#17 0.676 Processing /wheels/watchfiles-1.3.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+#17 0.677 Processing /wheels/websockets-17.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+#17 0.797 packaging is already installed with the same version as the provided wheel. Use --force-reinstall to force an installation of the wheel.
+#17 0.880 Installing collected packages: websockets, uvloop, typing-extensions, pyyaml, python-multipart, python-dotenv, pyjwt, pycparser, psycopg-binary, prometheus-client, numpy, markupsafe, itsdangerous, idna, httptools, h11, click, certifi, bcrypt, astropy-iers-data, annotated-types, annotated-doc, uvicorn, typing-inspection, sqlalchemy, pyerfa, pydantic-core, psycopg, opentelemetry-api, mako, jinja2, httpcore, cffi, anyio, watchfiles, starlette, pydantic, httpx, cryptography, astropy, alembic, pydantic-settings, fastapi, skava-discovery-service
+#17 4.203 Successfully installed alembic-1.20.1 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 astropy-8.0.2 astropy-iers-data-0.2026.10.19.0.52.1 bcrypt-5.0.0 certifi-2026.10.23 cffi-2.1.1 click-8.5.0 cryptography-50.0.2 fastapi-0.162.0 h11-0.16.0 httpcore-1.0.9 httptools-0.9.0 httpx-0.28.1 idna-3.20 itsdangerous-2.2.0 jinja2-3.1.6 mako-1.4.3 markupsafe-3.0.4 numpy-2.4.6 opentelemetry-api-1.45.1 prometheus-client-0.26.0 psycopg-3.3.6 psycopg-binary-3.3.6 pycparser-3.12 pydantic-2.14.1 pydantic-core-2.50.1 pydantic-settings-2.16.2 pyerfa-2.0.1.5 pyjwt-2.15.1 python-dotenv-1.2.4 python-multipart-0.0.32 pyyaml-6.0.3 skava-discovery-service-0.1.0 sqlalchemy-2.1.6 starlette-1.10.0 typing-extensions-4.16.0 typing-inspection-0.4.4 uvicorn-0.54.0 uvloop-0.23.0 watchfiles-1.3.0 websockets-17.3
+#17 4.203 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+#17 4.332 
+#17 4.332 [notice] A new release of pip is available: 24.0 -> 26.2.2
+#17 4.332 [notice] To update, run: pip install --upgrade pip
+#17 DONE 4.5s
+
+#18 [skava runtime 6/9] COPY migrations ./migrations
+#18 DONE 0.0s
+
+#19 [skava-2 runtime 7/9] COPY alembic.ini ./alembic.ini
+#19 DONE 0.0s
+
+#20 [skava runtime 8/9] COPY docker/entrypoint.sh ./docker/entrypoint.sh
+#20 DONE 0.0s
+
+#21 [skava runtime 9/9] RUN chmod +x ./docker/entrypoint.sh && chown -R skava:skava /srv/app
+#21 DONE 0.1s
+
+#22 [skava] exporting to image
+#22 exporting layers
+#22 exporting layers 4.1s done
+#22 exporting manifest sha256:70ad6c3eff1234cdbc0649761169d05c1bed14cd85a2104109f592f2b99f1130 done
+#22 exporting config sha256:f1243830c77cb8bcf7a2186aa34b7d04eb47c39fa17551e70ea6bebc29921fd4 done
+#22 exporting attestation manifest sha256:634c917d3bc2b616256cb41dfa8a8f06c52d7b092cfaa4ae89bdc4bb29f035f1 done
+#22 exporting manifest list sha256:5138201b6a4dedef3e040b67ee3e3b77055cfb1d00c30d872770c4c99ab28be5 done
+#22 naming to docker.io/library/testbed-skava:latest done
+#22 unpacking to docker.io/library/testbed-skava:latest
+#22 unpacking to docker.io/library/testbed-skava:latest 1.2s done
+#22 DONE 5.3s
+
+#23 [skava-2] exporting to image
+#23 exporting layers 4.1s done
+#23 exporting manifest sha256:d0acfe9e0d07e87f4539b13b1ef16a16308d7206a7da186e32636c145feee593 done
+#23 exporting config sha256:6c1e4c3f839c5fac3bac80f5f428ff8f09021835bc8d1dda9f0a1035abf016ec done
+#23 exporting attestation manifest sha256:64d4d6a2523d1fc80ecf287960b918e066065b5c74953ced8fe3c235764d698b done
+#23 exporting manifest list sha256:5ce9b4a0bd9930adfc6d0a35153c70ef4b6b4805f3cb64fc35f6e4df6e09dae6 done
+#23 naming to docker.io/library/testbed-skava-2:latest done
+#23 unpacking to docker.io/library/testbed-skava-2:latest 1.2s done
+#23 DONE 5.3s
+
+#24 [skava] resolving provenance for metadata file
+#24 DONE 0.0s
+
+#25 [skava-2] resolving provenance for metadata file
+#25 DONE 0.0s
+ Image testbed-skava Built 
+ Image testbed-skava-2 Built 
+ Container testbed-db-1 Running 
+ Container testbed-keycloak-1 Running 
+ Container testbed-skava-1 Recreate 
+ Container testbed-skava-2-1 Recreate 
+ Container testbed-skava-2-1 Recreated 
+ Container testbed-skava-1 Recreated 
+ Container testbed-db-1 Waiting 
+ Container testbed-keycloak-1 Waiting 
+ Container testbed-db-1 Waiting 
+ Container testbed-keycloak-1 Healthy 
+ Container testbed-db-1 Healthy 
+ Container testbed-skava-1 Starting 
+ Container testbed-db-1 Healthy 
+ Container testbed-skava-2-1 Starting 
+ Container testbed-skava-1 Started 
+ Container testbed-skava-2-1 Started 
+ Container testbed-skava-2-1 Waiting 
+ Container testbed-db-1 Waiting 
+ Container testbed-keycloak-1 Waiting 
+ Container testbed-skava-1 Waiting 
+ Container testbed-db-1 Healthy 
+ Container testbed-keycloak-1 Healthy 
+ Container testbed-skava-1 Healthy 
+ Container testbed-skava-2-1 Healthy 

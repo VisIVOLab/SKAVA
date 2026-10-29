@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """The Computing Broker stand-in: placement through SKAVA, execution on the node, the job API."""
 import asyncio
 import json

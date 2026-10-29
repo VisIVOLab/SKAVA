@@ -3,10 +3,17 @@
 All notable changes to SKAVA. The repository follows
 [semantic versioning](https://semver.org).
 
-## Unreleased
+## 0.1.0 — 2026-10-29 (first public release)
+
+Everything below, to the next heading of this level, is in 0.1.0.
 
 ### Added (October 2026)
 
+* **DataLink 1.1 ``{links}`` endpoint** — ``GET|POST /datalink?ID=...``: one
+  or more IDs, VOTable by default, fault rows for unknown or unavailable
+  datasets; the TAP rows' ``access_url`` points to it.
+* **License** — SKAVA is released under the Apache License 2.0, with a
+  NOTICE file; ``CITATION.cff`` gives the citation metadata.
 * **Resource-aware routing** — a background prober reads each node
   backend's ``/v1/ping`` and ``/v1/node/status`` (migration 0009) and the
   ``resource_aware`` policy (``SKAVA_RANKING_POLICY``) ranks replicas on
@@ -14,7 +21,13 @@ All notable changes to SKAVA. The repository follows
   against the dataset's size. Every replica carries a ``score``, a
   ``rank_reason`` and the age of its telemetry; the DataLink names the
   policy and lists the excluded replicas with their reasons. Probe metrics
-  and ``/internal/telemetry`` endpoints.
+  and ``/internal/telemetry`` endpoints. ``resource_aware`` is the default
+  policy and the prober runs every 10 s; nodes it cannot measure keep the
+  declared order.
+* **Node reports** — a node the prober cannot reach posts its own status to
+  ``POST /internal/telemetry/report``, authenticated with a per-node token
+  (``python -m app.security.node_token CODE``); the prober skips it while the
+  report is fresh, and the newer of a probe and a report is kept.
 * **SODA on the node** — ``/soda/sync`` redirects (303) to the SODA service
   of the first ranked node that can cut the dataset in place, with
   ``CIRCLE``, ``POLYGON``, ``BAND`` and ``TIME``; the DataLink advertises the
@@ -38,6 +51,26 @@ All notable changes to SKAVA. The repository follows
 
 ### Fixed (October 2026)
 
+* **Fail-closed replica identity** — with ``SKAVA_REPLICA_IDENTITY=checksum``
+  (the default) a node joins a dataset's replicas only with a checksum equal
+  to the catalogue's (``replica_unverified`` otherwise), and the federated
+  search merges only listings with equal checksums. The publisher now sends
+  the SHA-256 as the record's ``checksum``: after upgrading, run
+  ``publish --force`` once on every node.
+* **Product identity** — a record is refused as ``replica_conflict`` when
+  its ``obs_id`` is already held by other nodes as a different product
+  (another checksum, size or product type); records within one batch and
+  dry runs are checked alike. The federated search no longer merges two
+  different products listed under one ``obs_id``: they are returned apart,
+  flagged ``identity_conflict``.
+* **TAP ``CONTAINS``** tests the dataset's centre, as ADQL defines it; the
+  discovery API's ``POS`` keeps the footprint overlap.
+* **SODA by POST** — ``POST /soda/sync`` (form parameters) redirects with
+  every parameter in the node's URL.
+* **Cone search** — ``POS=CIRCLE`` (and TAP ``CONTAINS``) now uses the exact
+  spherical overlap with each dataset's footprint (haversine form); the RA
+  difference used to be taken without ``cos(Dec)``, which missed datasets
+  inside the circle away from the equator.
 * **Publisher** — PSRFITS files named ``*.fits`` reach the PSRFITS
   extractor (extractors are ordered by priority, then name; ``*.sf`` is
   in the default ``scan.include``); a file is marked ``published`` only
@@ -131,7 +164,7 @@ All notable changes to SKAVA. The repository follows
 
 * (none yet)
 
-## 0.1.0 — first public release (date TBD)
+## Before 0.1.0: the initial feature set
 
 Initial public version of the SKAVA stack as the basis for the INAF
 SRC testbed.
@@ -224,12 +257,15 @@ each side.
 
 ## Release process (maintainers)
 
-1. Bump version in ``app/__init__.py`` and ``tools/skava-publisher/
-   skava_publisher/__init__.py`` as needed.
-2. Update this changelog under the new version heading.
-3. Tag: ``git tag -s v0.1.0 -m "v0.1.0"``.
-4. Push: ``git push origin v0.1.0``.
-5. GitHub Actions builds the api image + publisher SIF and pushes to
-   the registry.
-6. ReadTheDocs auto-rebuilds the docs.
-7. Announce on the mailing list.
+1. Set the version in ``pyproject.toml``, ``tools/skava-publisher/pyproject.toml``,
+   ``tools/skava-publisher/skava_publisher/__init__.py``, ``CITATION.cff``
+   and ``docs/conf.py``.
+2. Date the version's heading in this changelog.
+3. Commit, then create the GitHub release with the tag ``vX.Y.Z`` and the
+   changelog section as its notes. With the repository enabled on Zenodo,
+   the release is archived and receives a DOI.
+4. Read the Docs rebuilds the documentation from ``main``.
+
+No container image or Apptainer SIF is built by CI: the images are built
+from ``Dockerfile`` and ``tools/skava-publisher/apptainer/publisher.def``
+where they are deployed.

@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """The publisher's file outcomes and its extractor order.
 
 Run from tools/skava-publisher with the package installed:
@@ -193,3 +195,16 @@ def test_a_file_changed_during_the_upload_is_extracted_again(tmp_path, config, m
     with open_state(tmp_path / "state.db") as state:
         # Published as the manifest described it; the newer file is not that one.
         assert state.needs_extraction(str(path.resolve()), mtime_ns=path.stat().st_mtime_ns)
+
+
+def test_records_carry_the_files_checksum(tmp_path, config):
+    # The catalogue proves a replica by this field, so it must be filled.
+    payload = json.loads(config.read_text())
+    payload["scan"]["compute_checksum"] = True
+    config.write_text(json.dumps(payload))
+    _plain_fits(tmp_path / "data" / "a.fits", "obs-a")
+    manifest = tmp_path / "manifest.json"
+    _scan_to(config, manifest)
+    record = json.loads(manifest.read_text())["records"][0]
+    assert record["checksum"].startswith("sha256:") and len(record["checksum"]) == 7 + 64
+    assert record["checksum"] == "sha256:" + record["provenance_json"]["sha256"]

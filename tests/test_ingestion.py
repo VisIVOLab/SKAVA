@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 
 from app.ingestion.parsers.csv_parser import parse_csv_file
@@ -83,7 +85,10 @@ def test_upsert_behavior(client):
         assert dataset.target_name == "updated-target-3"
 
 
-def test_replica_merge_behavior(client):
+def test_replica_merge_behavior(client, monkeypatch):
+    # A curated catalogue that trusts its obs_id convention: no checksum needed.
+    from app.config import settings
+    monkeypatch.setattr(settings, "replica_identity", "metadata")
     records = [
         {
             "obs_id": "dataset-3",
@@ -170,3 +175,113 @@ def test_overlong_values_skip_the_record_not_the_batch(client):
     assert "access_url is longer than 512 characters" in reasons[2]
     with app.state.testing_session_local() as db:
         assert db.query(Dataset).filter(Dataset.obs_id == "fits-ok").one()
+
+
+def _record(obs_id, node, **extra):
+    return {"obs_id": obs_id, "dataproduct_type": "cube", "node_id": node,
+            "access_url": f"https://node-{node.lower()}.example.org/{obs_id}.fits", **extra}
+
+
+def test_same_obs_id_different_product_is_not_a_replica(client):
+    # A Stokes I cube on A and a Stokes Q cube on B, both under the
+    # observation's obs_id: different checksums, so B's is refused.
+    first = _run_ingestion(client, [_record("obs-123", "A", checksum="aaa", access_estsize=20000)],
+                           source_type="manual")
+    assert first.skipped_records == 0
+    second = _run_ingestion(client, [_record("obs-123", "B", checksum="bbb", access_estsize=20000)],
+                            source_type="manual")
+    assert second.skipped_records == 1
+    assert second.validation_errors[0].code == "replica_conflict"
+    assert "checksum bbb here, aaa in the catalogue" in second.validation_errors[0].message
+    with app.state.testing_session_local() as db:
+        dataset = db.query(Dataset).filter(Dataset.obs_id == "obs-123").one()
+        assert dataset.checksum == "aaa"                  # not overwritten by the refused record
+        assert db.query(DatasetReplica).filter(DatasetReplica.dataset_id == dataset.id).count() == 1
+
+
+def test_a_true_copy_joins_and_a_size_mismatch_does_not(client):
+    _run_ingestion(client, [_record("obs-200", "A", checksum="ccc", access_estsize=500)], source_type="manual")
+    copy = _run_ingestion(client, [_record("obs-200", "B", checksum="ccc", access_estsize=500)],
+                          source_type="manual")
+    assert copy.skipped_records == 0 and copy.inserted_replicas == 1
+    # No checksum on the third (a file too large to hash): the size still tells.
+    other = _run_ingestion(client, [_record("obs-200", "C", access_estsize=900)], source_type="manual")
+    assert other.validation_errors[0].code == "replica_conflict"
+    assert "access_estsize" in other.validation_errors[0].message
+
+
+def test_the_only_holder_may_update_its_file(client):
+    _run_ingestion(client, [_record("obs-300", "A", checksum="old", access_estsize=10)], source_type="manual")
+    update = _run_ingestion(client, [_record("obs-300", "A", checksum="new", access_estsize=11)],
+                            source_type="manual")
+    assert update.skipped_records == 0
+    with app.state.testing_session_local() as db:
+        assert db.query(Dataset).filter(Dataset.obs_id == "obs-300").one().checksum == "new"
+
+
+def test_conflicts_within_one_batch_are_caught(client):
+    batch = [_record("obs-400", "A", checksum="aaa"), _record("obs-400", "B", checksum="bbb")]
+    dry = _run_ingestion(client, batch, source_type="manual", dry_run=True)
+    real = _run_ingestion(client, batch, source_type="manual")
+    assert dry.skipped_records == real.skipped_records == 1
+    assert real.validation_errors[0].code == "replica_conflict"
+
+
+def test_dry_run_follows_an_update_then_its_copy(client):
+    _run_ingestion(client, [_record("obs-500", "A", checksum="old")], source_type="manual")
+    batch = [_record("obs-500", "A", checksum="new"), _record("obs-500", "B", checksum="new")]
+    dry = _run_ingestion(client, batch, source_type="manual", dry_run=True)
+    real = _run_ingestion(client, batch, source_type="manual")
+    assert dry.skipped_records == real.skipped_records == 0
+
+
+def test_a_replaced_file_forgets_what_its_record_does_not_restate(client, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "replica_identity", "metadata")
+    # A replaces its file (new size, no checksum this time): the old checksum
+    # must not later refuse B's true copy of the new file.
+    _run_ingestion(client, [_record("obs-600", "A", checksum="old", access_estsize=100)], source_type="manual")
+    _run_ingestion(client, [_record("obs-600", "A", access_estsize=200)], source_type="manual")
+    with app.state.testing_session_local() as db:
+        dataset = db.query(Dataset).filter(Dataset.obs_id == "obs-600").one()
+        assert dataset.checksum is None and dataset.access_estsize == 200
+    copy = [_record("obs-600", "B", checksum="new", access_estsize=200)]
+    assert _run_ingestion(client, copy, source_type="manual", dry_run=True).skipped_records == 0
+    assert _run_ingestion(client, copy, source_type="manual").skipped_records == 0
+    # The same within one batch, in a dry run.
+    batch = [_record("obs-700", "A", checksum="old", access_estsize=100),
+             _record("obs-700", "A", access_estsize=200),
+             _record("obs-700", "B", checksum="new", access_estsize=200)]
+    assert _run_ingestion(client, batch, source_type="manual", dry_run=True).skipped_records == 0
+    real = _run_ingestion(client, batch, source_type="manual")
+    assert real.skipped_records == 0 and real.inserted_replicas == 2 and real.updated_replicas == 1
+
+
+
+def test_without_checksums_a_new_node_is_not_merged(client):
+    # Fail-closed (the default): two products of one observation, equal size
+    # and type, no checksum. The second node's record is refused, recorded
+    # in the job with the reason, and the dataset keeps one replica.
+    _run_ingestion(client, [_record("obs-800", "A", access_estsize=100_000_000)], source_type="manual")
+    other = _run_ingestion(client, [_record("obs-800", "B", access_estsize=100_000_000)], source_type="manual")
+    assert other.skipped_records == 1
+    assert other.validation_errors[0].code == "replica_unverified"
+    with app.state.testing_session_local() as db:
+        dataset = db.query(Dataset).filter(Dataset.obs_id == "obs-800").one()
+        assert db.query(DatasetReplica).filter(DatasetReplica.dataset_id == dataset.id).count() == 1
+    # The holder publishes its checksum (an update of its own replica): from
+    # then on a node with the same checksum joins, one without does not.
+    assert _run_ingestion(client, [_record("obs-800", "A", checksum="sha256:x", access_estsize=100_000_000)],
+                          source_type="manual").skipped_records == 0
+    assert _run_ingestion(client, [_record("obs-800", "B", checksum="sha256:x", access_estsize=100_000_000)],
+                          source_type="manual").inserted_replicas == 1
+    third = _run_ingestion(client, [_record("obs-800", "C", access_estsize=100_000_000)], source_type="manual")
+    assert third.validation_errors[0].code == "replica_unverified"
+
+
+def test_metadata_mode_accepts_what_does_not_contradict(client, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "replica_identity", "metadata")
+    _run_ingestion(client, [_record("obs-900", "A", access_estsize=10)], source_type="manual")
+    assert _run_ingestion(client, [_record("obs-900", "B", access_estsize=10)],
+                          source_type="manual").inserted_replicas == 1

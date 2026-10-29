@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """CRUD for ``nodes`` — the federation of SKAVA-known data nodes.
 
 Permissions: viewing requires any authenticated user; mutating

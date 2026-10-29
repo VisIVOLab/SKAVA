@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "when": "2026-10-28T19:40:22+00:00",
+    "host": "MacBook-Pro-di-Fabio.local",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "skava_commit": "4ea8d34",
+    "visivo_commit": "5bf171b",
+    "profile": "paper",
+    "poll_s": 0.1,
+    "threshold": 5.0,
+    "client_cpus": "4",
+    "client_memory": "8g",
+    "client_memory_swap": "8g",
+    "host_clock_skew_s": 0.0
+  },
+  "rows": [
+    {
+      "dataset": "tb-cube-s",
+      "file_bytes": 67112640,
+      "mode": "broker",
+      "node": "SMALL",
+      "rank_reason": "rtt 1.1 ms, cpu pressure 0%, 0.0 tasks/worker, needs 64.0 MB of 1.5 GB free",
+      "t_total": 7.56,
+      "t_transfer": 0.0,
+      "t_worker": 7.272,
+      "bytes_rx": 5946,
+      "bytes_tx": 14929,
+      "n_sources": 5,
+      "error": ""
+    },
+    {
+      "dataset": "tb-cube-s",
+      "file_bytes": 67112640,
+      "mode": "download+local",
+      "node": "client",
+      "rank_reason": "",
+      "t_total": 2.019,
+      "t_transfer": 0.039,
+      "t_worker": 1.735,
+      "bytes_rx": 63615,
+      "bytes_tx": 67239115,
+      "n_sources": 5,
+      "error": ""
+    },
+    {
+      "dataset": "tb-cube-m",
+      "file_bytes": 536875200,
+      "mode": "broker",
+      "node": "BIG",
+      "rank_reason": "rtt 1.3 ms, cpu pressure 34%, 0.0 tasks/worker, needs 512.0 MB of 7.4 GB free",
+      "t_total": 15.517,
+      "t_transfer": 0.0,
+      "t_worker": 15.237,
+      "bytes_rx": 11254,
+      "bytes_tx": 21538,
+      "n_sources": 5,
+      "error": ""
+    },
+    {
+      "dataset": "tb-cube-m",
+      "file_bytes": 536875200,
+      "mode": "download+local",
+      "node": "client",
+      "rank_reason": "",
+      "t_total": 14.926,
+      "t_transfer": 0.215,
+      "t_worker": 14.189,
+      "bytes_rx": 325903,
+      "bytes_tx": 537607991,
+      "n_sources": 5,
+      "error": ""
+    },
+    {
+      "dataset": "tb-cube-l",
+      "file_bytes": 3221231040,
+      "mode": "broker",
+      "node": "BIG",
+      "rank_reason": "rtt 1.6 ms, cpu pressure 20%, 0.0 tasks/worker, needs 3.0 GB of 7.4 GB free",
+      "t_total": 131.573,
+      "t_transfer": 0.0,
+      "t_worker": 131.421,
+      "bytes_rx": 77502,
+      "bytes_tx": 112382,
+      "n_sources": 5,
+      "error": ""
+    },
+    {
+      "dataset": "tb-cube-l",
+      "file_bytes": 3221231040,
+      "mode": "download+local",
+      "node": "client",
+      "rank_reason": "",
+      "t_total": 162.401,
+      "t_transfer": 1.383,
+      "t_worker": 160.272,
+      "bytes_rx": 1836483,
+      "bytes_tx": 3225528320,
+      "n_sources": 5,
+      "error": ""
+    }
+  ]
+}

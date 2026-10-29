@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\caption{E6: the federated search next to the local one (200 requests each, \texttt{limit=100}; the second site validates the caller's token), and the federated search with the second site stopped (the first site answers alone, within the federation timeout).}
+\label{tab:federation}
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Request & p50 & p95 \\
+\midrule
+local search, first site & 2.7 ms & 3.1 ms \\
+federated search, signed in & 8.7 ms & 10.8 ms \\
+second site, asked directly & 2.7 ms & 3.8 ms \\
+federated, second site down & 9.1 ms & 15.0 ms$^{*}$ \\
+\bottomrule
+\end{tabular}
+\\[2pt]{\footnotesize $^{*}$the slowest of 5 requests.}
+\end{table}

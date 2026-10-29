@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 from app.config import settings
 from app.models.dataset import Dataset
 from app.models.replica import DatasetReplica
@@ -23,6 +25,8 @@ def to_dataset_metadata(dataset: Dataset) -> DatasetMetadata:
         em_max=dataset.em_max,
         spatial_index_order=dataset.spatial_index_order,
         spatial_index_cell=dataset.spatial_index_cell,
+        access_estsize=dataset.access_estsize,
+        checksum=dataset.checksum,
         doi=dataset.doi,
         pid=dataset.pid,
         citation=dataset.citation,

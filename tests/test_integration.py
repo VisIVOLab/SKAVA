@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 def test_full_discovery_to_access_flow(client):
     discover = client.get("/discovery/search", params={"obs_id": "dataset-3"})
     assert discover.status_code == 200

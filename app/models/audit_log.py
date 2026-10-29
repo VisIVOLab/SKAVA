@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Append-only audit log of mutating actions in the admin UI.
 
 Every audited HTTP request writes one row here, capturing:

@@ -142,7 +142,10 @@ flowchart LR
 Every `SKAVA_TELEMETRY_INTERVAL_SECONDS` (or on
 `POST /internal/telemetry/probe`) SKAVA probes each enabled node that
 has a backend and stores the result on the node row; a measurement
-older than `SKAVA_TELEMETRY_TTL_SECONDS` is not trusted.
+older than `SKAVA_TELEMETRY_TTL_SECONDS` is not trusted. A node can
+also push its status to `POST /internal/telemetry/report`; the prober
+skips it while that report is fresh, and whichever observation is newer
+is kept (a probe in flight when a report lands is discarded).
 `GET /internal/telemetry` shows what the policy sees.
 
 ## Federation

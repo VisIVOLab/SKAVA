@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """Bulk CSV / JSON manifest upload via the admin UI.
 
 This is the session-authenticated front-end for the same ingestion

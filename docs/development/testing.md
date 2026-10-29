@@ -230,9 +230,9 @@ push to and pull request against `main`:
 * `pytest -v --tb=short` with `SKAVA_DATABASE_URL` set to in-memory
   SQLite
 
-A PR is mergeable when both jobs are green. A second workflow mirrors
-`docs/` to the documentation site on pushes to `main`; there is no lint,
-type-check, docs-build or image-build job.
+A PR is mergeable when both jobs are green. The documentation is built
+by Read the Docs from the repository, outside this workflow; there is no
+lint, type-check or image-build job.
 
 ## Tips
 

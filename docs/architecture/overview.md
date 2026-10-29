@@ -26,9 +26,11 @@ flowchart TB
 ```
 
 The prober is an asyncio task started in the app's lifespan when
-`SKAVA_TELEMETRY_INTERVAL_SECONDS` is above zero; it stores what each
-node's backend reports on the node row, which the resource-aware
-ranking policy reads.
+`SKAVA_TELEMETRY_INTERVAL_SECONDS` is above zero (10 s by default); it
+stores what each node's backend reports on the node row, which the
+resource-aware ranking policy reads. Nodes the prober cannot reach post
+the same document to `/internal/telemetry/report` and are not probed
+while their report is fresh.
 
 A single SKAVA instance handles:
 
@@ -39,7 +41,8 @@ A single SKAVA instance handles:
 * **service** (always open): `/availability`, `/capabilities`,
   `/health/db`, `/metrics`
 * **internal** (API-key auth): `/internal/ingestion/*`,
-  `/internal/telemetry` and `/internal/telemetry/probe`
+  `/internal/telemetry` and `/internal/telemetry/probe`; per-node token:
+  `/internal/telemetry/report`
 * **federated**: `/federation/*`, the local catalogue and the configured
   sibling instances asked together, merged on `obs_id`
   ([Federation API](../api/federation.md))

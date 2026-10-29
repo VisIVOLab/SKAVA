@@ -1,3 +1,5 @@
+# Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
+# SPDX-License-Identifier: Apache-2.0
 """What the experiments share: the testbed's addresses, a scripted client
 that speaks the same APIs as the VisIVO desktop (SKAVA discovery and
 DataLink, the node backends' open / slice / SODA job routes, the Computing
