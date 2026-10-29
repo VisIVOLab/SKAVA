@@ -64,7 +64,7 @@ the desktop client; each writes `results/<name>.json` and `.csv`.
 |---|---|
 | `make experiment-e1` | the cost of the routing decision against catalogue size and replica count, on PostgreSQL |
 | `make experiments` | E2 placement quality (static against resource-aware policy), E3 a node killed mid-session, E4 bytes moved (kernel counters), E5 source finding through the broker, E6 the federation |
-| `make conformance` | pyvo reads the catalogue's TAP and DataLink, a node's SODA services and its UWS jobs from inside the network; every `#this` link of a dataset is followed from outside the nodes and compared with the catalogued file (status, media type, size, SHA-256); the catalogue is called without credentials and the nodes' token goes only to the nodes, which a last check confirms |
+| `make conformance` | pyvo reads the catalogue's TAP and DataLink, a node's SODA services and its UWS jobs from inside the network; every `#this` link of a dataset is followed from outside the nodes and compared with the catalogued file (status, media type, size, SHA-256); the catalogue is called without credentials and the nodes' token goes only to the nodes, which a last check confirms; the run is logged to `results/conformance.log` with the commits of SKAVA and VisIVO it ran on |
 | `make figures`, `make tables` | the figures and LaTeX tables from the results |
 
 E2 and E3 restart the catalogue and kill node containers, and E6 stops the

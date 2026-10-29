@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use SKAVA, please cite it as below."
 title: "SKAVA: federated data discovery with compute-next-to-data routing"
 type: software
-version: 0.1.1
+version: 0.1.2
 date-released: 2026-10-29
 doi: 10.5281/zenodo.23765262
 identifiers:

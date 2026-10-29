@@ -3,7 +3,7 @@
 All notable changes to SKAVA. The repository follows
 [semantic versioning](https://semver.org).
 
-## Unreleased
+## 0.1.2 — 2026-10-29
 
 ### Added
 

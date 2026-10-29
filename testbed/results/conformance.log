@@ -1,13 +1,20 @@
-docker run --rm --network ${TESTBED_NETWORK:-testbed_default} -v /Users/fvitello/Documents/GitHub/SKAVA/testbed/conformance:/conformance:ro \
-	    -e TESTBED_BACKEND_TOKEN=${TESTBED_BACKEND_TOKEN:-testbed-backend-token} \
-	    skava-testbed-node python /conformance/check_pyvo.py
-  ok   TAP: ObsCore query: 3 rows; tb-cube-s → http://localhost:18000/datalink/tb-cube-s?RESPONSEFORMAT=votable
+# 2026-10-29T14:33:10Z SKAVA v0.1.1-2-g8c75d74-dirty VisIVO 1.0.6-6-g4ef7ddb
+# SKAVA changed:  M CITATION.cff
+# SKAVA changed:  M app/services/capabilities_service.py
+# SKAVA changed:  M docs/reference/changelog.md
+# SKAVA changed:  M pyproject.toml
+# SKAVA changed:  M testbed/Makefile
+# SKAVA changed:  M testbed/results/conformance.log
+# SKAVA changed:  M tools/skava-publisher/pyproject.toml
+# SKAVA changed:  M tools/skava-publisher/skava_publisher/__init__.py
+  ok   TAP: ObsCore query: 3 rows; tb-cube-s → http://localhost:18000/datalink?ID=tb-cube-s
   ok   TAP: VOSI tables and capabilities: tables ['ivoa.ObsCore']; 3 capabilities
   ok   DataLink: document, #this row and the node's service descriptors: 10 rows, services ['ivo://ivoa.net/std/SODA#async-1.0', 'ivo://ivoa.net/std/SODA#sync-1.0'], node http://node-big:8000/soda/sync
+  ok   DataLink #this: every copy retrieved from outside the node is the catalogued file: 3 copies, each the catalogued file (BIG 67112640 B, SMALL 67112640 B, FAR 67112640 B)
   ok   SODA sync: a cutout through the descriptor pyvo found (SodaQuery.from_resource): FITS from http://node-big:8000/soda/sync via soda-sync-big (CIRCLE r=0.03556 deg)
   ok   SODA sync: a cutout with SodaQuery on the node's service: FITS from http://node-big:8000/soda/sync
-  ok   UWS: a moment-map job on the node, its documents read by pyvo: http://node-big:8000/soda/async/task_5cd8625815214b59 COMPLETED, 1 result(s), 2026-10-28T22:14:41.089 → 2026-10-28T22:14:41.140
+  ok   UWS: a moment-map job on the node, its documents read by pyvo: http://node-big:8000/soda/async/task_cd60c43ebe7e4e2d COMPLETED, 1 result(s), 2026-10-29T14:33:17.410 → 2026-10-29T14:33:17.482
   ok   VOSI on the node: SODA capabilities and availability: 4 capabilities, available
+  ok   Credentials: the catalogue never received a node's token: 5 catalogue requests without it; token sent only to 3 node origin(s)
 pyvo 1.9.1 against http://skava:8000
-7/7 checks passed
-EXIT 0
+9/9 checks passed

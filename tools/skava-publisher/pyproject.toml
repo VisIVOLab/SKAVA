@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skava-publisher"
-version = "0.1.1"
+version = "0.1.2"
 description = "Publisher CLI for the SKAVA Data Discovery Service — runs co-located with the data on each node and uploads JSON manifests to SKAVA."
 requires-python = ">=3.10"
 readme = "README.md"

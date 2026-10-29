@@ -57,10 +57,16 @@ experiments:     ## E2..E6 against the running testbed (results/*.json|csv)
 experiment-e6:   ## federation: the two catalogues merged, the IAM's tokens, a site down
 	$(PY) -m experiments.e6_federation
 
-conformance:     ## pyvo against the catalogue's TAP and DataLink and a node's SODA, from inside the testbed network
+conformance:     ## pyvo against the catalogue's TAP and DataLink and a node's SODA, from inside the testbed network (log: results/conformance.log)
+	@out=results/conformance.log; rc=0; \
+	{ echo "# $$(date -u +%Y-%m-%dT%H:%M:%SZ) SKAVA $$(git -C .. describe --tags --always --dirty)" \
+	       "VisIVO $$(git -C $(VISIVO_REPO) describe --tags --always --dirty)"; \
+	  git -C .. status --porcelain | sed 's/^/# SKAVA changed: /'; \
+	  git -C $(VISIVO_REPO) status --porcelain | sed 's/^/# VisIVO changed: /'; } > $$out; \
 	docker run --rm --network $${TESTBED_NETWORK:-testbed_default} -v $(abspath conformance):/conformance:ro \
 	    -e TESTBED_BACKEND_TOKEN=$${TESTBED_BACKEND_TOKEN:-testbed-backend-token} \
-	    skava-testbed-node python /conformance/check_pyvo.py
+	    skava-testbed-node python /conformance/check_pyvo.py >> $$out 2>&1 || rc=$$?; \
+	cat $$out; exit $$rc
 
 experiment-e1:   ## the routing benchmark on the testbed's PostgreSQL (a separate database)
 	$(COMPOSE) exec -T db psql -U skava -d skava -tc "SELECT 1 FROM pg_database WHERE datname='skava_bench'" | grep -q 1 \
