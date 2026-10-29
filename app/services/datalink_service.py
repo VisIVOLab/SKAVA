@@ -19,6 +19,27 @@ from app.vo.mappers import build_datalink_url, node_soda_target, soda_cutout_ava
 logger = logging.getLogger("skava.datalink")
 
 
+def content_length_bytes(dataset: Dataset) -> int | None:
+    """The dataset's file size in bytes, for DataLink's ``content_length``.
+
+    ``access_estsize`` is ObsCore's estimate in kilobytes, so it is never
+    passed on as bytes: the exact size the publisher recorded comes first,
+    and only without it the estimate is scaled (to within 1 KiB).
+    """
+    provenance = dataset.provenance_json if isinstance(dataset.provenance_json, dict) else {}
+    exact = provenance.get("size_bytes")
+    estsize = dataset.access_estsize
+    if isinstance(exact, int) and not isinstance(exact, bool) and exact >= 0 and (
+            # Only while the estimate vouches for it: a file replaced by a
+            # record without provenance leaves a stale size, and a replacement
+            # that states no size at all leaves no estimate to check it by.
+            estsize is not None and max(1, exact // 1024) == estsize):
+        return exact
+    if dataset.access_estsize is not None and dataset.access_estsize >= 0:
+        return int(dataset.access_estsize) * 1024
+    return None
+
+
 class DataLinkService:
     def __init__(self, db: Session):
         self.db = db
@@ -111,6 +132,7 @@ class DataLinkService:
                 access_url=selected.access_endpoint,
                 access_format=dataset.access_format,
                 access_estsize=dataset.access_estsize,
+                content_length=content_length_bytes(dataset),
             ),
             links=build_access_links(dataset, selected, ranked, datalink_url),
             # Pass the ranked replicas' nodes to the service descriptor

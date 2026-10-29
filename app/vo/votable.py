@@ -1,7 +1,7 @@
 # Copyright 2024-2026 INAF - Istituto Nazionale di Astrofisica
 # SPDX-License-Identifier: Apache-2.0
 from html import escape
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from app.config import settings
 from app.schemas.datalink import DataLinkResponse
@@ -71,7 +71,16 @@ _DATALINK_FIELDS = [
     ('rank_reason', 'char', 'meta.note', None),
     # A cost, not an ordinal rank: no UCD word says that.
     ('score', 'double', None, None),
+    # Where a copy that is local to its node lies on the node's own storage
+    # (file://), for that node's backend: a "#this" row's access_url is always
+    # something a client can retrieve, so this location travels apart.
+    ('local_access_url', 'char', 'meta.ref.url', None),
 ]
+
+# Copies a remote client can fetch by following the URL; any other copy
+# (file://, sftp://, ...) is local to its node and reached through the node's
+# services.
+_RETRIEVABLE_SCHEMES = ("http://", "https://", "ftp://")
 
 
 def _datalink_field(name: str, datatype: str, ucd: str | None, unit: str | None) -> str:
@@ -87,7 +96,7 @@ def _datalink_field(name: str, datatype: str, ucd: str | None, unit: str | None)
 def _datalink_row(
     *, oid, access_url, service_def, semantics, description, content_type,
     content_length, node_id, link_auth=None, link_authorized=None,
-    rank_reason=None, score=None,
+    rank_reason=None, score=None, local_access_url=None,
 ) -> str:
     return (
         "<TR>"
@@ -104,8 +113,16 @@ def _datalink_row(
         + _cell(node_id)
         + _cell(rank_reason)
         + _cell(score)
+        + _cell(local_access_url)
         + "</TR>"
     )
+
+
+def _fault_row(oid: str, message: str) -> str:
+    """A row carrying only the ID, the fault and #this (DataLink 1.1, 3.2.4)."""
+    trailing = len(_DATALINK_FIELDS) - 5
+    return ("<TR>" + _cell(oid) + _cell(None) + _cell(None) + _cell(message)
+            + _cell("#this") + "".join(_cell(None) for _ in range(trailing)) + "</TR>")
 
 
 def _datalink_rows(datalink: DataLinkResponse, auth_required: bool, prefix: str = "") -> tuple[list[str], str]:
@@ -128,6 +145,11 @@ def _datalink_rows(datalink: DataLinkResponse, auth_required: bool, prefix: str 
     # The routing decision, by node: a replica's "#this" row carries it.
     ranked = {rep.code: rep for rep in datalink.routing.replicas}
 
+    # The node's co-located backend, by node: it serves the node's SODA.
+    backends = {d.node_code: d for d in datalink.service_descriptors
+                if d.service_type == "visivo-backend" and d.enabled and d.endpoint}
+    copies = 0
+
     # One {links} row per access link (download / preview / alternates).
     for link in datalink.links:
         if not link.href:
@@ -144,28 +166,52 @@ def _datalink_rows(datalink: DataLinkResponse, auth_required: bool, prefix: str 
         if link.rel in ("self", "datalink"):
             continue
         semantics = _SEMANTICS_BY_REL.get(link.rel, "#this")
-        content_length = (
-            datalink.primary_access.access_estsize
-            if link.rel == "direct-download"
-            else None
-        )
         replica = ranked.get(link.node_id) if semantics == "#this" else None
-        rows.append(
-            _datalink_row(
-                oid=oid,
-                access_url=link.href,
-                service_def=None,
-                semantics=semantics,
-                description=link.description,
-                content_type=link.content_type,
-                content_length=content_length,
-                node_id=link.node_id,
+        if semantics != "#this":
+            rows.append(_datalink_row(
+                oid=oid, access_url=link.href, service_def=None, semantics=semantics,
+                description=link.description, content_type=link.content_type,
+                content_length=None, node_id=link.node_id,
                 link_auth=own_auth if own(link.href) else None,
-                link_authorized=True if own(link.href) else None,
-                rank_reason=replica.rank_reason if replica else None,
-                score=replica.score if replica else None,
-            )
-        )
+                link_authorized=True if own(link.href) else None))
+            continue
+        # A copy of the dataset. "#this" must lead a client to the dataset
+        # itself: a copy at a URL the client can fetch is linked directly; a
+        # file on the node's own storage (file://) is served by the node's
+        # SODA, which without POS, BAND or TIME returns the file as stored,
+        # under the node's own access rule. Any other copy (no backend on the
+        # node, or a scheme neither a client nor the backend reads, such as
+        # sftp://) cannot be reached and gets no row.
+        common = dict(oid=oid, semantics="#this", node_id=link.node_id,
+                      rank_reason=replica.rank_reason if replica else None,
+                      score=replica.score if replica else None)
+        if link.href.startswith(_RETRIEVABLE_SCHEMES):
+            rows.append(_datalink_row(
+                **common, access_url=link.href, service_def=None,
+                description=link.description, content_type=link.content_type,
+                content_length=datalink.primary_access.content_length,
+                link_auth=own_auth if own(link.href) else None,
+                link_authorized=True if own(link.href) else None))
+            copies += 1
+            continue
+        backend = backends.get(link.node_id)
+        if backend is None or not link.href.startswith("file://"):
+            continue
+        rows.append(_datalink_row(
+            **common,
+            access_url=f"{backend.endpoint.rstrip('/')}/soda/sync?ID={quote(link.href, safe='')}",
+            service_def=None,
+            description=f"Copy on node {link.node_id}, local to the node: the file as stored, "
+                        "from the node's SODA service",
+            content_type=link.content_type,
+            content_length=datalink.primary_access.content_length,
+            link_auth="true" if backend.requires_auth else "false",
+            local_access_url=link.href))
+        copies += 1
+
+    if copies == 0:
+        rows.append(_fault_row(oid, f"NotFoundFault: no copy of {oid} can be retrieved by a client: "
+                                    "its copies are local to nodes that run no data service"))
 
     # One row per VisIVO compute backend co-located with a replica, best node
     # first (the same order as the JSON service_descriptors), so VO clients
@@ -270,8 +316,7 @@ def datalink_links_votable(entries: list[tuple[str, DataLinkResponse | str | Non
             # An ID that resolved to no dataset: one row with only the ID, the
             # fault in error_message, and #this (DataLink 1.1, 3.2.4).
             fault = datalink or f"NotFoundFault: {requested}"
-            rows.append("<TR>" + _cell(requested) + _cell(None) + _cell(None) + _cell(fault)
-                        + _cell("#this") + "".join(_cell(None) for _ in range(8)) + "</TR>")
+            rows.append(_fault_row(requested, fault))
             continue
         found_rows, found_resources = _datalink_rows(datalink, auth_required,
                                                      prefix=f"id{index + 1}-" if many else "")

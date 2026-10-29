@@ -302,7 +302,12 @@ or `node_not_found`.
     this record's (where both state it). Records sharing an ``obs_id`` are
     replicas of one product; a different product needs its own
     ``obs_id``. The only node holding a dataset may replace its file: the
-    identity fields its new record does not restate are then cleared.
+    identity fields its new record does not restate are then cleared. When
+    the refused record comes from a node that already holds the dataset
+    beside others (its file changed), that node's replica is also
+    quarantined: it leaves the ranking until a record of the node proves
+    its copy again, with a checksum equal to the catalogue's. Two copies
+    that disagree are never served under one dataset.
 ```
 
 ## History

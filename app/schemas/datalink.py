@@ -23,7 +23,12 @@ class RoutingDescriptor(BaseModel):
 class PrimaryAccessDescriptor(BaseModel):
     access_url: str
     access_format: str | None = None
+    # ObsCore's estimate, in kilobytes (KiB as the publisher computes it).
     access_estsize: int | None = None
+    # The file's size in bytes: exact when the publisher reported it
+    # (provenance ``size_bytes``), else access_estsize x 1024. This is what
+    # DataLink's content_length carries.
+    content_length: int | None = None
 
 
 class LinkDescriptor(BaseModel):

@@ -219,6 +219,68 @@ def test_the_only_holder_may_update_its_file(client):
         assert db.query(Dataset).filter(Dataset.obs_id == "obs-300").one().checksum == "new"
 
 
+def test_a_holder_whose_file_changed_is_refused_and_withdrawn(client):
+    # A and B hold the same file; A's file changes. A's new record is refused
+    # (B still holds the catalogued product) and A's replica leaves routing,
+    # so two different files are never served as one dataset.
+    _run_ingestion(client, [_record("obs-350", "A", checksum="xxx", access_estsize=10),
+                            _record("obs-350", "B", checksum="xxx", access_estsize=10)],
+                   source_type="manual")
+    changed = _run_ingestion(client, [_record("obs-350", "A", checksum="yyy", access_estsize=10)],
+                             source_type="manual")
+    assert changed.skipped_records == 1
+    assert changed.validation_errors[0].code == "replica_conflict"
+    assert "quarantined" in changed.validation_errors[0].message
+    with app.state.testing_session_local() as db:
+        dataset = db.query(Dataset).filter(Dataset.obs_id == "obs-350").one()
+        assert dataset.checksum == "xxx"
+        status = {r.node.code: r.status for r in
+                  db.query(DatasetReplica).filter(DatasetReplica.dataset_id == dataset.id)}
+        assert status == {"A": "quarantined", "B": "available"}
+    routing = client.get("/datalink/obs-350").json()["routing"]
+    assert [r["code"] for r in routing["replicas"]] == ["B"]
+    assert routing["excluded"][0]["code"] == "A"
+    # A's file is put back: its record agrees again and the replica returns.
+    back = _run_ingestion(client, [_record("obs-350", "A", checksum="xxx", access_estsize=10)],
+                          source_type="manual")
+    assert back.skipped_records == 0
+    with app.state.testing_session_local() as db:
+        replicas = db.query(DatasetReplica).join(Dataset).filter(Dataset.obs_id == "obs-350")
+        assert {r.status for r in replicas} == {"available"}
+
+
+def test_a_quarantined_replica_returns_only_with_proof(client):
+    # Omitting the checksum that disagreed proves nothing: the replica stays out.
+    _run_ingestion(client, [_record("obs-370", "A", checksum="xxx"), _record("obs-370", "B", checksum="xxx")],
+                   source_type="manual")
+    _run_ingestion(client, [_record("obs-370", "A", checksum="yyy")], source_type="manual")
+    silent = [_record("obs-370", "A")]
+    assert _run_ingestion(client, silent, source_type="manual", dry_run=True) \
+        .validation_errors[0].code == "replica_unverified"
+    assert _run_ingestion(client, silent, source_type="manual").validation_errors[0].code == "replica_unverified"
+    with app.state.testing_session_local() as db:
+        replica = db.query(DatasetReplica).join(Dataset).filter(
+            Dataset.obs_id == "obs-370", DatasetReplica.node.has(code="A")).one()
+        assert replica.status == "quarantined"
+    # The same within one batch, in a dry run and for real.
+    batch = [_record("obs-380", "A", checksum="xxx"), _record("obs-380", "B", checksum="xxx"),
+             _record("obs-380", "A", checksum="yyy"), _record("obs-380", "A")]
+    codes = [e.code for e in _run_ingestion(client, batch, source_type="manual", dry_run=True).validation_errors]
+    assert codes == ["replica_conflict", "replica_unverified"]
+    codes = [e.code for e in _run_ingestion(client, batch, source_type="manual").validation_errors]
+    assert codes == ["replica_conflict", "replica_unverified"]
+
+
+def test_a_dry_run_reports_the_quarantine_without_doing_it(client):
+    _run_ingestion(client, [_record("obs-360", "A", checksum="xxx"), _record("obs-360", "B", checksum="xxx")],
+                   source_type="manual")
+    dry = _run_ingestion(client, [_record("obs-360", "A", checksum="yyy")], source_type="manual", dry_run=True)
+    assert "quarantined" in dry.validation_errors[0].message
+    with app.state.testing_session_local() as db:
+        replicas = db.query(DatasetReplica).join(Dataset).filter(Dataset.obs_id == "obs-360")
+        assert {r.status for r in replicas} == {"available"}
+
+
 def test_conflicts_within_one_batch_are_caught(client):
     batch = [_record("obs-400", "A", checksum="aaa"), _record("obs-400", "B", checksum="bbb")]
     dry = _run_ingestion(client, batch, source_type="manual", dry_run=True)

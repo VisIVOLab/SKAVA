@@ -73,6 +73,9 @@ def build_record(
     # Provenance.
     prov: dict[str, Any] = dict(record.get("provenance_json") or {})
     prov.setdefault("rel_path", rel_path.as_posix())
+    # The exact size, which DataLink's content_length reports in bytes
+    # (access_estsize is ObsCore's estimate in kilobytes).
+    prov.setdefault("size_bytes", int(size_bytes))
     if sha256:
         prov.setdefault("sha256", sha256)
         # The catalogue proves that two nodes hold the same product by this

@@ -60,9 +60,19 @@ Everything below, to the next heading of this level, is in 0.1.0.
 * **Product identity** — a record is refused as ``replica_conflict`` when
   its ``obs_id`` is already held by other nodes as a different product
   (another checksum, size or product type); records within one batch and
-  dry runs are checked alike. The federated search no longer merges two
+  dry runs are checked alike. A node holding the dataset beside others
+  whose new record contradicts the catalogue (its file changed) is refused
+  and its replica quarantined, out of the ranking, until a record proves the
+  copy again with an equal checksum. The federated search no longer merges two
   different products listed under one ``obs_id``: they are returned apart,
   flagged ``identity_conflict``.
+* **DataLink ``content_length``** is in bytes, as DataLink defines it: the
+  exact size the publisher now records (``provenance_json.size_bytes``), not
+  ObsCore's ``access_estsize``, which is in kilobytes.
+* **DataLink ``#this`` rows** lead a client to the dataset: a ``file://``
+  copy is linked through its node's SODA (which, unconstrained, returns the
+  file as stored) and its location moves to the ``local_access_url``
+  column; a copy nothing can reach gets no row.
 * **TAP ``CONTAINS``** tests the dataset's centre, as ADQL defines it; the
   discovery API's ``POS`` keeps the footprint overlap.
 * **SODA by POST** — ``POST /soda/sync`` (form parameters) redirects with

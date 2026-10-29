@@ -64,7 +64,11 @@ class IngestService:
 
             conflict = self._replica_conflict(record, node)
             if conflict:
-                self._skip(summary, idx, conflict[0], conflict[1], raw)
+                code, message = conflict
+                if code == "replica_conflict" and self._quarantine(record.obs_id, node):
+                    message += ("; this node's own replica is withdrawn from routing (quarantined) "
+                                "until a record of its file agrees with the other copies again")
+                self._skip(summary, idx, code, message, raw)
                 continue
 
             dataset, dataset_action = self._upsert_dataset(record)
@@ -167,9 +171,11 @@ class IngestService:
         existing = self.db.scalar(select(Dataset).where(Dataset.obs_id == obs_id))
         if existing is None:
             return None
-        nodes = set(self.db.scalars(select(DatasetReplica.node_id)
-                                    .where(DatasetReplica.dataset_id == existing.id)).all())
-        return {"nodes": nodes, **{f: getattr(existing, f) for f in self._IDENTITY_FIELDS}}
+        holders = self.db.execute(select(DatasetReplica.node_id, DatasetReplica.status)
+                                  .where(DatasetReplica.dataset_id == existing.id)).all()
+        return {"nodes": {node for node, _ in holders},
+                "quarantined": {node for node, status in holders if status == "quarantined"},
+                **{f: getattr(existing, f) for f in self._IDENTITY_FIELDS}}
 
     def _replica_conflict(self, record: IngestionRecord, node: Node) -> tuple[str, str] | None:
         """Why this record cannot be counted as a copy of the product already
@@ -200,7 +206,10 @@ class IngestService:
                 return ("replica_conflict",
                         f"obs_id {record.obs_id} is already catalogued as a different product on other "
                         f"nodes ({'; '.join(differences)}); not accepted as a replica")
-            joining = node.id not in evidence["nodes"]
+            # A node joining the copies, or returning from quarantine, proves
+            # its copy as a newcomer does: its record must not merely omit
+            # what once disagreed.
+            joining = node.id not in evidence["nodes"] or node.id in evidence.get("quarantined", set())
             if joining and settings.replica_identity == "checksum" and not (
                     record.checksum and evidence.get("checksum")):
                 missing = "this record" if not record.checksum else "the catalogue"
@@ -209,9 +218,9 @@ class IngestService:
                         "the copy cannot be verified, so it is not accepted as a replica "
                         "(publish checksums, or declare the replica in the admin UI)")
         # Accepted: what the catalogue will hold after this record.
-        state = {"nodes": set(), **{f: None for f in self._IDENTITY_FIELDS}} if evidence is None else \
-            {"nodes": set(evidence["nodes"]), **{f: evidence.get(f) for f in self._IDENTITY_FIELDS}}
+        state = self._state(evidence)
         state["nodes"].add(node.id)
+        state["quarantined"].discard(node.id)        # an accepted record restores its replica
         sole_holder = state["nodes"] == {node.id}
         stated = {f: getattr(record, f) for f in self._IDENTITY_FIELDS if getattr(record, f) is not None}
         changed = sole_holder and any(state[f] is not None and str(state[f]) != str(v) for f, v in stated.items())
@@ -226,6 +235,42 @@ class IngestService:
                 state[field] = value
         self._batch[record.obs_id] = state
         return None
+
+    def _state(self, evidence: dict[str, Any] | None) -> dict[str, Any]:
+        """A copy of ``evidence`` this batch can change (an empty one for a new dataset)."""
+        if evidence is None:
+            return {"nodes": set(), "quarantined": set(), **{f: None for f in self._IDENTITY_FIELDS}}
+        return {"nodes": set(evidence["nodes"]), "quarantined": set(evidence.get("quarantined", set())),
+                **{f: evidence.get(f) for f in self._IDENTITY_FIELDS}}
+
+    def _quarantine(self, obs_id: str, node: Node) -> bool:
+        """Withdraw ``node``'s replica of ``obs_id`` from routing, if it has one.
+
+        A node already holding a dataset that other nodes hold too, whose
+        new record contradicts the catalogue, now holds a different file:
+        refusing the record keeps the catalogue's identity, and quarantining
+        the old replica keeps the node from being routed to for a file it no
+        longer has. Two copies that disagree are never served under one
+        dataset. It returns only with a record that proves its copy as a
+        newcomer's must (``_replica_conflict``). True when a replica was (or,
+        in a dry run, would be) quarantined.
+        """
+        evidence = self._evidence(obs_id)
+        if evidence is None or node.id not in evidence["nodes"]:
+            return False
+        if not self.dry_run:
+            replica = self.db.scalar(
+                select(DatasetReplica).join(Dataset, DatasetReplica.dataset_id == Dataset.id)
+                .where(Dataset.obs_id == obs_id, DatasetReplica.node_id == node.id))
+            if replica is not None:
+                replica.status = "quarantined"
+                self.db.flush()
+        # Later records of the batch (and of a dry run, which writes nothing)
+        # see the replica as quarantined.
+        state = self._state(evidence)
+        state["quarantined"].add(node.id)
+        self._batch[obs_id] = state
+        return True
 
     def _upsert_replica(self, dataset: Dataset, node: Node, record: IngestionRecord) -> str:
         dataset_id = dataset.id

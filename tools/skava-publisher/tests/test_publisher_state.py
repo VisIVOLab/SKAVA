@@ -208,3 +208,14 @@ def test_records_carry_the_files_checksum(tmp_path, config):
     record = json.loads(manifest.read_text())["records"][0]
     assert record["checksum"].startswith("sha256:") and len(record["checksum"]) == 7 + 64
     assert record["checksum"] == "sha256:" + record["provenance_json"]["sha256"]
+
+
+def test_records_carry_the_exact_size(tmp_path, config):
+    # access_estsize is ObsCore's kilobytes; DataLink's content_length needs
+    # the bytes, so the exact size travels in the provenance.
+    path = _plain_fits(tmp_path / "data" / "a.fits", "obs-a")
+    manifest = tmp_path / "manifest.json"
+    _scan_to(config, manifest)
+    record = json.loads(manifest.read_text())["records"][0]
+    assert record["provenance_json"]["size_bytes"] == path.stat().st_size
+    assert record["access_estsize"] == max(1, path.stat().st_size // 1024)

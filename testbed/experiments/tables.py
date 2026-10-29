@@ -164,8 +164,8 @@ def table_placement() -> None:
 
 
 def percentile(values: list[float], q: float) -> float | None:
-    """The q-th percentile by nearest rank (no interpolation): with 10 runs the
-    95th is the slowest but none, an observed value."""
+    """The q-th percentile by nearest rank (no interpolation), an observed
+    value: with 10 runs the 95th is the slowest run."""
     if not values:
         return None
     ordered = sorted(values)

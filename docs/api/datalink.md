@@ -60,7 +60,9 @@ returns 404 when the obs_id is unknown. JSON is the default; `RESPONSEFORMAT`
     the last probe, not enough free memory, …).
 * - ``primary_access``
   - The selected replica: ``access_url``, ``access_format``,
-    ``access_estsize`` (KB).
+    ``access_estsize`` (ObsCore's estimate, KB) and ``content_length``
+    (bytes: the exact size the publisher measured, or the estimate × 1024
+    when no exact size agrees with it).
 * - ``links[]``
   - Link table: ``rel``, ``href``, ``content_type``, ``title``,
     ``description``, ``node_id`` (see below).
@@ -115,7 +117,8 @@ Selected fields (testbed, `resource_aware` policy):
   "primary_access": {
     "access_url": "file:///data/cubes/tb-cube-l.fits",
     "access_format": "image/fits",
-    "access_estsize": 3145733
+    "access_estsize": 3145733,
+    "content_length": 3221230592
   },
   "service_descriptors": [
     {
@@ -283,10 +286,24 @@ JSON is the default. Request `RESPONSEFORMAT=application/x-votable+xml`
   UCDs, plus the SKAVA extensions `node_id` (the node a row belongs to),
   `rank_reason` and `score` (the routing decision on the `#this` rows: why
   the policy ranked that replica where it is, and its cost, lower is
-  better, as `routing.replicas[]` has them in the JSON);
+  better, as `routing.replicas[]` has them in the JSON) and
+  `local_access_url` (see below);
+- `content_length` in bytes, the file's exact size (ObsCore's
+  `access_estsize` is in kilobytes);
 - IVOA semantics vocabulary terms (`#this`, `#preview`, `#auxiliary`,
   `#cutout`, `#proc`);
-- the `#this` rows are the replicas, best node first;
+- the `#this` rows are the replicas, best node first, and each is a link a
+  client can follow to the dataset itself:
+  - a copy at an `http(s)://` or `ftp://` URL is linked directly;
+  - a `file://` copy on a node with a VisIVO backend is linked through the
+    node's SODA, `<backend>/soda/sync?ID=<the file:// URL>`: with no `POS`,
+    `BAND` or `TIME` the node returns the file as stored (every HDU, byte
+    for byte), under the node's own token (`link_auth`). The `file://`
+    location itself, which the node's backend opens in place, is in
+    `local_access_url`, never in `access_url`;
+  - a copy no client and no node service can reach (`file://` on a node
+    without a backend, `sftp://`, ...) gets no row; a dataset left without
+    a `#this` row gets one `NotFoundFault` row;
 - one `#auxiliary` row per **VisIVO backend** co-located with a replica,
   best node first, so VO clients see where the dataset can be analysed in
   place: `access_url` is the backend's status document
