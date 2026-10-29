@@ -10,8 +10,11 @@ services advertised as adhoc service descriptors), the node's SODA sync service 
 descriptor pyvo found, and through ``SodaQuery`` directly), the node's UWS
 job list (a moment-map job, its document parsed by pyvo's UWS reader), and
 the node's VOSI documents. Runs inside the testbed network (``make
-conformance``), where the nodes' names resolve; the node's own token goes in
-the session, as the DataLink's ``link_auth`` column says it must.
+conformance``), where the nodes' names resolve. Two sessions keep the
+credentials apart: the catalogue's carries none, and the nodes' sends the
+nodes' own token (as the DataLink's ``link_auth`` column says it must) only
+to the nodes' own addresses, redirects included; a last check verifies that
+no node credential ever reached the catalogue.
 
 The checks build on each other (the TAP query names the dataset, the
 DataLink document names the node's services): a check whose prerequisite
@@ -47,8 +50,54 @@ class BoundedSession(requests.Session):
         return super().request(method, url, **kwargs)
 
 
-session = BoundedSession()
-session.headers["X-Visivo-Token"] = TOKEN   # the nodes' own token (link_auth); SKAVA ignores it
+NODE_HEADER = "X-Visivo-Token"
+
+
+def _origin(url: str) -> tuple[str, str]:
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    return parts.scheme.lower(), parts.netloc.lower()
+
+
+class CatalogueSession(BoundedSession):
+    """For SKAVA: no credential, and every request it sends is recorded."""
+
+    def __init__(self):
+        super().__init__()
+        self.sent: list[tuple[str, dict]] = []
+
+    def send(self, request, **kwargs):
+        self.sent.append((request.url, dict(request.headers)))
+        return super().send(request, **kwargs)
+
+
+class NodeSession(BoundedSession):
+    """For the nodes' backends: their token, and only to their own origins.
+
+    The origins are the backends the catalogue's DataLink names; a request,
+    or a redirect, to any other address goes without the token."""
+
+    def __init__(self, token: str):
+        super().__init__()
+        self.token = token
+        self.origins: set[tuple[str, str]] = set()
+
+    def request(self, method, url, **kwargs):
+        headers = dict(kwargs.pop("headers", None) or {})
+        headers.pop(NODE_HEADER, None)
+        if _origin(url) in self.origins:
+            headers[NODE_HEADER] = self.token
+        return super().request(method, url, headers=headers, **kwargs)
+
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        if _origin(prepared_request.url) not in self.origins:
+            prepared_request.headers.pop(NODE_HEADER, None)
+
+
+catalogue = CatalogueSession()
+nodes = NodeSession(TOKEN)
 
 results: list[tuple[str, str, str]] = []    # name, "ok" | "FAIL" | "skip", detail
 state: dict = {}
@@ -100,7 +149,7 @@ def adhoc_services(dl: DatalinkResults) -> list[dict]:
 
 @check("TAP: ObsCore query")
 def _tap_query():
-    tap = pyvo.dal.TAPService(f"{SKAVA}/tap", session=session)
+    tap = pyvo.dal.TAPService(f"{SKAVA}/tap", session=catalogue)
     rows = tap.search("SELECT TOP 20 obs_id, access_url, access_format, s_ra, s_dec, s_fov FROM ivoa.obscore")
     assert len(rows) >= 1, "no rows"
     table = rows.to_table()
@@ -113,7 +162,7 @@ def _tap_query():
 
 @check("TAP: VOSI tables and capabilities")
 def _tap_vosi():
-    tap = pyvo.dal.TAPService(f"{SKAVA}/tap", session=session)
+    tap = pyvo.dal.TAPService(f"{SKAVA}/tap", session=catalogue)
     names = [t.name for t in tap.tables]
     assert any(n.lower().endswith("obscore") for n in names), names
     caps = tap.capabilities
@@ -126,7 +175,7 @@ def _datalink():
     needs("obs_id")
     obs_id = state["obs_id"]
     url = f"{SKAVA}/datalink/{obs_id}?RESPONSEFORMAT=votable"
-    dl = DatalinkResults.from_result_url(url, session=session)
+    dl = DatalinkResults.from_result_url(url, session=catalogue)
     this = [r for r in dl.bysemantics("#this")]
     assert this, "no #this row"
     assert this[0].access_url, "the #this row has no access URL"
@@ -137,6 +186,10 @@ def _datalink():
     assert sync is not None, f"no SODA sync descriptor among {sorted(kinds)}"
     assert asyn is not None, f"no SODA async descriptor among {sorted(kinds)}"
     assert sync["inputs"].get("ID"), f"the sync descriptor carries no ID: {sync['inputs']}"
+    # The nodes' backends, as the catalogue names them: the only addresses
+    # the nodes' session sends their token to.
+    nodes.origins |= {_origin(str(r.access_url)) for r in dl.bysemantics("#auxiliary")}
+    nodes.origins |= {_origin(s["accessURL"]) for s in services}
     state.update(dl=dl, sync=sync, asyn=asyn)
     return f"{len(list(dl))} rows, services {sorted(kinds)}, node {sync['accessURL']}"
 
@@ -153,29 +206,20 @@ def _this_rows():
     import hashlib
 
     obs_id = state["obs_id"]
-    catalogued = session.get(f"{SKAVA}/discovery/dataset/{obs_id}").json()
+    catalogued = catalogue.get(f"{SKAVA}/discovery/dataset/{obs_id}").json()
     checksum = ((catalogued.get("metadata") or {}).get("checksum") or "").removeprefix("sha256:")
     assert checksum, f"the catalogue states no checksum for {obs_id}"
     rows = [r for r in state["dl"].bysemantics("#this")]
     assert rows, "no #this row"
-    # The node token goes only to the nodes' own backends (the #auxiliary rows
-    # name them), never to a direct copy elsewhere, and no request follows a
-    # redirect with it.
-    from urllib.parse import urlsplit
-
-    def origin(url: str) -> tuple[str, str]:
-        parts = urlsplit(url)
-        return parts.scheme, parts.netloc
-
-    nodes = {origin(str(r.access_url)) for r in state["dl"].bysemantics("#auxiliary")}
-    anonymous = BoundedSession()
+    # The nodes' session sends their token only to the nodes' own backends
+    # (a direct copy elsewhere gets none), and no request follows a redirect.
     deadline = float(os.environ.get("TESTBED_CONFORMANCE_DOWNLOAD_S", "600"))
     seen = []
     for row in rows:
         url = str(row.access_url)
         assert not url.startswith("file:"), f"a #this access_url a client cannot follow: {url}"
         declared = int(row.content_length)
-        client = session if origin(url) in nodes else anonymous
+        client = nodes
         digest, got = hashlib.sha256(), {"size": 0, "status": None, "media": "", "error": None}
 
         def fetch() -> None:
@@ -227,7 +271,7 @@ def _soda_descriptor():
     rec = next(r for r in dl if "cutout" in str(r.semantics) or "proc" in str(r.semantics))
     assert rec.service_def, "the row names no service descriptor"
     resource = dl.get_adhocservice_by_id(rec.service_def)
-    query = SodaQuery.from_resource([rec], resource, session=session)
+    query = SodaQuery.from_resource([rec], resource, session=nodes)
     query.circle = (state["ra"], state["dec"], radius)
     assert query["ID"] == state["sync"]["inputs"]["ID"], f"ID {query.get('ID')!r} from the descriptor"
     head = query.execute_stream().read(2880)
@@ -240,7 +284,7 @@ def _soda_direct():
     needs("sync")
     sync = state["sync"]
     radius = max(state["fov"] / 8, 1e-3)
-    query = SodaQuery(sync["accessURL"], session=session)
+    query = SodaQuery(sync["accessURL"], session=nodes)
     query["ID"] = sync["inputs"]["ID"]
     query.circle = (state["ra"], state["dec"], radius)
     head = query.execute_stream().read(2880)
@@ -252,32 +296,32 @@ def _soda_direct():
 def _uws():
     needs("asyn")
     asyn = state["asyn"]
-    created = session.post(asyn["accessURL"], data={"ID": asyn["inputs"]["ID"], "OPERATION": "MOMENT",
+    created = nodes.post(asyn["accessURL"], data={"ID": asyn["inputs"]["ID"], "OPERATION": "MOMENT",
                                                     "MOMENT": "0", "PHASE": "RUN"},
                            allow_redirects=False)
     assert created.status_code in (303, 200, 201), f"HTTP {created.status_code}: {created.text[:200]}"
     job_url = created.headers["Location"]
     try:
-        job = uws.parse_job(io.BytesIO(session.get(job_url, headers={"Accept": "application/xml"}).content))
+        job = uws.parse_job(io.BytesIO(nodes.get(job_url, headers={"Accept": "application/xml"}).content))
         assert job.phase in ("PENDING", "QUEUED", "EXECUTING", "COMPLETED"), job.phase
         deadline = time.monotonic() + 300
         phase = job.phase
         while time.monotonic() < deadline:
-            phase = session.get(f"{job_url}/phase").text.strip()
+            phase = nodes.get(f"{job_url}/phase").text.strip()
             if phase in ("COMPLETED", "ERROR", "ABORTED"):
                 break
             time.sleep(0.5)
         assert phase == "COMPLETED", f"job ended {phase}"
-        job = uws.parse_job(io.BytesIO(session.get(job_url, headers={"Accept": "application/xml"}).content))
+        job = uws.parse_job(io.BytesIO(nodes.get(job_url, headers={"Accept": "application/xml"}).content))
         assert job.phase == "COMPLETED" and len(job.results) >= 1, (job.phase, len(job.results))
         assert job.starttime is not None and job.endtime is not None, "no start/end time"
-        product = session.get(job.results[0].href, stream=True)
+        product = nodes.get(job.results[0].href, stream=True)
         head = product.raw.read(2880)
         product.close()
         assert head.startswith(b"SIMPLE"), f"the result is not a FITS: {head[:30]!r}"
     finally:
         # Whatever happened, the job (and its product) is not left on the node.
-        gone = session.delete(job_url, allow_redirects=False)
+        gone = nodes.delete(job_url, allow_redirects=False)
         assert gone.status_code in (303, 200, 204), f"DELETE {job_url}: HTTP {gone.status_code}"
     return f"{job_url} COMPLETED, {len(job.results)} result(s), {job.starttime} → {job.endtime}"
 
@@ -286,12 +330,22 @@ def _uws():
 def _node_vosi():
     needs("sync")
     base = state["sync"]["accessURL"].rsplit("/soda/", 1)[0]
-    caps = parse_capabilities(io.BytesIO(session.get(f"{base}/soda/capabilities").content))
+    caps = parse_capabilities(io.BytesIO(nodes.get(f"{base}/soda/capabilities").content))
     ids = [str(c.standardid) for c in caps]
     assert any("SODA#sync" in i for i in ids) and any("SODA#async" in i for i in ids), ids
-    avail = parse_availability(io.BytesIO(session.get(f"{base}/soda/availability").content))
+    avail = parse_availability(io.BytesIO(nodes.get(f"{base}/soda/availability").content))
     assert avail.available, "not available"
     return f"{len(ids)} capabilities, available"
+
+
+@check("Credentials: the catalogue never received a node's token")
+def _credentials():
+    assert catalogue.sent, "no request reached the catalogue"
+    leaked = [url for url, headers in catalogue.sent
+              if any(k.lower() == NODE_HEADER.lower() for k in headers)]
+    assert not leaked, f"node token sent to the catalogue: {leaked[:3]}"
+    assert nodes.origins and all(o != _origin(SKAVA) for o in nodes.origins), nodes.origins
+    return f"{len(catalogue.sent)} catalogue requests without it; token sent only to {len(nodes.origins)} node origin(s)"
 
 
 def main() -> int:

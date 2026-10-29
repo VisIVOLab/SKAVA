@@ -3,6 +3,25 @@
 All notable changes to SKAVA. The repository follows
 [semantic versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+* **Publisher: ``obs_id`` collisions on one node** — two files that give
+  one ``obs_id`` from different paths, or a file whose ``obs_id`` the node
+  already published from another file that still exists, are withheld and
+  reported (``failed``, ``obs_id collision``) until resolved; a file that
+  takes the place of one that is gone is published as its replacement
+  (the old entry becomes ``replaced``). The state records each file's
+  published ``access_url`` (a column added to existing state databases).
+
+### Changed
+
+* **Testbed conformance** uses two HTTP sessions: the catalogue's carries
+  no credential, the nodes' sends their token only to the nodes' own
+  addresses (redirects included); a check verifies that no request to the
+  catalogue carried it.
+
 ## 0.1.1 — 2026-10-29
 
 ### Fixed

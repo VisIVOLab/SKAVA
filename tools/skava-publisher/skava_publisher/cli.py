@@ -165,6 +165,99 @@ def _unchanged_files(records: list[dict[str, Any]],
     return out
 
 
+def _where(record: dict[str, Any], entry: dict[str, Any] | None) -> str:
+    """The file behind a record: its path, from the scan or from a file://
+    access URL; another URL as it is (it is compared only with URLs)."""
+    if entry and entry.get("path"):
+        return str(Path(str(entry["path"])).resolve())
+    url = str(record.get("access_url") or "")
+    if url.startswith("file://"):
+        from urllib.parse import unquote, urlsplit
+        return str(Path(unquote(urlsplit(url).path)).resolve())
+    return url
+
+
+def _obs_id_collisions(records: list[dict[str, Any]], files: list[dict[str, Any] | None],
+                       state: StateStore | None) -> dict[int, str]:
+    """Records whose obs_id another file on this node gives too: index → why.
+
+    SKAVA identifies a product by its obs_id, and two records of one node
+    under one obs_id are taken as one product whose file was replaced: two
+    different products (a Stokes I and a Stokes Q cube of one observation,
+    say) would be merged. So two files of this batch with one obs_id are
+    both withheld, and so is a file whose obs_id this node already published
+    from another file that still exists. A file published under an obs_id
+    that no longer exists was moved or replaced, which is not a collision.
+    """
+    reasons: dict[int, str] = {}
+    by_obs: dict[str, list[tuple[int, str]]] = {}
+    for index, record in enumerate(records):
+        if record.get("obs_id"):
+            entry = files[index] if index < len(files) else None
+            by_obs.setdefault(str(record["obs_id"]), []).append((index, _where(record, entry)))
+    for obs_id, entries in by_obs.items():
+        places = {where for _, where in entries}
+        if len(places) > 1:
+            for index, where in entries:
+                other = sorted(places - {where})[0]
+                reasons[index] = (f"obs_id {obs_id} is given by {other} too: two files on this node "
+                                  "with one obs_id (give each product its own OBS_ID)")
+            continue
+        if state is None:
+            continue
+        for index, where in entries:
+            # A record whose file is known (a scan, a manifest's fingerprint,
+            # a file:// URL) is that file only at that path: two roots can
+            # give two files one URL. A record known only by another URL is
+            # the published file whose URL it repeats; one the state never
+            # saw cannot be told apart from another file.
+            known_path = where.startswith("/")
+            url = str(records[index].get("access_url") or "")
+            for other, other_url in state.published(obs_id):
+                if other == where or (not known_path and url and other_url == url):
+                    continue
+                if Path(other).exists():
+                    reasons[index] = (f"obs_id {obs_id} is already published from {other}, which still "
+                                      "exists: two files on this node with one obs_id (give each product "
+                                      "its own OBS_ID, or remove the old file if this one replaces it)")
+                    break
+    return reasons
+
+
+def _withhold_collisions(state: StateStore | None, records: list[dict[str, Any]],
+                         files: list[dict[str, Any] | None]
+                         ) -> tuple[list[dict[str, Any]], list[dict[str, Any] | None]]:
+    """Report the obs_id collisions and return the records (and files) that
+    may be published; a withheld file is marked failed with the reason, so
+    the next run reports it again until the operator resolves it."""
+    collisions = _obs_id_collisions(records, files, state)
+    for index, why in sorted(collisions.items()):
+        click.secho(f"Withheld: {why}", fg="yellow", err=True)
+        entry = files[index] if index < len(files) else None
+        if state is not None and entry is not None:
+            state.upsert_seen(path=str(entry["path"]), size_bytes=int(entry["size_bytes"]),
+                              mtime_ns=int(entry["mtime_ns"]),
+                              sha256=(records[index].get("provenance_json") or {}).get("sha256"))
+            state.mark_failed(path=str(entry["path"]), error=f"obs_id collision: {why}")
+    keep = [i for i in range(len(records)) if i not in collisions]
+    return [records[i] for i in keep], [files[i] if i < len(files) else None for i in keep]
+
+
+def _note_replacements(state: StateStore, records: list[dict[str, Any]],
+                       files: list[dict[str, Any] | None]) -> None:
+    """A file just published under an obs_id this node published from a file
+    that is gone replaces it: the old entry says so."""
+    for record, entry in zip(records, files):
+        if entry is None or not record.get("obs_id"):
+            continue
+        row = state.get(str(entry["path"]))
+        if row is None or row["last_status"] != "published":
+            continue
+        for other, _url in state.published(str(record["obs_id"])):
+            if other != str(entry["path"]) and not Path(other).exists():
+                state.mark_replaced(path=other, by=str(entry["path"]))
+
+
 def _skipped_by_skava(result: dict[str, Any]) -> dict[int, str]:
     """Index of each record SKAVA skipped → its reason, from a run response."""
     summary = result.get("summary") or (result.get("job") or {}).get("summary") or {}
@@ -211,7 +304,8 @@ def _record_outcome(
             state.mark_failed(path=path, error=f"skava: {skipped[index]}")
             failed += 1
         elif record.get("obs_id"):
-            state.mark_published(path=path, obs_id=str(record["obs_id"]))
+            state.mark_published(path=path, obs_id=str(record["obs_id"]),
+                                 access_url=record.get("access_url"))
             published += 1
     return published, failed
 
@@ -270,6 +364,8 @@ def scan(cfg: PublisherConfig, out: Path, force: bool, no_state: bool) -> None:
         if state_ctx is not None:
             state_ctx.__exit__(None, None, None)
 
+    for _index, why in sorted(_obs_id_collisions(records, files, None).items()):
+        click.secho(f"Warning: {why}; publish withholds these files", fg="yellow", err=True)
     if str(out) == "-":
         click.echo(manifest_body(records, files))
     else:
@@ -347,6 +443,7 @@ def publish(cfg: PublisherConfig, manifest: Path | None,
             files = list(found)
             _print_summary(summary)
 
+        records, files = _withhold_collisions(state, records, files)
         if not records:
             click.secho("Nothing to publish — no new or modified files.",
                          fg="yellow")
@@ -366,6 +463,7 @@ def publish(cfg: PublisherConfig, manifest: Path | None,
             _record_outcome(state, records, files, error=f"upload: {exc}")
             sys.exit(2)
         published, failed = _record_outcome(state, records, files, result=result)
+        _note_replacements(state, records, files)
         colour = "green" if not failed else "yellow"
         click.secho(f"✓ SKAVA took {len(records) - len(_skipped_by_skava(result))} of "
                     f"{len(records)} record(s); {failed} marked failed in state.db "
@@ -415,8 +513,8 @@ def watch(cfg: PublisherConfig, interval: int | None, once: bool) -> None:
                 found: list[dict[str, Any]] = []
                 records, summary = _scan_and_extract(cfg, state, files=found)
                 _print_summary(summary)
+                records, files = _withhold_collisions(state, records, list(found))
                 if records:
-                    files: list[dict[str, Any] | None] = list(found)
                     try:
                         result = do_publish(cfg, records,
                                               source_ref=f"watch@{cfg.node.code}")
@@ -424,6 +522,7 @@ def watch(cfg: PublisherConfig, interval: int | None, once: bool) -> None:
                         _record_outcome(state, records, files, error=f"upload: {exc}")
                         raise
                     published, failed = _record_outcome(state, records, files, result=result)
+                    _note_replacements(state, records, files)
                     click.secho(f"  ✓ published {published} record(s), {failed} failed.",
                                   fg="green" if not failed else "yellow")
                 else:

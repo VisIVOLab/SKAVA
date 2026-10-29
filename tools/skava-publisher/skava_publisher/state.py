@@ -61,6 +61,11 @@ class StateStore:
         # WAL without the usual readers-blocked-during-WAL caveat.
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.executescript(_SCHEMA)
+        # Added later: the access URL a file was published with (older state
+        # databases get the column empty).
+        columns = {row["name"] for row in self.conn.execute("PRAGMA table_info(files)")}
+        if "access_url" not in columns:
+            self.conn.execute("ALTER TABLE files ADD COLUMN access_url TEXT")
 
     # ── Read ────────────────────────────────────────────────────────────────
 
@@ -102,16 +107,16 @@ class StateStore:
             (path, size_bytes, mtime_ns, sha256, now),
         )
 
-    def mark_published(self, *, path: str, obs_id: str) -> None:
+    def mark_published(self, *, path: str, obs_id: str, access_url: str | None = None) -> None:
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             """
             UPDATE files
-               SET obs_id = ?, last_published = ?,
+               SET obs_id = ?, last_published = ?, access_url = COALESCE(?, access_url),
                    last_status = 'published', last_error = NULL
              WHERE path = ?
             """,
-            (obs_id, now, path),
+            (obs_id, now, access_url, path),
         )
 
     def mark_failed(self, *, path: str, error: str) -> None:
@@ -123,6 +128,23 @@ class StateStore:
              WHERE path = ?
             """,
             (error[:500], path),
+        )
+
+    def published(self, obs_id: str) -> list[tuple[str, str | None]]:
+        """The files of this node the catalogue has under ``obs_id``, as
+        (path, access URL): every file once published under it (a later
+        failed retry does not take it out of the catalogue) and not since
+        replaced."""
+        return [(row["path"], row["access_url"]) for row in self.conn.execute(
+            "SELECT path, access_url FROM files WHERE obs_id = ? AND last_published IS NOT NULL "
+            "AND last_status != 'replaced' ORDER BY path",
+            (obs_id,))]
+
+    def mark_replaced(self, *, path: str, by: str) -> None:
+        """The file published from ``path`` is gone and ``by`` now carries its obs_id."""
+        self.conn.execute(
+            "UPDATE files SET last_status = 'replaced', last_error = ? WHERE path = ?",
+            (f"replaced by {by}"[:500], path),
         )
 
     def needs_extraction(self, path: str, *, mtime_ns: int) -> bool:

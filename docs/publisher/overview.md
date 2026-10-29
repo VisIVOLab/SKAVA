@@ -163,8 +163,9 @@ files (
     obs_id          TEXT,                  -- recorded on successful publish
     first_seen      TEXT,                  -- ISO-8601 UTC
     last_published  TEXT,                  -- null until first success
-    last_status     TEXT,                  -- pending | published | failed
-    last_error      TEXT
+    last_status     TEXT,                  -- pending | published | failed | replaced
+    last_error      TEXT,
+    access_url      TEXT                   -- the URL it was published with
 )
 ```
 
@@ -185,6 +186,18 @@ it or the upload failed, so a failed file is sent again by the next
 run. The state keeps the file's size and mtime as they were when it
 was extracted: a file changed while it was being published is
 extracted again.
+
+One ``obs_id`` is one product in SKAVA, and a node's second record under
+an ``obs_id`` is taken as a new version of its first. So the publisher
+withholds, and reports, two files of one run that give the same
+``obs_id`` from different paths (a Stokes I and a Stokes Q cube of one
+observation, say), and a file whose ``obs_id`` this node already
+published from another file that still exists. Both are marked
+``failed`` with the reason (``obs_id collision: ...``) and reported again
+on every run until each product has its own ``OBS_ID``, or the old file
+is removed. A file published under the ``obs_id`` of one that is gone
+replaces it: it is published, and the old entry becomes ``replaced``.
+``scan`` warns about collisions in what it extracted.
 
 ## When publisher is the wrong tool
 

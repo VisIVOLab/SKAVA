@@ -135,9 +135,11 @@ SKAVA is used from the SKAVA tab of
 [VisIVO Visual Analytics](https://github.com/VisIVOLab/VisIVO-next). The
 desktop searches the catalogue, shows the chosen node and the reason, opens
 the dataset on that node, and runs cutouts, moment maps,
-position–velocity diagrams and source finders there. Any client that speaks
-TAP and DataLink can use the same service; the interfaces are described in
-the [HTTP API reference](https://skava.readthedocs.io/en/latest/api/discovery.html).
+position–velocity diagrams and source finders there. Other clients reach
+the same discovery and access resolution through TAP and DataLink, within
+the operations they support and the credentials they hold; the interfaces
+are described in the
+[HTTP API reference](https://skava.readthedocs.io/en/latest/api/discovery.html).
 
 ## Development
 
