@@ -89,13 +89,15 @@ VisIVO commit you want to report; to pin a release, `git -C visivo checkout
 
 ## 2. Build the backend image (once)
 
-The conda variant has the full stack on ppc64le; `ENABLE_CUPY=1` adds the
-GPU kernels. The build runs from the repository root and takes from a few
+The conda variant has the full stack on ppc64le and SoFiA-2;
+`APPTAINERENV_ENABLE_CUPY=1` adds the GPU kernels (Apptainer passes only
+`APPTAINERENV_`-prefixed variables into the build, so a plain `ENABLE_CUPY=1`
+is ignored). The build runs from the repository root and takes from a few
 minutes to half an hour.
 
 ```bash
 cd $WORK/visivo
-ENABLE_CUPY=1 apptainer build --fakeroot $WORK/backend-conda.sif apptainer/backend-conda.def
+APPTAINERENV_ENABLE_CUPY=1 apptainer build --fakeroot $WORK/backend-conda.sif apptainer/backend-conda.def
 ```
 
 If `--fakeroot` is not allowed on the frontend, build in a short interactive
@@ -362,5 +364,5 @@ rankings.
     publisher's ``file://`` URLs name it.
 * - The moment map is slow
   - Check ``cupy devices`` in ``node_provenance.txt``; zero means the image
-    was built without ``ENABLE_CUPY=1`` or the job has no GPU.
+    was built without ``APPTAINERENV_ENABLE_CUPY=1`` or the job has no GPU.
 ```
