@@ -17,6 +17,12 @@ All notable changes to SKAVA. The repository follows
 
 ### Fixed
 
+* **Publisher: installing from source installed old code** — the repository
+  tracked a stale ``tools/skava-publisher/build/`` copy, which pip installed
+  in place of the source (the release 0.1.2 tree included). A publisher
+  installed that way sends no exact file size, so DataLink's
+  ``content_length`` was the size estimate (a multiple of 1024). The copy is
+  removed and ignored; reinstall with ``--force-reinstall`` and publish again.
 * **Publisher: FITS metadata of real survey products** — a degenerate
   Stokes axis (length 1) no longer makes a cube ``polarimetric`` (ASKAP,
   MeerKAT and WSRT cubes were catalogued so, and their cube operations not

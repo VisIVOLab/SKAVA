@@ -128,7 +128,9 @@ sha256sum $DATA/*.fits      # compare with `shasum -a 256` of the laptop copy
 The provenance report: host, CPU, memory, GPU, Apptainer, the image's hash,
 the VisIVO commit, the Python and GPU libraries inside the image, and each
 dataset (size, SHA-256, FITS geometry). Run it inside the GPU job allocation
-to see the compute node's hardware:
+to see the compute node's hardware. Once the backend is up (step 5), running
+it as a step of the backend's own job records that job's node and limits:
+`srun --jobid=<backend job> --overlap bash skava/scripts/node_provenance.sh ...`.
 
 ```bash
 cd $WORK
@@ -174,6 +176,20 @@ curl -s http://localhost:18900/v1/node/status | python3 -m json.tool | head -40
 The status document must show `"node_code": "PLEIADI-GPU-OACT"`, the
 commit as `version`, the GPU declared, and the memory and CPUs of the job
 (not of the whole node).
+
+PLEIADI's SLURM does not enforce `--mem` with a control-group limit (cgroup
+v1, every level unlimited), so the backend takes the job's grant
+(`SLURM_MEM_PER_NODE`) as its limit; this needs VisIVO Visual Analytics
+`d9ccbd7` or later. A backend that reports the whole node's memory (about
+334 GB) is older.
+
+If the image was built from an older commit than the clone, there is no need
+to rebuild for a change in the Python code: add `--backend-src
+$RWORK/visivo/backend/app` to the helper, which binds the clone's code over
+the image's, and report the clone's commit as `--version`. Say so in the
+evidence: the image's commit and the overlay's are then both part of what ran
+(`git -C $RWORK/visivo diff --stat <image commit> HEAD -- backend/app` lists
+the difference).
 
 ## 6. Register the node in the catalogue
 
@@ -247,8 +263,8 @@ one derived from the node code and the file's path.
 curl -s "http://localhost:18000/tap/sync?LANG=ADQL&REQUEST=doQuery&RESPONSEFORMAT=json&QUERY=SELECT%20obs_id,%20access_url%20FROM%20ivoa.obscore%20WHERE%20obs_collection%20=%20'inaf-pleiadi'" \
     | python3 -m json.tool | head -20
 export OBS_ID=<the obs_id above>
-curl -s http://localhost:18000/datalink/$OBS_ID > $EVIDENCE/datalink.json
-python3 -m json.tool $EVIDENCE/datalink.json | grep -E '"best_node"|"policy"|"rank_reason"|"content_length"'
+curl -s http://localhost:18000/datalink/$OBS_ID | python3 -m json.tool > $EVIDENCE/datalink_$OBS_ID.json
+grep -E '"best_node"|"policy"|"rank_reason"|"content_length"' $EVIDENCE/datalink_$OBS_ID.json
 ```
 
 Expected: `best_node` is `PLEIADI-GPU-OACT`, `policy` is `resource_aware`,
@@ -265,15 +281,19 @@ where it was made, the node's status before and after.
 ```bash
 # on the laptop
 cd $SKAVA_REPO/testbed
-TESTBED_SKAVA_URL=http://localhost:18000 TESTBED_BACKEND_TOKEN=$NODE_TOKEN \
+export TESTBED_SKAVA_URL=http://localhost:18000 TESTBED_BACKEND_TOKEN=$NODE_TOKEN
+for rep in 1 2 3; do
     ../.venv/bin/python -m experiments.e7_real_node \
         --node $NODE --backend http://localhost:18900 \
-        --collection inaf-pleiadi --name e7_pleiadi
+        --obs-id $OBS_ID --name pleiadi/e7_apertif_$rep
+done
 ```
 
-It ends with `all steps ok` and writes `results/e7_pleiadi.json` and `.csv`.
-Run it two or three times if you want a spread; each run overwrites the file,
-so rename it in between (`--name e7_pleiadi_2`).
+Each run ends with `all steps ok` and writes `results/pleiadi/<name>.json`
+and `.csv`, straight into the bundle. The first run of a dataset is cold
+(page cache, compiled kernels): three runs give the cold figure and a warm
+spread. Repeat with each dataset you published, one `--obs-id` and one name
+each (the reference run used Apertif, HCG 44 and WALLABY).
 
 ## 10. The desktop run (the picture)
 
@@ -295,12 +315,10 @@ In VisIVO Visual Analytics:
 # on the laptop
 RWORK=/scratch/$PUSER/skava-e2e
 scp $PUSER@$PLEIADI:$RWORK/node_provenance.txt $PUSER@$PLEIADI:$RWORK/publish.log $EVIDENCE/
-ssh $PUSER@$PLEIADI "ls -t $RWORK/backend/logs/visivo_backend_*.log | head -1 | xargs grep -E 'open_skava|soda|moment|Started|Uvicorn'" \
+ssh $PUSER@$PLEIADI "ls -t $RWORK/backend/logs/visivo_backend_*.log | head -1 | xargs grep -E 'open_skava|soda|moment|Started|Uvicorn|ERROR|Traceback'" \
     > $EVIDENCE/backend_log_excerpt.txt
 curl -s -H "X-Internal-Api-Key: testbed-internal-api-key" http://localhost:18000/internal/telemetry \
     > $EVIDENCE/telemetry.json
-cp $SKAVA_REPO/testbed/results/e7_pleiadi.* $EVIDENCE/
-git -C $SKAVA_REPO rev-parse --short HEAD > $EVIDENCE/skava_commit.txt
 ls -l $EVIDENCE
 ```
 
@@ -309,12 +327,15 @@ of a real-node validation:
 
 | Question | Where |
 |---|---|
-| Which hardware (CPU, memory, GPU) | `node_provenance.txt`, and `e7_pleiadi.json` (`node_status_before`: what the job was granted) |
-| Which data (format, size, geometry, checksum) | `node_provenance.txt`, `datalink.json` (`content_length`) |
-| Which software (VisIVO commit, image hash, Apptainer, SKAVA commit) | `node_provenance.txt`, `skava_commit.txt`, the node status `version` |
-| What the catalogue decided, and why | `datalink.json`, `telemetry.json` |
-| What was done on the node, how long it took | `e7_pleiadi.json` / `.csv`, `backend_log_excerpt.txt`, the screenshots |
-| That nothing was downloaded | `e7_pleiadi.json` (the product path is on the node), `backend_log_excerpt.txt` |
+| Which hardware (CPU, memory, GPU) | `node_provenance.txt`, and the `e7_*.json` files (`node_status_before`: what the job was granted) |
+| Which data (format, size, geometry, checksum) | `node_provenance.txt`, `datalink_*.json` (`content_length`) |
+| Which software (VisIVO commit, image hash, Apptainer, SKAVA commit) | `node_provenance.txt`, the `e7_*.json` metadata (`skava_commit`, `visivo_commit`), the node status `version` |
+| What the catalogue decided, and why | `datalink_*.json`, `telemetry.json` |
+| What was done on the node, how long it took | `e7_*.json` / `.csv`, `backend_log_excerpt.txt`, the screenshots |
+| That nothing was downloaded | `e7_*.json` (the product path is on the node), `backend_log_excerpt.txt` |
+
+Add a `README.md` stating the setup (job, image and overlay commits, link,
+data) and summarising the runs; the reference run's is in the repository.
 
 ## 12. Tear down
 
@@ -362,6 +383,19 @@ rankings.
 * - Open refused: outside the data roots
   - ``--data-root`` must be the cluster path of ``$DATA`` exactly as the
     publisher's ``file://`` URLs name it.
+* - ``content_length`` is a multiple of 1024, not the file's size
+  - The publisher is an old installation: SKAVA clones before ``a7a909e``
+    tracked a stale ``tools/skava-publisher/build/``, which pip installed
+    in place of the source. Delete it, reinstall with ``--force-reinstall``,
+    and publish again (the records are updated, not duplicated).
+* - The node reports the whole node's memory
+  - The backend predates VisIVO Visual Analytics ``d9ccbd7`` (no cgroup v1
+    or SLURM grant reading), or it was not started inside the job (no
+    ``SLURM_JOB_ID``). Pull the clone and use ``--backend-src`` (step 5).
+* - The helper prints the launcher's summary with ``${...}`` unexpanded
+  - The VisIVO clone on the frontend is at ``d9ccbd7`` exactly, whose
+    summary text did not parse: pull it. The backend itself is up; its token
+    is in ``$WORK/backend/token``.
 * - The moment map is slow
   - Check ``cupy devices`` in ``node_provenance.txt``; zero means the image
     was built without ``APPTAINERENV_ENABLE_CUPY=1`` or the job has no GPU.
