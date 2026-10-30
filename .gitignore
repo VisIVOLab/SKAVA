@@ -5,6 +5,8 @@ __pycache__/
 /skava_discovery_service.egg-info
 /app/__pycache__
 /tools/skava-publisher/skava_publisher.egg-info
+# setuptools' staging copy: a stale one is installed in place of the source
+/tools/skava-publisher/build/
 /.venv
 
 # Local secrets / production env (never commit). The *.example template is fine.
