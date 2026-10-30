@@ -1,0 +1,146 @@
+# Node provenance
+recorded: 2026-10-30T08:45:06Z
+host: r33c1s01
+
+## Operating system
+$ uname -a
+Linux r33c1s01 4.18.0-553.el8_10.ppc64le #1 SMP Fri May 24 12:18:47 UTC 2024 ppc64le ppc64le ppc64le GNU/Linux
+$ grep -E ^(NAME|VERSION)= /etc/os-release
+NAME="AlmaLinux"
+VERSION="8.10 (Cerulean Leopard)"
+
+## CPU
+Architecture:        ppc64le
+CPU(s):              128
+Thread(s) per core:  4
+Core(s) per socket:  16
+Socket(s):           2
+Model:               2.1 (pvr 004e 1201)
+Model name:          POWER9, altivec supported
+$ nproc
+8
+
+## Memory
+$ free -g
+              total        used        free      shared  buff/cache   available
+Mem:            311           4         289           0          17         304
+Swap:             3           0           3
+
+## GPU
+$ nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv
+index, name, memory.total [MiB], driver_version
+0, Tesla V100-SXM2-16GB, 16384 MiB, 550.54.15
+
+## Scheduler limits of this shell (if inside a job)
+SLURM_GPUS_ON_NODE=1
+SLURM_CPUS_ON_NODE=8
+SLURM_JOB_ID=940
+
+## Container runtime and image
+$ apptainer --version
+apptainer version 1.4.3-1.el8
+$ ls -l backend-conda-gpu.sif
+-rwxr-xr-x 1 fvitello fvitello 2047066112 Oct 30 09:23 backend-conda-gpu.sif
+$ sha256sum backend-conda-gpu.sif
+62700e1399e8a5d79b22c60746b985566d74b196fb3af14b944b163eaf7d83e7  backend-conda-gpu.sif
+Description: VisIVO Backend (conda-forge variant) — full scientific stack incl. numba/vtk on ppc64le
+Maintainer: VisIVOLab <visivo@inaf.it>
+Version: 1.0.0-conda
+org.label-schema.build-arch: ppc64le
+org.label-schema.build-date: Friday_30_October_2026_9:22:29_CET
+org.label-schema.schema-version: 1.0
+org.label-schema.usage: /.singularity.d/runscript.help
+org.label-schema.usage.apptainer.runscript.help: /.singularity.d/runscript.help
+org.label-schema.usage.apptainer.version: 1.4.3-1.el8
+org.label-schema.usage.singularity.deffile.bootstrap: docker
+org.label-schema.usage.singularity.deffile.from: condaforge/miniforge3:latest
+org.opencontainers.image.version: 24.04
+
+## VisIVO Visual Analytics checkout the image was built from
+$ git -C visivo rev-parse HEAD
+d9ccbd7f8f6d168ba430cd0aadfa9af608400ade
+$ git -C visivo describe --tags --always --dirty
+1.0.6-11-gd9ccbd7
+
+## Inside the image: Python and GPU libraries
+python 3.12.15 ppc64le
+numpy 1.26.4
+astropy 7.2.0
+dask 2026.8.0
+numba 0.68.0
+cupy 13.1.0
+vtk 9.3.1
+fastapi 0.135.3
+cupy devices 1
+
+## Dataset /scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+-rw------- 1 fvitello fvitello 2128688640 Oct  6  2025 /scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+9b3bc0dbc70dba1d52ba3078410afd717e13a4907378fe020ed25631734077d5  /scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+HDU 0: NAXIS=[661, 661, 1218] CTYPE=['RA---NCP', 'DEC--NCP', 'FREQ-OBS'] BITPIX=-32 BUNIT=JY/BEAM OBJECT=s1123+5550 OBS_ID=None TELESCOP=wsrt
+
+## Dataset /scratch/fvitello/skava-e2e/data/ADP.2025-09-05T10_57_51.916.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/ADP.2025-09-05T10_57_51.916.fits
+-rw-r--r-- 1 fvitello fvitello 3871010880 Oct 21 12:03 /scratch/fvitello/skava-e2e/data/ADP.2025-09-05T10_57_51.916.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/ADP.2025-09-05T10_57_51.916.fits
+af8dbcb9aa635ce20363e99e1c4eef1ad002457c1814c923c773eaa252c85467  /scratch/fvitello/skava-e2e/data/ADP.2025-09-05T10_57_51.916.fits
+HDU 1: NAXIS=[771, 392, 1601] CTYPE=['GLON-GLS', 'GLAT-GLS', 'VRAD'] BITPIX=-32 BUNIT=K OBJECT=G10 OBS_ID=None TELESCOP=None
+HDU 2: NAXIS=[771, 392, 1601] CTYPE=['GLON-GLS', 'GLAT-GLS', 'VRAD'] BITPIX=-32 BUNIT=K OBJECT=G10 OBS_ID=None TELESCOP=None
+
+## Dataset /scratch/fvitello/skava-e2e/data/VLVA_SourceTestData/image.i.SB9325.cont.taylor.0.restored.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/VLVA_SourceTestData/image.i.SB9325.cont.taylor.0.restored.fits
+-rw-r--r-- 1 fvitello fvitello 907873920 Nov 25  2021 /scratch/fvitello/skava-e2e/data/VLVA_SourceTestData/image.i.SB9325.cont.taylor.0.restored.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/VLVA_SourceTestData/image.i.SB9325.cont.taylor.0.restored.fits
+8fc8a3faa931232ccef884cd60465b59796d2eb0faabea805135c60733024cbb  /scratch/fvitello/skava-e2e/data/VLVA_SourceTestData/image.i.SB9325.cont.taylor.0.restored.fits
+HDU 0: NAXIS=[15979, 14204, 1, 1] CTYPE=['RA---SIN', 'DEC--SIN', 'FREQ', 'STOKES'] BITPIX=-32 BUNIT=Jy/beam OBJECT=None OBS_ID=None TELESCOP=ASKAP
+
+## Dataset /scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+-rw-r--r-- 1 fvitello fvitello 23932800 Oct 16 14:49 /scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+6e6f1c98f29abeca80568df5d564e87aaf79e444566ccea145e0dd47300d09b2  /scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+HDU 0: NAXIS=[196, 280, 109] CTYPE=['RA---SIN', 'DEC--SIN', 'FREQ'] BITPIX=-32 BUNIT=Jy/beam OBJECT=None OBS_ID=None TELESCOP=None
+
+## Dataset /scratch/fvitello/skava-e2e/data/cutout-1709517-imagecube-42178.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/cutout-1709517-imagecube-42178.fits
+-rw-r--r-- 1 fvitello fvitello 486005760 Sep 10 13:06 /scratch/fvitello/skava-e2e/data/cutout-1709517-imagecube-42178.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/cutout-1709517-imagecube-42178.fits
+b29046f510f4b3b9a38dab5dfacb5d3ab5d1fb1f6d629e4e698b3983327e074a  /scratch/fvitello/skava-e2e/data/cutout-1709517-imagecube-42178.fits
+HDU 0: NAXIS=[125, 125, 1, 7776] CTYPE=['RA---SIN', 'DEC--SIN', 'STOKES', 'FREQ'] BITPIX=-32 BUNIT=Jy/beam OBJECT=None OBS_ID=None TELESCOP=ASKAP
+
+## Dataset /scratch/fvitello/skava-e2e/data/fornax/t15_1kms_NGC1427A_image_mos.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/fornax/t15_1kms_NGC1427A_image_mos.fits
+-rw-r--r-- 1 fvitello fvitello 622748160 Jun 19 10:32 /scratch/fvitello/skava-e2e/data/fornax/t15_1kms_NGC1427A_image_mos.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/fornax/t15_1kms_NGC1427A_image_mos.fits
+d4494af1bf546bf55a37167df9f8ad50b65bce1aad266373e2a460c776559b0e  /scratch/fvitello/skava-e2e/data/fornax/t15_1kms_NGC1427A_image_mos.fits
+HDU 0: NAXIS=[470, 758, 437] CTYPE=['RA---TAN', 'DEC--TAN', 'VRAD'] BITPIX=-32 BUNIT=JY/BEAM OBJECT=None OBS_ID=None TELESCOP=MeerKAT
+
+## Dataset /scratch/fvitello/skava-e2e/data/glimpse_i_8_0_um.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/glimpse_i_8_0_um.fits
+-rw-r--r-- 1 fvitello fvitello 12994560 Sep 30 12:41 /scratch/fvitello/skava-e2e/data/glimpse_i_8_0_um.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/glimpse_i_8_0_um.fits
+d8fd715e999afaaf1a6ad370b28366468978f0b0a97158982a88d291ede9fc8c  /scratch/fvitello/skava-e2e/data/glimpse_i_8_0_um.fits
+HDU 0: NAXIS=[1801, 1802] CTYPE=['GLON-CAR', 'GLAT-CAR'] BITPIX=-32 BUNIT=MJy/sr OBJECT=None OBS_ID=None TELESCOP=SPITZER
+
+## Dataset /scratch/fvitello/skava-e2e/data/hgc44.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/hgc44.fits
+-rw-r--r-- 1 fvitello fvitello 309709440 Jun 28 19:23 /scratch/fvitello/skava-e2e/data/hgc44.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/hgc44.fits
+9b72ba0be34b57acd564b39cf9bdc225a19e0de77e2deca71b0984ed67c771e9  /scratch/fvitello/skava-e2e/data/hgc44.fits
+HDU 0: NAXIS=[700, 700, 158, 1] CTYPE=['RA---NCP', 'DEC--NCP', 'VELO-HEL', 'STOKES'] BITPIX=-32 BUNIT=JY/BEAM OBJECT=hcg44 OBS_ID=None TELESCOP=WSRT
+
+## Dataset /scratch/fvitello/skava-e2e/data/meerkat_bulge/G000.0+2.5_I.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/meerkat_bulge/G000.0+2.5_I.fits
+-rw-r--r-- 1 fvitello fvitello 3600947520 Oct 15 20:36 /scratch/fvitello/skava-e2e/data/meerkat_bulge/G000.0+2.5_I.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/meerkat_bulge/G000.0+2.5_I.fits
+7fe6c0b3f1d75ed0b0be3276f5e1de3bd9b3487f006498f3c830e0bb92ec690b  /scratch/fvitello/skava-e2e/data/meerkat_bulge/G000.0+2.5_I.fits
+HDU 0: NAXIS=[7500, 7500, 16, 1] CTYPE=['GLON-SIN', 'GLAT-SIN', 'SPECLNMF', 'STOKES'] BITPIX=-32 BUNIT=JY/BEAM OBJECT=MW_Bulge OBS_ID=None TELESCOP=MeerKAT
+HDU 1: NAXIS=[70, 13370] CTYPE=[None, None] BITPIX=8 BUNIT=None OBJECT=None OBS_ID=None TELESCOP=None
+
+## Dataset /scratch/fvitello/skava-e2e/data/vlkb-cutout_2019-04-11_13-06-35_409523_CHIMPS_CHIMPS_13CO_40p00+0p33.fits
+$ ls -l /scratch/fvitello/skava-e2e/data/vlkb-cutout_2019-04-11_13-06-35_409523_CHIMPS_CHIMPS_13CO_40p00+0p33.fits
+-rw------- 1 fvitello fvitello 18596160 Apr 11  2019 /scratch/fvitello/skava-e2e/data/vlkb-cutout_2019-04-11_13-06-35_409523_CHIMPS_CHIMPS_13CO_40p00+0p33.fits
+$ sha256sum /scratch/fvitello/skava-e2e/data/vlkb-cutout_2019-04-11_13-06-35_409523_CHIMPS_CHIMPS_13CO_40p00+0p33.fits
+00173069923d45135f21855ef712fec7b6bbf99fb5afb5e62f9986522d6f1316  /scratch/fvitello/skava-e2e/data/vlkb-cutout_2019-04-11_13-06-35_409523_CHIMPS_CHIMPS_13CO_40p00+0p33.fits
+HDU 0: NAXIS=[167, 69, 402] CTYPE=['GLON-TAN', 'GLAT-TAN', 'VRAD'] BITPIX=-32 BUNIT=None OBJECT=40.0+0.3 OBS_ID=None TELESCOP=JCMT

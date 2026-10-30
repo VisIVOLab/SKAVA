@@ -1,0 +1,182 @@
+{
+  "meta": {
+    "when": "2026-10-30T08:47:01+00:00",
+    "host": "MacBook-Pro-di-Fabio.local",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "skava_commit": "a7a909e",
+    "visivo_commit": "d9ccbd7",
+    "profile": "paper",
+    "poll_s": 0.1,
+    "node": "PLEIADI-GPU-OACT",
+    "backend": "http://localhost:18900",
+    "skava": "http://localhost:18000",
+    "node_status_before": {
+      "node_code": "PLEIADI-GPU-OACT",
+      "version": "d9ccbd7",
+      "cpu": {
+        "cpus": 8.0,
+        "limited": true,
+        "utilisation_pct": null,
+        "pressure_pct": null,
+        "load_1m": 0.34423828125
+      },
+      "memory": {
+        "total_bytes": 68719476736,
+        "available_bytes": 65074364416,
+        "pressure_pct": null
+      },
+      "gpu": true,
+      "workers": {
+        "total": 8
+      },
+      "tasks": {
+        "running": 0,
+        "queued": 0
+      },
+      "capabilities": {
+        "kinds": [
+          "image",
+          "cube",
+          "dynspec"
+        ],
+        "finders": [
+          "sofia2",
+          "photutils"
+        ],
+        "finder_memory": {
+          "sofia2": {
+            "factor": 2.3,
+            "floor_bytes": 134217728
+          },
+          "photutils": {
+            "factor": 8.0,
+            "floor_bytes": 536870912
+          }
+        }
+      }
+    },
+    "obs_id": "pleiadi-gpu-oact-5cccbc587841e345",
+    "query_rows": 1,
+    "routing": {
+      "policy": "resource_aware",
+      "best_node": "PLEIADI-GPU-OACT",
+      "replicas": [
+        {
+          "code": "PLEIADI-GPU-OACT",
+          "rank_reason": "rtt 75.3 ms, cpu pressure unknown, 0.0 tasks/worker, needs 22.8 MB of 60.6 GB free",
+          "score": 125.29,
+          "telemetry_age_s": 7.3
+        }
+      ],
+      "excluded": [],
+      "content_length": 23932800
+    },
+    "opened": {
+      "dataset_id": "ds_63283b8a3fa4",
+      "kind": "cube",
+      "shape": [
+        196,
+        280,
+        109
+      ]
+    },
+    "node_status_after": {
+      "node_code": "PLEIADI-GPU-OACT",
+      "version": "d9ccbd7",
+      "cpu": {
+        "cpus": 8.0,
+        "limited": true,
+        "utilisation_pct": null,
+        "pressure_pct": null,
+        "load_1m": 0.39697265625
+      },
+      "memory": {
+        "total_bytes": 68719476736,
+        "available_bytes": 65074364416,
+        "pressure_pct": null
+      },
+      "gpu": true,
+      "workers": {
+        "total": 8
+      },
+      "tasks": {
+        "running": 0,
+        "queued": 0
+      },
+      "capabilities": {
+        "kinds": [
+          "image",
+          "cube",
+          "dynspec"
+        ],
+        "finders": [
+          "sofia2",
+          "photutils"
+        ],
+        "finder_memory": {
+          "sofia2": {
+            "factor": 2.3,
+            "floor_bytes": 134217728
+          },
+          "photutils": {
+            "factor": 8.0,
+            "floor_bytes": 536870912
+          }
+        }
+      }
+    },
+    "host_clock_skew_s": 0.0
+  },
+  "rows": [
+    {
+      "step": "node status (before)",
+      "ok": true,
+      "seconds": 0.123
+    },
+    {
+      "step": "ADQL query on the catalogue",
+      "ok": true,
+      "seconds": 0.005,
+      "query": "SELECT TOP 10 obs_id, access_url, dataproduct_type, s_ra, s_dec FROM ivoa.obscore WHERE obs_id = 'pleiadi-gpu-oact-5cccbc587841e345'"
+    },
+    {
+      "step": "DataLink resolution",
+      "ok": true,
+      "seconds": 0.003
+    },
+    {
+      "step": "routed to the node",
+      "ok": true,
+      "node": "PLEIADI-GPU-OACT",
+      "reason": "rtt 75.3 ms, cpu pressure unknown, 0.0 tasks/worker, needs 22.8 MB of 60.6 GB free"
+    },
+    {
+      "step": "open in place on the node",
+      "ok": true,
+      "seconds": 0.159,
+      "access_url": "file:///scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits"
+    },
+    {
+      "step": "first channel slice",
+      "ok": true,
+      "seconds": 0.214
+    },
+    {
+      "step": "moment-0 map as a SODA job on the node",
+      "ok": true,
+      "seconds": 0.473,
+      "job_seconds": 0.042,
+      "product": "/scratch/fvitello/skava-e2e/backend/exports/soda/task_ea1a3674a5114e7a/WALLABY_J100903-290239_Hydra_TR2_cube_m0_f1f07f44.fits"
+    },
+    {
+      "step": "product opened where it was made",
+      "ok": true,
+      "seconds": 0.347
+    },
+    {
+      "step": "node status (after)",
+      "ok": true,
+      "seconds": 0.154
+    }
+  ]
+}

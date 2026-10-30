@@ -1,0 +1,46 @@
+2026-10-30T09:34:42 INFO skava.publisher — Loaded extractors: psrfits, fits, hdf5
+─── Summary ────────────────────────────
+                 scanned: 10
+       skipped_unchanged: 0
+     skipped_unsupported: 0
+               extracted: 10
+          extract_failed: 0
+────────────────────────────────────────
+About to publish 10 record(s) to http://localhost:18080/ as node PLEIADI-GPU-OACT.
+2026-10-30T09:35:20 INFO httpx — HTTP Request: POST http://localhost:18080/internal/ingestion/run "HTTP/1.1 200 OK"
+✓ SKAVA took 10 of 10 record(s); 0 marked failed in state.db and retried next run.
+{
+  "job": {
+    "job_id": 27,
+    "started_at": "2026-10-30T08:35:20.133073",
+    "completed_at": "2026-10-30T08:35:20.147950",
+    "status": "succeeded",
+    "source_type": "skava-publisher",
+    "source_ref": "publisher@PLEIADI-GPU-OACT",
+    "filename": "manifest.json",
+    "dry_run": false,
+    "record_count": 10,
+    "summary": {
+      "total_records": 10,
+      "inserted_datasets": 0,
+      "updated_datasets": 10,
+      "inserted_replicas": 0,
+      "updated_replicas": 10,
+      "skipped_records": 0,
+      "validation_errors": [],
+      "started_at": "2026-10-30T08:35:20.134689",
+      "finished_at": "2026-10-30T08:35:20.147872"
+    },
+    "error_message": null,
+    "triggered_by": "internal-api"
+  },
+  "summary": {
+    "processed": 10,
+    "inserted_datasets": 0,
+    "updated_datasets": 10,
+    "inserted_replicas": 0,
+    "updated_replicas": 10,
+    "skipped": 0,
+    "validation_errors": []
+  }
+}

@@ -1,0 +1,97 @@
+INFO:     Started server process [503123]
+INFO:     Uvicorn running on http://0.0.0.0:18900 (Press CTRL+C to quit)
+2026-10-30 09:46:32,168 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_affcb567a941 kind=cube obs_id=pleiadi-gpu-oact-f9d87580137323b7 path=/scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+INFO:     192.168.0.90:36178 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:36204 - "POST /soda/async HTTP/1.1" 303 See Other
+INFO:     192.168.0.90:36218 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:36220 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:36230 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51814 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51828 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51836 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51842 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51844 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51860 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51874 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51878 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+2026-10-30 09:46:39,362 visivo.backend INFO [soda] async MOMENT 3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_59a032cffd684036/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_221dc395.fits
+INFO:     192.168.0.90:51890 - "GET /soda/async/task_59a032cffd684036 HTTP/1.1" 200 OK
+2026-10-30 09:46:39,730 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_59a032cffd684036/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_221dc395.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:39,733 visivo.backend INFO [open] session=anonymou… dataset_id=ds_75444ada7858 kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_59a032cffd684036/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_221dc395.fits
+2026-10-30 09:46:40,974 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_c802edb14bf7 kind=cube obs_id=pleiadi-gpu-oact-f9d87580137323b7 path=/scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+INFO:     192.168.0.90:51936 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51962 - "POST /soda/async HTTP/1.1" 303 See Other
+INFO:     192.168.0.90:51976 - "GET /soda/async/task_256a0e235c6044c7 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51984 - "GET /soda/async/task_256a0e235c6044c7 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:51998 - "GET /soda/async/task_256a0e235c6044c7 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52024 - "GET /soda/async/task_256a0e235c6044c7 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52038 - "GET /soda/async/task_256a0e235c6044c7 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52048 - "GET /soda/async/task_256a0e235c6044c7 HTTP/1.1" 200 OK
+2026-10-30 09:46:43,150 visivo.backend INFO [soda] async MOMENT 3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_256a0e235c6044c7/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_d681f5ad.fits
+INFO:     192.168.0.90:52058 - "GET /soda/async/task_256a0e235c6044c7 HTTP/1.1" 200 OK
+2026-10-30 09:46:43,490 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_256a0e235c6044c7/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_d681f5ad.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:43,493 visivo.backend INFO [open] session=anonymou… dataset_id=ds_a9e0d816ca12 kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_256a0e235c6044c7/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_d681f5ad.fits
+2026-10-30 09:46:44,795 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_418be2d32b42 kind=cube obs_id=pleiadi-gpu-oact-f9d87580137323b7 path=/scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits
+INFO:     192.168.0.90:52124 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52144 - "POST /soda/async HTTP/1.1" 303 See Other
+INFO:     192.168.0.90:52150 - "GET /soda/async/task_3aa2eec4fa3f4309 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52160 - "GET /soda/async/task_3aa2eec4fa3f4309 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52176 - "GET /soda/async/task_3aa2eec4fa3f4309 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52190 - "GET /soda/async/task_3aa2eec4fa3f4309 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52192 - "GET /soda/async/task_3aa2eec4fa3f4309 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:52196 - "GET /soda/async/task_3aa2eec4fa3f4309 HTTP/1.1" 200 OK
+2026-10-30 09:46:46,992 visivo.backend INFO [soda] async MOMENT 3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_3aa2eec4fa3f4309/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_dde37131.fits
+INFO:     192.168.0.90:52204 - "GET /soda/async/task_3aa2eec4fa3f4309 HTTP/1.1" 200 OK
+2026-10-30 09:46:47,260 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_3aa2eec4fa3f4309/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_dde37131.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:47,262 visivo.backend INFO [open] session=anonymou… dataset_id=ds_ed0677a41aa0 kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_3aa2eec4fa3f4309/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0_m0_dde37131.fits
+2026-10-30 09:46:48,558 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_bcb7acd4b853 kind=cube obs_id=pleiadi-gpu-oact-eae0ae4d9b7fdbf0 path=/scratch/fvitello/skava-e2e/data/hgc44.fits
+INFO:     192.168.0.90:42702 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:42722 - "POST /soda/async HTTP/1.1" 303 See Other
+INFO:     192.168.0.90:42738 - "GET /soda/async/task_7eef046806df4365 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:42754 - "GET /soda/async/task_7eef046806df4365 HTTP/1.1" 200 OK
+2026-10-30 09:46:49,973 visivo.backend INFO [soda] async MOMENT hgc44.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_7eef046806df4365/hgc44_m0_43672b81.fits
+INFO:     192.168.0.90:42768 - "GET /soda/async/task_7eef046806df4365 HTTP/1.1" 200 OK
+2026-10-30 09:46:50,216 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_7eef046806df4365/hgc44_m0_43672b81.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:50,219 visivo.backend INFO [open] session=anonymou… dataset_id=ds_0ed42ac6c620 kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_7eef046806df4365/hgc44_m0_43672b81.fits
+2026-10-30 09:46:51,495 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_f6718dabd9c6 kind=cube obs_id=pleiadi-gpu-oact-eae0ae4d9b7fdbf0 path=/scratch/fvitello/skava-e2e/data/hgc44.fits
+INFO:     192.168.0.90:42812 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:42836 - "POST /soda/async HTTP/1.1" 303 See Other
+INFO:     192.168.0.90:42852 - "GET /soda/async/task_07b8fb4244bc4e34 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:42860 - "GET /soda/async/task_07b8fb4244bc4e34 HTTP/1.1" 200 OK
+2026-10-30 09:46:52,771 visivo.backend INFO [soda] async MOMENT hgc44.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_07b8fb4244bc4e34/hgc44_m0_cf3dcec9.fits
+INFO:     192.168.0.90:42890 - "GET /soda/async/task_07b8fb4244bc4e34 HTTP/1.1" 200 OK
+2026-10-30 09:46:53,142 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_07b8fb4244bc4e34/hgc44_m0_cf3dcec9.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:53,144 visivo.backend INFO [open] session=anonymou… dataset_id=ds_bf0636143dd4 kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_07b8fb4244bc4e34/hgc44_m0_cf3dcec9.fits
+2026-10-30 09:46:54,489 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_b347b77565c5 kind=cube obs_id=pleiadi-gpu-oact-eae0ae4d9b7fdbf0 path=/scratch/fvitello/skava-e2e/data/hgc44.fits
+INFO:     192.168.0.90:42956 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:42986 - "POST /soda/async HTTP/1.1" 303 See Other
+INFO:     192.168.0.90:42988 - "GET /soda/async/task_57e2a25525704ce7 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:43000 - "GET /soda/async/task_57e2a25525704ce7 HTTP/1.1" 200 OK
+2026-10-30 09:46:55,834 visivo.backend INFO [soda] async MOMENT hgc44.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_57e2a25525704ce7/hgc44_m0_188169ab.fits
+INFO:     192.168.0.90:43006 - "GET /soda/async/task_57e2a25525704ce7 HTTP/1.1" 200 OK
+2026-10-30 09:46:56,185 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_57e2a25525704ce7/hgc44_m0_188169ab.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:56,188 visivo.backend INFO [open] session=anonymou… dataset_id=ds_86e8e18019ee kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_57e2a25525704ce7/hgc44_m0_188169ab.fits
+2026-10-30 09:46:57,434 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_11ad124a1e87 kind=cube obs_id=pleiadi-gpu-oact-5cccbc587841e345 path=/scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+INFO:     192.168.0.90:43050 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:38698 - "POST /soda/async HTTP/1.1" 303 See Other
+2026-10-30 09:46:57,909 visivo.backend INFO [soda] async MOMENT WALLABY_J100903-290239_Hydra_TR2_cube.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_798d306fd1e34669/WALLABY_J100903-290239_Hydra_TR2_cube_m0_f4f772c1.fits
+INFO:     192.168.0.90:38706 - "GET /soda/async/task_798d306fd1e34669 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:38708 - "GET /soda/async/task_798d306fd1e34669 HTTP/1.1" 200 OK
+2026-10-30 09:46:58,295 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_798d306fd1e34669/WALLABY_J100903-290239_Hydra_TR2_cube_m0_f4f772c1.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:58,298 visivo.backend INFO [open] session=anonymou… dataset_id=ds_eaa4c5eeee0d kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_798d306fd1e34669/WALLABY_J100903-290239_Hydra_TR2_cube_m0_f4f772c1.fits
+2026-10-30 09:46:59,044 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_aeb14764544e kind=cube obs_id=pleiadi-gpu-oact-5cccbc587841e345 path=/scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+INFO:     192.168.0.90:38738 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:38760 - "POST /soda/async HTTP/1.1" 303 See Other
+2026-10-30 09:46:59,464 visivo.backend INFO [soda] async MOMENT WALLABY_J100903-290239_Hydra_TR2_cube.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_a2f406e8972d42c8/WALLABY_J100903-290239_Hydra_TR2_cube_m0_1c52ff2e.fits
+INFO:     192.168.0.90:38762 - "GET /soda/async/task_a2f406e8972d42c8 HTTP/1.1" 200 OK
+INFO:     192.168.0.90:38776 - "GET /soda/async/task_a2f406e8972d42c8 HTTP/1.1" 200 OK
+2026-10-30 09:46:59,849 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_a2f406e8972d42c8/WALLABY_J100903-290239_Hydra_TR2_cube_m0_1c52ff2e.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:46:59,852 visivo.backend INFO [open] session=anonymou… dataset_id=ds_cc287723ecbb kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_a2f406e8972d42c8/WALLABY_J100903-290239_Hydra_TR2_cube_m0_1c52ff2e.fits
+2026-10-30 09:47:00,596 visivo.backend INFO [open_skava] session=anonymou… dataset_id=ds_63283b8a3fa4 kind=cube obs_id=pleiadi-gpu-oact-5cccbc587841e345 path=/scratch/fvitello/skava-e2e/data/WALLABY_J100903-290239_Hydra_TR2_cube.fits
+INFO:     192.168.0.90:38820 - "POST /v1/datasets/open_skava HTTP/1.1" 200 OK
+INFO:     192.168.0.90:38848 - "POST /soda/async HTTP/1.1" 303 See Other
+2026-10-30 09:47:01,052 visivo.backend INFO [soda] async MOMENT WALLABY_J100903-290239_Hydra_TR2_cube.fits → /scratch/fvitello/skava-e2e/backend/exports/soda/task_ea1a3674a5114e7a/WALLABY_J100903-290239_Hydra_TR2_cube_m0_f1f07f44.fits
+INFO:     192.168.0.90:38856 - "GET /soda/async/task_ea1a3674a5114e7a HTTP/1.1" 200 OK
+INFO:     192.168.0.90:38868 - "GET /soda/async/task_ea1a3674a5114e7a HTTP/1.1" 200 OK
+2026-10-30 09:47:01,444 visivo.fits INFO [fits] path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_ea1a3674a5114e7a/WALLABY_J100903-290239_Hydra_TR2_cube_m0_f1f07f44.fits ctype=['RA---SIN', 'DEC--SIN'] cunit=['deg', 'deg'] active_axes=[1, 2] client_axis_to_fits_axis={1: 1, 2: 2} wcs_status=ok sanitized_axes=[]
+2026-10-30 09:47:01,447 visivo.backend INFO [open] session=anonymou… dataset_id=ds_9baf7d01369d kind=image path=/scratch/fvitello/skava-e2e/backend/exports/soda/task_ea1a3674a5114e7a/WALLABY_J100903-290239_Hydra_TR2_cube_m0_f1f07f44.fits

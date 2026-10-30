@@ -1,0 +1,10 @@
+step,ok,seconds,query,node,reason,access_url,job_seconds,product
+node status (before),True,0.124,,,,,,
+ADQL query on the catalogue,True,0.006,"SELECT TOP 10 obs_id, access_url, dataproduct_type, s_ra, s_dec FROM ivoa.obscore WHERE obs_id = 'pleiadi-gpu-oact-eae0ae4d9b7fdbf0'",,,,,
+DataLink resolution,True,0.003,,,,,,
+routed to the node,True,,,PLEIADI-GPU-OACT,"rtt 75.3 ms, cpu pressure unknown, 0.0 tasks/worker, needs 295.4 MB of 60.6 GB free",,,
+open in place on the node,True,0.276,,,,file:///scratch/fvitello/skava-e2e/data/hgc44.fits,,
+first channel slice,True,0.826,,,,,,
+moment-0 map as a SODA job on the node,True,0.706,,,,,0.37,/scratch/fvitello/skava-e2e/backend/exports/soda/task_57e2a25525704ce7/hgc44_m0_188169ab.fits
+product opened where it was made,True,0.883,,,,,,
+node status (after),True,0.151,,,,,,

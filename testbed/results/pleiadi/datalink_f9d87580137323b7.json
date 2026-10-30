@@ -1,0 +1,283 @@
+{
+    "dataset": {
+        "obs_id": "pleiadi-gpu-oact-f9d87580137323b7",
+        "obs_collection": "inaf-pleiadi",
+        "dataproduct_type": "cube"
+    },
+    "routing": {
+        "best_node": "PLEIADI-GPU-OACT",
+        "replicas": [
+            {
+                "code": "PLEIADI-GPU-OACT",
+                "name": "INAF PLEIADI-GPU (Catania)",
+                "is_enabled": true,
+                "is_available": true,
+                "latency_score": 10.0,
+                "load_score": 0.1,
+                "capability_score": 1.0,
+                "access_endpoint": "file:///scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits",
+                "rank_reason": "rtt 76.9 ms, cpu pressure unknown, 0.0 tasks/worker, needs 2.0 GB of 60.6 GB free",
+                "score": 128.53,
+                "telemetry_age_s": 0.5
+            }
+        ],
+        "policy": "resource_aware",
+        "excluded": []
+    },
+    "primary_access": {
+        "access_url": "file:///scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits",
+        "access_format": "image/fits",
+        "access_estsize": 2078797,
+        "content_length": 2128688640
+    },
+    "links": [
+        {
+            "rel": "self",
+            "href": "http://localhost:18000/datalink/pleiadi-gpu-oact-f9d87580137323b7",
+            "content_type": "application/json",
+            "title": "Access descriptor",
+            "description": "DataLink-like JSON descriptor for this dataset.",
+            "node_id": null
+        },
+        {
+            "rel": "direct-download",
+            "href": "file:///scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits",
+            "content_type": "image/fits",
+            "title": "Primary direct download",
+            "description": "Direct remote access endpoint for the selected node.",
+            "node_id": "PLEIADI-GPU-OACT"
+        },
+        {
+            "rel": "preview",
+            "href": null,
+            "content_type": "image/png",
+            "title": "Preview (none)",
+            "description": "No preview link is published here; a VisIVO backend next to the data can render previews once the dataset is opened there.",
+            "node_id": null
+        },
+        {
+            "rel": "metadata",
+            "href": null,
+            "content_type": "application/json",
+            "title": "Metadata (none)",
+            "description": "No separate metadata document: the metadata is served by /discovery/dataset/{obs_id}.",
+            "node_id": null
+        },
+        {
+            "rel": "datalink",
+            "href": "http://localhost:18000/datalink/pleiadi-gpu-oact-f9d87580137323b7",
+            "content_type": "application/json",
+            "title": "This DataLink document",
+            "description": "This document as JSON; RESPONSEFORMAT=votable gives the IVOA DataLink VOTable.",
+            "node_id": null
+        },
+        {
+            "rel": "soda-sync",
+            "href": "http://localhost:18000/soda/sync",
+            "content_type": "application/json",
+            "title": "SODA sync endpoint",
+            "description": "SODA sync: redirected (303) to the first ranked node that can cut the dataset in place; without one, validated here and answered with the routing.",
+            "node_id": null
+        }
+    ],
+    "service_descriptors": [
+        {
+            "service_type": "access-resolution",
+            "service_id": "skava-access-resolution",
+            "access_url": "http://localhost:18000/datalink/pleiadi-gpu-oact-f9d87580137323b7",
+            "standard_id": "ivo://ivoa.net/std/DataLink#links-1.1",
+            "supported_parameters": [
+                "ID"
+            ],
+            "enabled": true,
+            "description": "Dataset access resolution endpoint returning DataLink-like JSON.",
+            "endpoint": null,
+            "node_code": null,
+            "requires_auth": null,
+            "supports_kinds": null,
+            "input_params": null
+        },
+        {
+            "service_type": "soda-sync",
+            "service_id": "skava-soda-sync",
+            "access_url": "http://localhost:18000/soda/sync",
+            "standard_id": "ivo://ivoa.net/std/SODA#sync-1.0",
+            "supported_parameters": [
+                "ID",
+                "POS",
+                "BAND",
+                "TIME",
+                "RESPONSEFORMAT"
+            ],
+            "enabled": true,
+            "description": "Redirects a SODA request (HTTP 303) to the SODA service of the first ranked node that can cut the dataset in place, which validates and cuts it.",
+            "endpoint": null,
+            "node_code": null,
+            "requires_auth": null,
+            "supports_kinds": null,
+            "input_params": null
+        },
+        {
+            "service_type": "soda-async",
+            "service_id": "skava-soda-async",
+            "access_url": "http://localhost:18000/soda/async",
+            "standard_id": "ivo://ivoa.net/std/SODA#async-1.0",
+            "supported_parameters": [
+                "ID",
+                "POS",
+                "BAND",
+                "TIME"
+            ],
+            "enabled": false,
+            "description": "SKAVA runs no jobs itself: asynchronous SODA is the node's service (node-soda-async).",
+            "endpoint": null,
+            "node_code": null,
+            "requires_auth": null,
+            "supports_kinds": null,
+            "input_params": null
+        },
+        {
+            "service_type": "cutout",
+            "service_id": "skava-cutout",
+            "access_url": "http://localhost:18000/soda/execute",
+            "standard_id": null,
+            "supported_parameters": [
+                "ID",
+                "POS",
+                "BAND",
+                "TIME"
+            ],
+            "enabled": true,
+            "description": "SKAVA's proxy to the node's cutout (POST); standard clients use node-soda-sync.",
+            "endpoint": null,
+            "node_code": null,
+            "requires_auth": null,
+            "supports_kinds": null,
+            "input_params": null
+        },
+        {
+            "service_type": "node-soda-sync",
+            "service_id": "soda-sync-pleiadi-gpu-oact",
+            "access_url": "http://host.docker.internal:18900/soda/sync",
+            "standard_id": "ivo://ivoa.net/std/SODA#sync-1.0",
+            "supported_parameters": [
+                "ID",
+                "POS",
+                "CIRCLE",
+                "POLYGON",
+                "BAND",
+                "TIME",
+                "RESPONSEFORMAT"
+            ],
+            "enabled": true,
+            "description": "SODA cutout on node PLEIADI-GPU-OACT, next to the data.",
+            "endpoint": null,
+            "node_code": "PLEIADI-GPU-OACT",
+            "requires_auth": true,
+            "supports_kinds": null,
+            "input_params": {
+                "ID": "file:///scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits"
+            }
+        },
+        {
+            "service_type": "node-soda-async",
+            "service_id": "soda-async-pleiadi-gpu-oact",
+            "access_url": "http://host.docker.internal:18900/soda/async",
+            "standard_id": "ivo://ivoa.net/std/SODA#async-1.0",
+            "supported_parameters": [
+                "ID",
+                "POS",
+                "CIRCLE",
+                "POLYGON",
+                "BAND",
+                "TIME",
+                "RESPONSEFORMAT"
+            ],
+            "enabled": true,
+            "description": "SODA cutout as an asynchronous (UWS) job on node PLEIADI-GPU-OACT.",
+            "endpoint": null,
+            "node_code": "PLEIADI-GPU-OACT",
+            "requires_auth": true,
+            "supports_kinds": null,
+            "input_params": {
+                "ID": "file:///scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits"
+            }
+        },
+        {
+            "service_type": "visivo-moment",
+            "service_id": "moment-pleiadi-gpu-oact",
+            "access_url": "http://host.docker.internal:18900/soda/async",
+            "standard_id": "ivo://ivoa.net/std/SODA#async-1.0",
+            "supported_parameters": [
+                "ID",
+                "OPERATION",
+                "MOMENT",
+                "CHANNELS",
+                "THRESHOLD"
+            ],
+            "enabled": true,
+            "description": "Moment map computed on node PLEIADI-GPU-OACT (SODA async job, OPERATION=MOMENT).",
+            "endpoint": null,
+            "node_code": "PLEIADI-GPU-OACT",
+            "requires_auth": true,
+            "supports_kinds": null,
+            "input_params": {
+                "ID": "file:///scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits",
+                "OPERATION": "MOMENT"
+            }
+        },
+        {
+            "service_type": "visivo-pv",
+            "service_id": "pv-pleiadi-gpu-oact",
+            "access_url": "http://host.docker.internal:18900/soda/async",
+            "standard_id": "ivo://ivoa.net/std/SODA#async-1.0",
+            "supported_parameters": [
+                "ID",
+                "OPERATION",
+                "PVPATH",
+                "PVWIDTH"
+            ],
+            "enabled": true,
+            "description": "Position-velocity diagram computed on node PLEIADI-GPU-OACT (SODA async job, OPERATION=PV).",
+            "endpoint": null,
+            "node_code": "PLEIADI-GPU-OACT",
+            "requires_auth": true,
+            "supports_kinds": null,
+            "input_params": {
+                "ID": "file:///scratch/fvitello/skava-e2e/data/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits",
+                "OPERATION": "PV"
+            }
+        },
+        {
+            "service_type": "visivo-backend",
+            "service_id": "visivo-backend-pleiadi-gpu-oact",
+            "access_url": "http://host.docker.internal:18900",
+            "standard_id": null,
+            "supported_parameters": [
+                "ID"
+            ],
+            "enabled": true,
+            "description": "VisIVO compute backend co-located with node PLEIADI-GPU-OACT (INAF PLEIADI-GPU (Catania)). Desktop clients can open datasets directly on the SRC without downloading the file.",
+            "endpoint": "http://host.docker.internal:18900",
+            "node_code": "PLEIADI-GPU-OACT",
+            "requires_auth": true,
+            "supports_kinds": [
+                "image",
+                "cube",
+                "dynspec"
+            ],
+            "input_params": null
+        }
+    ],
+    "capabilities": {
+        "supports_datalink": true,
+        "supports_soda_sync": true,
+        "supports_soda_async": true,
+        "supports_cutout": true,
+        "supports_preview": false,
+        "supports_soda_sync_endpoint": true,
+        "supports_soda_sync_execution": true,
+        "supports_soda_async_endpoint": true,
+        "supports_soda_async_execution": true
+    }
+}

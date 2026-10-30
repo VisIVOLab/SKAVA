@@ -1,0 +1,50 @@
+[
+ {
+  "code": "PLEIADI-GPU-OACT",
+  "probe_ok": true,
+  "probe_rtt_ms": 76.899,
+  "probe_error": null,
+  "telemetry_at": "2026-10-30T08:47:34.907351Z",
+  "status": {
+   "node_code": "PLEIADI-GPU-OACT",
+   "version": "d9ccbd7",
+   "cpu": {
+    "cpus": 8.0,
+    "pressure_pct": null,
+    "utilisation_pct": null
+   },
+   "memory": {
+    "total_bytes": 68719476736.0,
+    "available_bytes": 65074757632.0,
+    "pressure_pct": null
+   },
+   "disk": {
+    "workspace_free_bytes": 1170038849536.0
+   },
+   "workers": {
+    "total": 8.0
+   },
+   "tasks": {
+    "running": 0.0,
+    "queued": 0.0
+   },
+   "render": {
+    "active": 0.0,
+    "capacity": 8.0
+   },
+   "gpu": true,
+   "capabilities": {
+    "kinds": [
+     "image",
+     "cube",
+     "dynspec"
+    ],
+    "finders": [
+     "sofia2",
+     "photutils"
+    ]
+   },
+   "source": "probe"
+  }
+ }
+]
