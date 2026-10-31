@@ -157,8 +157,9 @@ If you use SKAVA in your work, please cite it using the metadata in
 [`CITATION.cff`](CITATION.cff); GitHub's "Cite this repository" button gives
 it in BibTeX and APA. The software is archived on Zenodo:
 [10.5281/zenodo.23765262](https://doi.org/10.5281/zenodo.23765262) cites all
-versions; [10.5281/zenodo.23768582](https://doi.org/10.5281/zenodo.23768582)
-is 0.1.2, [10.5281/zenodo.23766136](https://doi.org/10.5281/zenodo.23766136)
+versions; [10.5281/zenodo.23838896](https://doi.org/10.5281/zenodo.23838896)
+is 0.1.3, [10.5281/zenodo.23768582](https://doi.org/10.5281/zenodo.23768582)
+0.1.2, [10.5281/zenodo.23766136](https://doi.org/10.5281/zenodo.23766136)
 0.1.1 and [10.5281/zenodo.23765263](https://doi.org/10.5281/zenodo.23765263)
 0.1.0.
 
