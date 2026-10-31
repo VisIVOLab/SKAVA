@@ -62,7 +62,7 @@ replicas set aside are listed in `routing.excluded` with the reason.
   a weighted cost of round trip, CPU pressure, queue and memory share.
   Nodes without fresh telemetry follow, in the static order. A node
   the prober cannot reach can push the same document itself
-  ([node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node)).
+  ([node reports](../api/telemetry.md#node-reports)).
 * `static` — orders replicas by the latency, load and capability scores
   the operator declared on each Node.
 

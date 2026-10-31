@@ -111,7 +111,8 @@ that ground and is inside SRCNet.
 - **3D scale unproven** → Phase 1 (out-of-core) is make-or-break: without it the
   3D stays a demo.
 - **Node reachability** (SODA execute / desktop→backend) → document the
-  SSH-tunnel / SLURM pattern (see `docs/client-integration/slurm-backed-backend.md`).
+  SSH-tunnel / SLURM pattern (see `docs/operations/node-behind-firewall.md` for SKAVA's side, and VisIVO's
+  `deployment/hpc-slurm` page for the backend).
 
 ## KPIs (12 months)
 

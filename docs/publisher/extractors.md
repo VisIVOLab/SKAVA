@@ -17,13 +17,19 @@ the publisher's source.
   - What it extracts
 * - ``fits``
   - ``*.fits``, ``*.fit``, ``*.fts``, ``*.fits.gz``, ``*.fits.fz``
-  - Reads the first HDU with ``NAXIS > 0``. obs_id from
-    OBS_ID / OBSID; target / facility / instrument; WCS-based
-    RA/Dec/FoV (RA / DEC keyword fallback); time from MJD-OBS plus
-    MJD-END or EXPTIME, or DATE-OBS; spectral from RESTFREQ or any
-    FREQ / WAVE / VOPT / VRAD axis; dataproduct_type ``image``
-    (NAXIS 2), ``cube`` (3) or ``polarimetric`` (STOKES axis or
-    NAXIS 4); ``access_format=image/fits``.
+  - Reads the first HDU with ``NAXIS > 0``; descriptive keywords
+    (OBJECT, TELESCOP, INSTRUME, observation dates) missing there
+    are taken from the primary HDU, as in multi-extension archive
+    products; the WCS comes from the data HDU only. obs_id from
+    OBS_ID / OBSID; WCS-based RA/Dec/FoV (RA / DEC keyword
+    fallback); time from MJD-OBS plus MJD-END or EXPTIME, or
+    DATE-OBS; spectral range through WCSLIB (CD or PC matrices, the
+    AIPS VELO-xxx and FELO conventions, air wavelengths converted to
+    vacuum) or, without a convertible spectral axis, RESTFREQ.
+    dataproduct_type counts only the axes longer than one pixel:
+    ``image`` (2), ``cube`` (3), ``polarimetric`` (a Stokes axis
+    longer than one); a degenerate Stokes or frequency axis does not
+    count. ``access_format=image/fits``.
 * - ``hdf5``
   - ``*.h5``, ``*.hdf5``
   - LOFAR ICD-3 root attributes (OBSERVATION_ID, TARGET, TELESCOPE,

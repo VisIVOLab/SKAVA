@@ -31,6 +31,12 @@ files at a time.
   - SHA256 of each file written to ``provenance_json``.
 ```
 
+The publisher also sends each file's SHA-256 as the record's ``checksum``,
+in the form ``sha256:<lowercase hex>``. The catalogue compares checksums as
+exact strings, at ingestion and in the federated merge, to decide whether
+two nodes hold the same product: a manifest written by hand or by another
+tool must use the same form (see the [Ingestion API](../api/ingestion.md)).
+
 ## Three levels of automation
 
 Same binary, different subcommand:

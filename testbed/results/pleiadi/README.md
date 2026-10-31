@@ -13,6 +13,12 @@ following `docs/operations/e2e-pleiadi-gpu-runbook.md`.
 | Link | laptop to compute node through an SSH tunnel via the frontend; probe RTT 77-84 ms |
 | Data | 10 FITS files (about 12 GB) in `/scratch/fvitello/skava-e2e/data`, published in place by `skava-publisher` from the frontend (10 datasets, 10 replicas, no skips); only metadata left the cluster |
 
+The image is the one the runbook builds as `backend-conda-gpu.sif`
+(`backend-conda.sif` is a symbolic link to it, the name VisIVO's EGL image
+builds on). Server-side 3D rendering from the desktop uses that EGL image,
+`backend-egl.sif`; the scripted record does not render, so it ran on
+`backend-conda-gpu.sif`.
+
 `node_provenance.txt` records the host, the GPU, the job's limits, the image's
 SHA-256 and each dataset's size, SHA-256 and FITS geometry. Its "checkout"
 section shows d9ccbd7, the clone the overlay came from.

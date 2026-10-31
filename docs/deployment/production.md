@@ -170,7 +170,7 @@ Recommended alerts:
 
 ## 7. Upgrades
 
-* Pin the image tag in production (``skava-api:v0.1.3``), never use
+* Pin the image tag in production (for example ``skava-api:v0.1.2``), never use
   ``latest``.
 * Run Alembic migrations as part of the deploy; the entrypoint
   already runs ``alembic upgrade head`` on startup, which is a no-op

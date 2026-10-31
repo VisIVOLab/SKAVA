@@ -61,12 +61,12 @@ fields, when each matters, and the operational implications.
 * - **Latency / load / capability scores**
   - no
   - empty
-  - Declared scores read by the ``static`` ranking policy (the
-    default, ``SKAVA_RANKING_POLICY=static``): replicas are sorted by
-    latency ascending, then load ascending, then capability
-    descending; an empty score sorts last. Under ``resource_aware``
+  - Declared scores. Under ``resource_aware`` (the default policy)
     the measured telemetry ranks the nodes and these scores only
-    order the nodes that cannot be measured.
+    order the nodes that cannot be measured. Under ``static``
+    (``SKAVA_RANKING_POLICY=static``) they are the whole ranking:
+    latency ascending, then load ascending, then capability
+    descending; an empty score sorts last.
 * - **Enabled**
   - yes
   - true
@@ -85,20 +85,23 @@ fields, when each matters, and the operational implications.
 
 ## Measured state (telemetry)
 
-Besides the fields above, each node row holds what SKAVA's prober last
-measured on its co-located backend: ``probe_ok`` (did it answer),
+Besides the fields above, each node row holds what SKAVA last measured
+on, or was told by, its co-located backend: ``probe_ok`` (did it answer),
 ``probe_rtt_ms`` (median round trip of ``/v1/ping``),
 ``probe_error``, ``telemetry_json`` (its ``/v1/node/status``
 document: CPU, memory, tasks, workers, capabilities) and
 ``telemetry_at``. Only enabled nodes with a VisIVO backend URL are
-probed.
+probed. A node SKAVA cannot reach (behind a firewall or an SSH tunnel)
+can instead push the same document itself with a per-node token
+(node reports, see [Telemetry](../api/telemetry.md)); the prober then
+skips that node while its reports are fresh.
 
 These columns are not shown or editable in the admin UI, and saving
 the node form leaves them untouched. Read them with
 ``GET /internal/telemetry`` and force a new probe with
 ``POST /internal/telemetry/probe`` (both require the
 ``X-Internal-Api-Key``). The prober runs every
-``SKAVA_TELEMETRY_INTERVAL_SECONDS`` (0, the default, disables the
+``SKAVA_TELEMETRY_INTERVAL_SECONDS`` (10 s by default; 0 disables the
 background loop); the ``resource_aware`` policy ignores telemetry
 older than ``SKAVA_TELEMETRY_TTL_SECONDS`` and does not route to a
 node whose last probe failed.
@@ -167,9 +170,8 @@ For each dataset's DataLink response:
 5. The first ranked ``file://`` replica on a node with a VisIVO
    backend also yields that node's SODA descriptors.
 
-The desktop client uses the ``visivo-backend`` descriptor to drive
-compute-next-to-data routing — see
-[Client integration / backend routing](../client-integration/backend-routing.md).
+Clients use the ``visivo-backend`` descriptor to run compute next to
+the data; see [Clients](../clients/overview.md).
 
 ## Replica count column
 

@@ -82,9 +82,10 @@ sequenceDiagram
   - what the backend does after receiving an obs_id; whether the
     file is currently readable
 * - VisIVO backend
-  - its own filesystem; how to dispatch on a `file://` access URL;
-    a `VISIVO_DATA_ROOT` / `VISIVO_DATA_ROOTS` jail
-  - the SKAVA URL; what other nodes exist
+  - its own filesystem, under a data root that contains the `file://`
+    paths the node publishes; how to open a `file://` access URL
+  - what other nodes exist; the catalogue (unless it reports its
+    telemetry to it)
 * - Filesystem
   - the bytes
   - everything else
@@ -95,29 +96,16 @@ node deploys its own backend; SKAVA only needs the backend's URL (and,
 for the resource-aware policy, the backend's `/v1/ping` and
 `/v1/node/status`).
 
-## Routing decision in the desktop client
+## Routing decision in the client
 
-When the user clicks **Open** on a SKAVA result, the desktop runs
-`pickBackendForSkavaDataset()` over the `visivo-backend` descriptors,
-in SKAVA's ranked order:
-
-1. **Exact URL match** — `descriptor.endpoint == registered.url`
-   (trim trailing `/`).
-2. **Node code match** — `descriptor.node_code == registered.srcCode`.
-3. **Nothing matched** → fall back to download via the local backend
-   (the legacy archive flow).
-
-When (1) or (2) hits, the desktop calls
-`POST /v1/datasets/open_skava` on the matched backend with
-`{ obs_id, access_url }`, where `access_url` is that node's own
-`file://` replica. The backend opens locally and returns.
-
-The status bar shows a coloured badge:
-
-* **grey "Backend: Local"** — fallback download path, or pure
-  local-file open
-* **blue "Backend: <node name>"** — compute-next-to-data path; its
-  tooltip shows SKAVA's `rank_reason` for that node
+SKAVA lists the options; the client chooses. The DataLink answer carries
+one `visivo-backend` descriptor per ranked node with a backend, in ranking
+order, each with the node's `endpoint` and `node_code`, and the replica of
+each node under `routing.replicas`. A client opens the dataset on the first
+node it can use, with that node's own replica (a `file://` path on the
+node), and falls back to the next one if that node refuses. What a client
+reads, and how the VisIVO Visual Analytics desktop uses it, is in
+[Clients](../clients/overview.md).
 
 ## Why the client supplies `access_url`
 
@@ -133,55 +121,26 @@ already has the access URL — just forward it**. Result:
 * Backend is testable in isolation with synthetic
   `(obs_id, access_url)` tuples.
 
-The trust model is: only authenticated clients can call `open_skava`,
-and `VISIVO_DATA_ROOT` is a server-side path jail that prevents a
-malicious access URL from exposing files outside the data tree.
+The backend, not SKAVA, decides what a client may open: it requires its
+own token and opens only files under its data root.
 
 ## Security model
 
-```{list-table}
-:header-rows: 1
-:widths: 35 65
-
-* - Threat
-  - Mitigation
-* - Unauthenticated open
-  - Token auth on the backend (`X-Visivo-Token` header, checked by
-    `verify_token`).
-* - Path traversal via crafted `file://` URL
-  - `VISIVO_DATA_ROOT` / `VISIVO_DATA_ROOTS` jail + `Path.resolve()`
-    canonicalisation.
-* - Symlink escape
-  - `Path.resolve()` follows symlinks before the jail check; an evil
-    symlink resolves to its real target, which fails the
-    `relative_to(root)` test.
-* - Wrong file format
-  - `_is_supported_dataset(path)` whitelist (`.fits`, `.fit`, `.h5`, …).
-* - Hostname spoofing in `file://`
-  - reject `file://otherhost/...`; only empty or `localhost` are
-    accepted.
-```
-
-Production deployments **must** set `VISIVO_DATA_ROOT` (or
-`VISIVO_DATA_ROOTS`). Without it
-the only barrier between a hostile authenticated client and arbitrary
-filesystem reads is the extension whitelist.
+A client hands the backend an access URL, so the backend guards its own
+filesystem: its token, its data root, the file types it accepts. On SKAVA's
+side, one thing must agree with the catalogue: the backend's data root must
+contain the `file://` paths the node publishes, or the backend refuses to
+open them. The backend's rules and settings are documented by VisIVO:
+[Running the backend as an SRC node](https://visivo.readthedocs.io/en/latest/deployment/src-node.html).
 
 ## Comparison with the fallback download path
 
-When no `visivo-backend` descriptor matches a registered backend, the
-desktop falls back to the classic archive flow:
-
-```
-desktop → local backend → /v1/datasets/open_url { url=http://archive/...fits }
-                          ↓ http GET (downloads to cache)
-                          ↓ fits.open(cache)
-                          ↓ return geometry
-```
-
-This path is intentionally preserved so SKAVA stays useful for sites
-that don't run a VisIVO backend (legacy archives, mirrors). Cost: one
-big download per open, then a normal viewer experience.
+When a client can use none of the advertised backends, it falls back to
+the classic archive flow: it downloads the file from an `http(s)` access
+URL and opens it locally. This path keeps SKAVA useful for sites that run
+no VisIVO backend (legacy archives, mirrors), at the cost of one large
+download per open. A `file://` access URL has no such fallback: the file
+exists only on its node, and only a service on that node can read it.
 
 ## Server-side variant: the node's SODA services
 
@@ -202,9 +161,8 @@ VO client → node /soda/async     (UWS job: OPERATION=CUTOUT | MOMENT | PV)
 ```
 
 SKAVA never handles the bytes on this path: the node validates the
-request, cuts or computes next to the file (with the same
-`VISIVO_DATA_ROOT` jail and `file://` resolver as `open_skava`), and
-writes job results to its workspace. SKAVA itself runs no SODA jobs;
+request, cuts or computes next to the file (under the same access rules
+as an open), and writes job results to its workspace. SKAVA itself runs no SODA jobs;
 its `soda-async` descriptor stays disabled and points clients to the
 node's.
 
@@ -221,34 +179,41 @@ back (`X-Soda-Executed-On` names the node).
   - Orchestrator
   - Backend endpoint
 * - Desktop open + interactive compute
-  - VisIVO Visual Analytics (`pickBackendForSkavaDataset`)
-  - `/v1/datasets/open_skava` (+ moments / region / channel)
+  - VisIVO Visual Analytics
+  - the node's backend API
 * - SODA for VO clients
   - SKAVA (`/soda/sync`, 303 redirect), then the client
   - node `/soda/sync`, `/soda/async` (UWS)
 * - SODA proxy
   - SKAVA (`/soda/execute`)
   - `/v1/datasets/cutout`
-* - Desktop "SODA subset" action
-  - VisIVO Visual Analytics (SKAVA Discovery tab)
-  - node `/soda/async` job when advertised, else `/v1/datasets/cutout`
-    (`save_to_workspace=true`); the result is opened in place
+* - Desktop cutout, moment and PV
+  - VisIVO Visual Analytics
+  - node `/soda/async` (UWS); the product stays on the node
 * - Batch source finding
   - Computing Broker (placement from SKAVA's DataLink)
   - `/v1/node/status` (finders, memory), then `/v1/datasets/open_skava`
     and `/v1/tasks/sourcefind`
 ```
 
-The desktop **"SODA subset"** button resolves the dataset's DataLink,
-prompts for a POS/BAND region (prefilled from the ObsCore metadata),
-runs the cutout on the node that holds the data and opens the resulting
-FITS in place — the cutout never transits to the client. It sits
-alongside the unchanged VLKB-specific cutout flow.
-
 When no node can process the dataset in place, `/soda/sync` answers
 with validation and routing JSON, and `/soda/execute` degrades to a
 metadata-cache staging handoff (the desktop button reports that a
 co-located backend is required). See the [SODA API](../api/soda.md).
+
+```{admonition} Known limits
+:class: note
+
+The node SODA URL is always derived from the node's VisIVO backend: the
+`node-soda-sync` and `node-soda-async` descriptors point at the node's
+`visivo_backend_url` followed by `/soda`, and their fixed `ID` is the
+replica's `file://` access endpoint. The `/soda/sync` redirect uses the
+same pair. Redirecting to a SODA service a site already runs (for example
+the ViaLactea Knowledge Base's `vlkb-soda`) is intended but not
+implemented: it needs a SODA URL configured per node, and the replica's
+identifier in the form that service resolves (an ObsCore identifier or an
+IVOID) instead of a local path.
+```
 
 ### Batch jobs through the Computing Broker
 
@@ -262,29 +227,30 @@ job then runs as a task on that node, next to the file. The testbed's
 
 ## How to enable this on a new node
 
-1. Deploy a VisIVO backend on the node (`apptainer/backend-conda.def`
-   or `backend.def` in the VisIVO Visual Analytics repository). Make
-   sure it can read the data directory.
-2. Set `VISIVO_DATA_ROOT=/data` (or `VISIVO_DATA_ROOTS`) in the
-   container env for security.
-3. In SKAVA's admin UI (`/admin/nodes/`), edit the Node and set
+1. Deploy a VisIVO backend on the node, able to read the data directory,
+   with a data root that contains the paths you will publish and the node's
+   code as its node code. How is documented by VisIVO:
+   [Running the backend as an SRC node](https://visivo.readthedocs.io/en/latest/deployment/src-node.html)
+   (and, on a cluster,
+   [Running the backend on a SLURM cluster](https://visivo.readthedocs.io/en/latest/deployment/hpc-slurm.html)).
+2. In SKAVA's admin UI (`/admin/nodes/`), edit the Node and set
    `VisIVO backend URL` to the deployed backend's URL (and mark that it
    requires a token if it does; SKAVA then sends
    `SKAVA_VISIVO_BACKEND_TOKEN` to it).
-4. Publish the node's files with `file://` access URLs (the
+3. Publish the node's files with `file://` access URLs (the
    publisher's `file_serve_url_pattern`, e.g.
    `file:///data/cubes/{relpath}`) so the node can process them in
    place.
-5. From now on every DataLink response for a dataset replicated on
+4. From now on every DataLink response for a dataset replicated on
    that node carries the `visivo-backend` descriptor, and the node's
    SODA, moment and PV descriptors when the node holds the selected
    `file://` replica.
 
-That's it — desktop clients pick it up automatically. No schema
-migration. The prober (on by default, every 10 s) starts reading the
-node's telemetry on its next cycle. If the catalogue cannot reach the
-backend, configure the node to report itself instead
-([node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node)).
+No schema migration is needed. The prober (on by default, every 10 s)
+starts reading the node's telemetry on its next cycle. If the catalogue
+cannot reach the backend, the node reports its state itself
+([Telemetry API](../api/telemetry.md#node-reports); see also
+[Registering a node SKAVA cannot reach](../operations/node-behind-firewall.md)).
 
 ## Multi-node example
 
@@ -328,8 +294,9 @@ to a download from `INAF-PUB`.
   is a node-internal operation; SKAVA just records the new path.
 
 ```{seealso}
-[Backend routing in the desktop client](../client-integration/backend-routing.md)
-for the matching algorithm details, and
+[Clients](../clients/overview.md) for what a client reads from SKAVA, and
 [Components / VisIVO backend](components.md#out-of-process-the-visivo-backend) for the
-backend's protocol surface.
+calls SKAVA makes to a backend. How the backend loads cubes too large for a
+client is documented by VisIVO:
+[Large cube loading](https://visivo.readthedocs.io/en/latest/large-cube-loading.html).
 ```

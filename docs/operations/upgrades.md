@@ -58,8 +58,8 @@ For continuous SRCs:
 ```{mermaid}
 sequenceDiagram
     participant LB as Load balancer
-    participant Old as api v0.1.3 (existing)
-    participant New as api v0.1.4 (rolling)
+    participant Old as api vN (existing)
+    participant New as api vN+1 (rolling)
     participant DB  as PostgreSQL
 
     Note over Old,New: 1. Spin up new replica with new image

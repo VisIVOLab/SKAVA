@@ -28,9 +28,8 @@ flowchart TB
 The prober is an asyncio task started in the app's lifespan when
 `SKAVA_TELEMETRY_INTERVAL_SECONDS` is above zero (10 s by default); it
 stores what each node's backend reports on the node row, which the
-resource-aware ranking policy reads. Nodes the prober cannot reach post
-the same document to `/internal/telemetry/report` and are not probed
-while their report is fresh.
+resource-aware ranking policy reads. A node the prober cannot reach
+reports its state itself; see [Telemetry API](../api/telemetry.md).
 
 A single SKAVA instance handles:
 

@@ -124,16 +124,15 @@ api/tap
 api/ingestion
 api/auth
 api/federation
+api/telemetry
+api/system
 ```
 
 ```{toctree}
-:caption: Client integration
+:caption: Clients
 :maxdepth: 2
 
-client-integration/visivo-desktop
-client-integration/backend-routing
-client-integration/slurm-backed-backend
-client-integration/large-cube-loading-pattern
+clients/overview
 ```
 
 ```{toctree}
@@ -145,6 +144,7 @@ operations/backup
 operations/upgrades
 operations/troubleshooting
 operations/admin-ui-runbook
+operations/node-behind-firewall
 operations/e2e-pleiadi-gpu-runbook
 ```
 
@@ -166,6 +166,12 @@ reference/obscore-fields
 reference/env-vars
 reference/glossary
 reference/changelog
+```
+
+```{toctree}
+:caption: Project records
+:maxdepth: 1
+
 reference/d3.1-design-report
 ```
 

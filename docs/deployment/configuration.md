@@ -1,296 +1,110 @@
 # Configuration
 
-Everything SKAVA reads at runtime comes from a Pydantic
-`BaseSettings` instance. Each value can be set via environment
-variable. This page is the canonical list; the same names appear in
-`docker-compose.yml`, Kubernetes ConfigMaps, and CI secrets.
+SKAVA reads its settings from environment variables, through a pydantic
+`BaseSettings` instance (`app/config.py` for the service, prefix `SKAVA_`;
+`app/admin/config.py` for the admin UI, prefix `ADMIN_`). A `.env` file in
+the working directory is read as well. The same names appear in
+`docker-compose.yml`, Kubernetes ConfigMaps and CI secrets.
 
-## Core SKAVA settings
+This page explains the settings by topic. Every variable, with its type,
+default and limits, is listed once, in
+[Environment variables](../reference/env-vars.md).
 
-Defined in `app/config.py`. All are prefixed `SKAVA_`, except the
-two that also accept an unprefixed name (`INTERNAL_API_KEY`,
-`IAM_WELLKNOWN_ENDPOINT`). A `.env` file in the working directory is
-read as well.
+## The minimum for a deployment
 
-```{list-table}
-:header-rows: 1
-:widths: 28 18 14 40
+Outside development, set `SKAVA_ENV` to `staging` or `production`. SKAVA
+then refuses to start without a database URL (`SKAVA_DATABASE_URL`) and a
+public base URL (`SKAVA_PUBLIC_BASE_URL`, the base of every absolute URL it
+hands out in DataLink, access and TAP answers), and in `production` the base
+URL must be `https://`. Set `SKAVA_RUN_SEED=false` so the container does not
+load the demo fixtures, and load real metadata with the
+[publisher](../publisher/overview.md). See
+[Service settings](../reference/env-vars.md#service).
 
-* - Env var
-  - Type
-  - Default
-  - Purpose
-* - `SKAVA_ENV`
-  - `dev` \| `staging` \| `production`
-  - `dev`
-  - Controls strict-mode validations. `staging` and `production`
-    require `SKAVA_DATABASE_URL` and `SKAVA_PUBLIC_BASE_URL`;
-    `production` requires `SKAVA_PUBLIC_BASE_URL` to start with
-    `https://`.
-* - `SKAVA_APP_NAME`
-  - str
-  - `SKAVA Data Discovery Service`
-  - Title of the FastAPI application (OpenAPI docs).
-* - `SKAVA_DATABASE_URL`
-  - SQLAlchemy URL
-  - dev: `postgresql+psycopg://skava:skava@localhost:5432/skava`
-  - Required outside `dev`. e.g. `postgresql+psycopg://user:pass@host:5432/db`.
-* - `SKAVA_PUBLIC_BASE_URL`
-  - URL
-  - dev: `http://localhost:8000`
-  - Required outside `dev`. Used to construct fully-qualified URLs in
-    DataLink responses (e.g. `https://skava.inaf.it`).
-* - `SKAVA_LOG_LEVEL`
-  - `DEBUG` \| `INFO` \| `WARNING` \| `ERROR`
-  - `INFO`
-  - Root logger level. SKAVA emits structured JSON logs.
-* - `INTERNAL_API_KEY`
-  - str
-  - —
-  - Shared secret for `/internal/*` endpoints (`X-Internal-Api-Key`
-    header). When unset, every `/internal/*` call is refused with 401.
-    Generate with `openssl rand -hex 32`.
-* - `SKAVA_INTERNAL_API_KEY`
-  - str
-  - —
-  - Alias for `INTERNAL_API_KEY`. Either is accepted.
-* - `SKAVA_ACCESS_TOKENS`
-  - comma-list
-  - empty
-  - Static bearer tokens for the **public** endpoints. When neither
-    these nor OIDC are configured, discovery is open.
-* - `SKAVA_VISIVO_BACKEND_TOKEN`
-  - str
-  - empty
-  - Token sent (as `X-Visivo-Token`) to a node's VisIVO backend that
-    requires auth: by `/soda/execute` when it delegates a cutout
-    (compute-next-to-data) and by the telemetry prober.
-* - `SKAVA_SODA_BACKEND_TIMEOUT_SECONDS`
-  - float ≥ 1
-  - `120`
-  - Synchronous timeout for that delegated cutout.
-* - `SKAVA_RUN_SEED`
-  - bool
-  - `true`
-  - Entrypoint flag. Set `false` in production to skip demo seeding;
-    load real metadata via the ingestion API / publisher instead. The
-    seed only runs when the `nodes` table is empty.
-* - `SKAVA_SEED_RESET`
-  - bool
-  - `false`
-  - Makes the seed wipe the catalogue and re-insert the demo fixtures.
-    Development only.
-```
+Two secrets complete the minimum: `INTERNAL_API_KEY`, which the publisher
+and other services present on `/internal/*` (unset, every internal call is
+refused), and `ADMIN_SESSION_SECRET`, which signs the admin UI's session
+cookies (with `ADMIN_SESSION_COOKIE_SECURE=true` behind HTTPS). Generate
+both with `openssl rand -hex 32`. See
+[Access and authentication](../reference/env-vars.md#access-and-authentication)
+and [Admin UI](../reference/env-vars.md#admin-ui).
+
+## Access to the public endpoints
+
+The public catalogue endpoints (discovery, DataLink, SODA, TAP, access,
+staging, provenance, federation) are open until a token rule is
+configured. Static tokens (`SKAVA_ACCESS_TOKENS`, a comma-separated list)
+and OIDC tokens from an IAM can be used together; as soon as either is
+configured, every request to those endpoints needs a valid token. See
+[Authentication](../api/auth.md).
 
 ## OIDC bearer tokens
 
 SKAVA accepts OIDC access tokens issued by an SRCNet-style IAM (INDIGO
-IAM, Keycloak) next to the static `SKAVA_ACCESS_TOKENS`. The token is
-checked against the issuer's key set (asymmetric algorithms only), its
-expiry and issuer, and the audience when one is configured. See
-[security](security.md).
-
-```{list-table}
-:header-rows: 1
-:widths: 35 15 50
-
-* - Env var
-  - Default
-  - Purpose
-* - `IAM_WELLKNOWN_ENDPOINT` (alias `SKAVA_OIDC_WELLKNOWN`)
-  - unset
-  - The issuer's discovery document. Setting it (or
-    `SKAVA_OIDC_JWKS_URI`) turns OIDC on and makes the public
-    endpoints require a token.
-* - `SKAVA_OIDC_AUDIENCE`
-  - unset
-  - Audience the token must carry (e.g. `skava`); not checked when
-    unset.
-* - `SKAVA_OIDC_JWKS_URI`
-  - from discovery
-  - Override of the key-set location (air-gapped setups, tests).
-* - `SKAVA_OIDC_ISSUER`
-  - from discovery
-  - Issuer the tokens carry, when the service reaches the IAM under a
-    different (private) name than the public one in the tokens.
-* - `SKAVA_OIDC_PUBLIC_WELLKNOWN`
-  - `IAM_WELLKNOWN_ENDPOINT`
-  - Discovery URL advertised to clients in the `ivoa_bearer`
-    challenge of a 401.
-```
+IAM, Keycloak) next to the static `SKAVA_ACCESS_TOKENS`. Point
+`IAM_WELLKNOWN_ENDPOINT` (alias `SKAVA_OIDC_WELLKNOWN`) at the IAM's
+discovery document. The token is checked against the issuer's key set
+(asymmetric algorithms only), its expiry and issuer, and the audience when
+`SKAVA_OIDC_AUDIENCE` is set. When the service reaches the IAM on a
+private name, `SKAVA_OIDC_ISSUER` gives the issuer the tokens carry and
+`SKAVA_OIDC_PUBLIC_WELLKNOWN` the discovery URL told to clients in the
+`ivoa_bearer` challenge; `SKAVA_OIDC_JWKS_URI` overrides where the key set
+is fetched. See
+[Access and authentication](../reference/env-vars.md#access-and-authentication)
+and [security](security.md).
 
 ## Federation
 
-```{list-table}
-:header-rows: 1
-:widths: 35 15 50
-
-* - Env var
-  - Default
-  - Purpose
-* - `SKAVA_FEDERATED_SRC_URLS`
-  - empty
-  - Comma-separated base URLs of sibling SKAVA catalogues.
-    `GET /federation/search` asks each of them (with the caller's
-    token) and merges the answers with the local one on `obs_id`;
-    `GET /federation/sources` lists them.
-* - `SKAVA_FEDERATION_TIMEOUT_SECONDS`
-  - `2.0` (≥ 0.1)
-  - Per-sibling timeout; a sibling that does not answer in time is
-    reported as `timeout` in the response, the others still count.
-```
+`SKAVA_FEDERATED_SRC_URLS` lists the base URLs of sibling SKAVA
+catalogues. `GET /federation/search` asks each of them with the caller's
+token and merges their answers with the local one on `obs_id`;
+`GET /federation/sources` lists them. A sibling that does not answer within
+`SKAVA_FEDERATION_TIMEOUT_SECONDS` is reported as `timeout` and the others
+still count. See [Federation](../reference/env-vars.md#federation) and the
+[Federation API](../api/federation.md).
 
 ## Routing and node telemetry
 
-The ranking policy decides which replica's node DataLink, discovery
-and `/soda/execute` route to. With `resource_aware`, SKAVA probes each
-enabled node's co-located VisIVO backend (`/v1/ping` round trip,
-`/v1/node/status` capacity) and ranks by what the nodes report.
+The ranking policy decides which replica's node DataLink, discovery and
+`/soda/execute` route to. `resource_aware`, the default, ranks the nodes on
+what their co-located VisIVO backends report (round trip, CPU pressure,
+queue, free memory) and keeps the declared order for nodes it cannot
+measure; `static` ranks on the scores declared on each node only. The
+weights of the cost, the prober's period, timeout and samples, and the age
+beyond which telemetry is not trusted are all settings. So is
+`SKAVA_REPLICA_IDENTITY`, which decides when a node's record counts as a
+copy of a dataset another node holds: by default only with an equal
+checksum, and the federated search merges by the same rule. See
+[Routing and node telemetry](../reference/env-vars.md#routing-and-node-telemetry).
 
-```{list-table}
-:header-rows: 1
-:widths: 35 15 50
+`GET /internal/telemetry` (internal API key) shows the policy in force and
+what each node last reported; the prober and the node reports are
+described in the [Telemetry API](../api/telemetry.md).
 
-* - Env var
-  - Default
-  - Purpose
-* - `SKAVA_REPLICA_IDENTITY`
-  - `checksum`
-  - `checksum`: a node joins a dataset's replicas only with a checksum equal
-    to the catalogue's (fail-closed: two products of one observation are
-    never merged for lack of evidence). `metadata`: accepted unless checksum,
-    size or type contradict, for curated catalogues whose `obs_id`
-    convention is trusted. The federated search merges by the same rule.
-* - `SKAVA_RANKING_POLICY`
-  - `resource_aware`
-  - `resource_aware` ranks by the measured telemetry, and keeps the
-    declared order for nodes it cannot measure; `static` ranks by the
-    scores declared on each node only.
-* - `SKAVA_TELEMETRY_INTERVAL_SECONDS`
-  - `10`
-  - Prober period. `0` disables the background prober; telemetry is
-    then refreshed only by `POST /internal/telemetry/probe` and by the
-    nodes' own reports (see [node reports](#node-reports-telemetry-pushed-by-the-node)).
-* - `SKAVA_TELEMETRY_TTL_SECONDS`
-  - `60`
-  - A measurement older than this is not trusted by the policy.
-* - `SKAVA_TELEMETRY_TIMEOUT_SECONDS`
-  - `3`
-  - HTTP timeout of each probe request.
-* - `SKAVA_TELEMETRY_PING_SAMPLES`
-  - `3` (1–20)
-  - `/v1/ping` samples per probe; the median is kept.
-* - `SKAVA_RANKING_WEIGHT_RTT`
-  - `1.0`
-  - Cost per millisecond of round trip.
-* - `SKAVA_RANKING_WEIGHT_CPU`
-  - `1.0`
-  - Cost per percent of CPU pressure.
-* - `SKAVA_RANKING_WEIGHT_QUEUE`
-  - `20.0`
-  - Cost per queued + running task per worker.
-* - `SKAVA_RANKING_WEIGHT_MEMORY`
-  - `50.0`
-  - Cost of the share of the node's free memory the dataset would take.
-* - `SKAVA_RANKING_MEMORY_FACTOR`
-  - `1.0`
-  - Memory a dataset needs on the node, as a multiple of its size.
-```
+## Node backends
 
-`GET /internal/telemetry` (internal API key) shows the policy in force
-and what each node last reported.
+When a node's backend requires a token, SKAVA presents
+`SKAVA_VISIVO_BACKEND_TOKEN` (as `X-Visivo-Token`) to it, from the prober
+and from `/soda/execute`, which waits up to
+`SKAVA_SODA_BACKEND_TIMEOUT_SECONDS` for the cutout it delegates. See
+[Node backends](../reference/env-vars.md#node-backends). The backend's own
+settings are documented by VisIVO; the values that must agree with the
+catalogue are listed in
+[VisIVO backend: what must agree](../reference/env-vars.md#visivo-backend-what-must-agree).
 
 ## Database pool
 
-```{list-table}
-:header-rows: 1
-:widths: 35 15 50
-
-* - Env var
-  - Default
-  - Purpose
-* - `SKAVA_DB_POOL_SIZE`
-  - `10`
-  - SQLAlchemy pool size.
-* - `SKAVA_DB_MAX_OVERFLOW`
-  - `20`
-  - Extra connections beyond pool_size.
-* - `SKAVA_DB_POOL_TIMEOUT`
-  - `30`
-  - Seconds to wait for a free connection.
-* - `SKAVA_DB_POOL_RECYCLE`
-  - `1800`
-  - Seconds before a connection is recycled (avoids stale
-    connections through firewalls).
-* - `SKAVA_DB_CONNECT_RETRIES`
-  - `10`
-  - Boot-time connection retries.
-* - `SKAVA_DB_CONNECT_RETRY_DELAY`
-  - `1.5`
-  - Seconds between retries.
-```
-
-The staging compose file raises the pool to 20 + 30 overflow and the
-retries to 20.
+The `SKAVA_DB_*` settings size SQLAlchemy's connection pool and the
+connection retries at startup. The staging compose file raises the pool to
+20 + 30 overflow and the retries to 20. See
+[Database pool](../reference/env-vars.md#database-pool).
 
 ## Admin UI settings
 
-Defined in `app/admin/config.py`. All are prefixed `ADMIN_`.
-
-```{list-table}
-:header-rows: 1
-:widths: 32 15 53
-
-* - Env var
-  - Default
-  - Purpose
-* - `ADMIN_SESSION_SECRET`
-  - random (dev only)
-  - **Set it in production.** Random value used to sign session
-    cookies. Generate with `openssl rand -hex 32`. When unset SKAVA
-    generates a per-process value and logs a warning: sessions are
-    lost at every restart and do not work across several workers.
-* - `ADMIN_SESSION_COOKIE_NAME`
-  - `skava_admin_session`
-  - Cookie name.
-* - `ADMIN_SESSION_MAX_AGE_SECONDS`
-  - `28800` (8 h)
-  - Cookie lifetime.
-* - `ADMIN_SESSION_COOKIE_SECURE`
-  - `false`
-  - Adds the `Secure` attribute. **Must be `true` in production
-    (HTTPS).** Default `false` so local HTTP dev works without TLS.
-* - `ADMIN_BCRYPT_ROUNDS`
-  - `12`
-  - bcrypt cost factor. 10–14 allowed.
-* - `ADMIN_PASSWORD_MIN_LENGTH`
-  - `12`
-  - Minimum password length.
-* - `ADMIN_PASSWORD_REQUIRE_MIXED_CASE`
-  - `true`
-  - Require upper + lower case.
-* - `ADMIN_PASSWORD_REQUIRE_DIGIT`
-  - `true`
-  - Require at least one digit.
-* - `ADMIN_PASSWORD_REQUIRE_SYMBOL`
-  - `false`
-  - Require at least one punctuation char.
-* - `ADMIN_BRAND_COLOR`
-  - `#70b5e3` (INAF blue)
-  - Primary brand colour for HTML pages.
-* - `ADMIN_BRAND_COLOR_DARK`
-  - `#3a6e8c`
-  - Darker variant of the brand colour.
-* - `ADMIN_BRAND_NAME`
-  - `SKAVA Admin`
-  - Header brand string.
-* - `ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE`
-  - `6`
-  - Failed sign-ins allowed per client address per minute; beyond it,
-    `/admin/login` answers 429 until the oldest failure is a minute old.
-    0 disables it. Per process; the shipped nginx configs also
-    rate-limit `/admin`.
-```
+The `ADMIN_*` settings cover the session cookie, the password policy, the
+bcrypt cost, the login rate limit and the branding. In production set
+`ADMIN_SESSION_SECRET` to a stable value and `ADMIN_SESSION_COOKIE_SECURE`
+to `true`. See [Admin UI](../reference/env-vars.md#admin-ui).
 
 ## Database
 
@@ -327,20 +141,8 @@ docker compose exec api alembic upgrade head
 
 ### Backup
 
-```bash
-docker compose exec db pg_dump -U skava -d skava \
-    --format=custom --file=/tmp/skava-$(date +%Y%m%d).dump
-
-docker compose exec db cat /tmp/skava-2026-06-05.dump > skava-backup.dump
-```
-
-Restore:
-
-```bash
-docker compose exec -T db pg_restore -U skava -d skava --clean < skava-backup.dump
-```
-
-Production deployments should automate this — see
+Back up the database with `pg_dump`, and automate it in production: the
+commands, a daily script, restore and retention are in
 [operations / backup](../operations/backup.md).
 
 ## Logging
@@ -381,28 +183,9 @@ SKAVA.
 
 ## Node reports: telemetry pushed by the node
 
-The prober needs to reach each node's backend. A node it cannot reach (a
-firewall, a NAT, a backend behind an SSH tunnel) can report its state
-itself instead: its VisIVO backend posts its `/v1/node/status` document to
-`POST /internal/telemetry/report` every few seconds, and the prober leaves
-the node alone while the last report is younger than
-`SKAVA_TELEMETRY_TTL_SECONDS`. The policy reads a report as it reads a
-probe; the round-trip time is the one the node measured on its previous
-report.
-
-Each node authenticates with its own token, derived from the internal key
-and the node's code, so it can report for itself only and does not hold
-the internal key. Print it on the catalogue's host:
-
-```bash
-python -m app.security.node_token INAF-CT
-```
-
-and give it to the operator of the node's backend, with this catalogue's
-URL and the node's code. How the VisIVO Visual Analytics backend is set up
-to report is described in its own documentation:
-[Running a backend as an SRC node](https://visivo.readthedocs.io/en/latest/user-guide/skava-discovery.html#running-a-backend-as-an-src-node).
-
-Changing `INTERNAL_API_KEY` revokes every node token. The node must still
-have a `visivo_backend_url` for the policy to rank it on telemetry: that is
-the address the clients use, even when the catalogue cannot reach it.
+A node the prober cannot reach (behind a firewall, a NAT or an SSH tunnel)
+can report its state itself, with its own token, and the prober leaves it
+alone while the reports are fresh. The endpoint, the token and how reports
+and probes interact are in the [Telemetry API](../api/telemetry.md#node-reports);
+registering such a node is in
+[Registering a node SKAVA cannot reach](../operations/node-behind-firewall.md).

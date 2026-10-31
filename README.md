@@ -132,7 +132,7 @@ evaluated there; the experiment scripts are in
 ## Clients
 
 SKAVA is used from the SKAVA tab of
-[VisIVO Visual Analytics](https://github.com/VisIVOLab/VisIVO-next). The
+[VisIVO Visual Analytics](https://github.com/VisIVOLab/VisIVOVisualAnalytics). The
 desktop searches the catalogue, shows the chosen node and the reason, opens
 the dataset on that node, and runs cutouts, moment maps,
 position–velocity diagrams and source finders there. Other clients reach

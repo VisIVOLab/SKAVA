@@ -23,8 +23,8 @@ Out of scope at this layer (delegated to other components):
 
 * Confidentiality of the **data files themselves**. SKAVA only knows
   URLs; if a file has restricted visibility, that is enforced by the
-  storage layer or the consumer (e.g. VisIVO backend's
-  `VISIVO_DATA_ROOT` jail).
+  storage layer or by the node's VisIVO backend, which opens only files
+  under its data root.
 * DDoS at the network edge. Use a reverse proxy (nginx, Envoy,
   Cloudflare) for that.
 
@@ -66,6 +66,11 @@ Out of scope at this layer (delegated to other components):
   - ``X-Visivo-Token`` = ``SKAVA_VISIVO_BACKEND_TOKEN``
   - Sent to nodes registered with "requires auth", by
     ``/soda/execute`` and the telemetry prober.
+* - Node reports (``/internal/telemetry/report``)
+  - ``X-Skava-Node-Token``, one per node, derived from the internal key
+  - The only ``/internal/*`` endpoint that does not take the internal
+    key. A token speaks for one node; rotating the internal key revokes
+    them all. See [Telemetry API](../api/telemetry.md#the-node-token).
 ```
 
 ## OIDC tokens
@@ -130,25 +135,13 @@ it (``token:<sha256 prefix>``). See
 
 ## Path safety on the VisIVO backend
 
-The ``open_skava`` endpoint accepts an ``access_url`` from the client.
-A hostile client could try to read ``/etc/passwd``. Mitigations
-(all enabled by default when env vars are set):
-
-* **Bearer auth** on the endpoint. No anonymous calls.
-* **Scheme jail**: only ``file://`` is honoured by ``open_skava``;
-  the ``open_url`` endpoint serves the download path and accepts only
-  ``http(s)://``.
-* **Path jail**: ``VISIVO_DATA_ROOT`` (or ``VISIVO_DATA_ROOTS``, a
-  path-separated list) makes the backend refuse paths outside the
-  configured directory trees.
-* **Symlink-aware** ``Path.resolve()`` before the jail check: a
-  symlink to ``/etc/passwd`` resolves to ``/etc/passwd`` and fails
-  ``relative_to(root)``.
-* **Extension whitelist**: only ``.fits``, ``.fit``, ``.h5``,
-  ``.hdf5`` etc. are accepted by ``_is_supported_dataset``.
-
-Production deployments **must** set ``VISIVO_DATA_ROOT`` or
-``VISIVO_DATA_ROOTS``.
+A client hands a node's backend the `file://` access URL it got from
+SKAVA, so the backend must refuse paths outside the node's data. It does so
+with its own token and data root, documented by VisIVO:
+[Running the backend as an SRC node](https://visivo.readthedocs.io/en/latest/deployment/src-node.html).
+What must agree with the catalogue: the data root must contain every
+`file://` path the node publishes, and nothing else the node wants kept
+private.
 
 ## Audit
 

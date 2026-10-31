@@ -202,7 +202,11 @@ key is ignored (pass `source_ref` as a form field or per record).
     The publisher CLI fills SHA256 + rel_path.
 * - ``checksum``
   - no
-  - Plain string, shown by ``/provenance/{obs_id}``.
+  - ``sha256:<lowercase hex>``, the form the publisher writes. Shown by
+    ``/provenance/{obs_id}``. SKAVA does not normalise it: the ingestion
+    and the federated merge compare checksums as exact strings (after
+    trimming spaces), so a record with another prefix or upper-case hex
+    never matches a copy published by the publisher.
 * - ``doi`` / ``pid`` / ``citation`` / ``license``
   - no
   - Plain strings.

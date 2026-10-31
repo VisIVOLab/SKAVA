@@ -9,11 +9,13 @@ step leaves evidence: at the end you have a bundle that says what ran, where,
 on which versions, on which data, and what it did.
 
 ```{note}
-This page is the worked example. The general pattern for a SLURM cluster
-with a shared filesystem, for any SRC, is
-[SLURM-backed VisIVO backend](../client-integration/slurm-backed-backend.md).
-The VisIVO side (image, launcher, backend settings) is documented by VisIVO
-Visual Analytics itself.
+This page is the worked example. SKAVA's side of the general pattern, a
+node the catalogue cannot reach, is
+[Registering a node SKAVA cannot reach](node-behind-firewall.md). The
+VisIVO side (image, launcher, tunnel, backend settings) is documented by
+VisIVO: [Running the backend on a SLURM cluster](https://visivo.readthedocs.io/en/latest/deployment/hpc-slurm.html).
+The steps marked "On the VisIVO side" below give only the values SKAVA
+needs from it.
 ```
 
 ## What runs where
@@ -27,9 +29,9 @@ Visual Analytics itself.
 The node is registered in the catalogue as `PLEIADI-GPU-OACT`. Two tunnels
 join the laptop and the cluster:
 
-* laptop `localhost:18900` → compute node `:18900` (the backend), opened by
-  the VisIVO launcher helper; the catalogue's container reaches it as
-  `host.docker.internal:18900`;
+* laptop `localhost:18900` → compute node `:18900` (the backend), opened
+  on the VisIVO side with the backend; the catalogue's container reaches it
+  as `host.docker.internal:18900`;
 * frontend `localhost:18080` → laptop `localhost:18000` (the catalogue), a
   reverse tunnel, so the publisher on the frontend can send its metadata.
 
@@ -40,8 +42,7 @@ Throughout, set these once in each shell:
 export PLEIADI=pleiadi-gpu.oact.inaf.it   # the frontend
 export PUSER=<your user on PLEIADI>
 export NODE=PLEIADI-GPU-OACT
-export SKAVA_REPO=~/Documents/GitHub/SKAVA
-export VISIVO_REPO=~/Documents/GitHub/VisIVO-next
+export SKAVA_REPO=<path of your SKAVA checkout>
 export EVIDENCE=$SKAVA_REPO/testbed/results/pleiadi   # the bundle
 mkdir -p "$EVIDENCE"
 ```
@@ -50,6 +51,7 @@ mkdir -p "$EVIDENCE"
 # on the frontend
 export WORK=/scratch/$USER/skava-e2e   # writable, and seen by the compute nodes
 export DATA=$WORK/data                 # the node's holdings (the data root)
+export SIF=$WORK/backend-conda-gpu.sif # the backend image (step 2)
 export NODE=PLEIADI-GPU-OACT
 export APPTAINER_CACHEDIR=$WORK/apptainer-cache APPTAINER_TMPDIR=$WORK/apptainer-tmp
 export PYTHONUSERBASE=$WORK/pyuser     # where pip --user installs the publisher
@@ -89,20 +91,21 @@ VisIVO commit you want to report; to pin a release, `git -C visivo checkout
 
 ## 2. Build the backend image (once)
 
-The conda variant has the full stack on ppc64le and SoFiA-2;
-`APPTAINERENV_ENABLE_CUPY=1` adds the GPU kernels (Apptainer passes only
-`APPTAINERENV_`-prefixed variables into the build, so a plain `ENABLE_CUPY=1`
-is ignored). The build runs from the repository root and takes from a few
-minutes to half an hour.
+```{admonition} On the VisIVO side
+:class: tip
 
-```bash
-cd $WORK/visivo
-APPTAINERENV_ENABLE_CUPY=1 apptainer build --fakeroot $WORK/backend-conda.sif apptainer/backend-conda.def
+Build the VisIVO backend's conda image with the GPU kernels, on the
+frontend, as `$WORK/backend-conda-gpu.sif` (`$SIF`), and link
+`backend-conda.sif` to it (`ln -sf backend-conda-gpu.sif backend-conda.sif`
+in `$WORK`): `backend-conda.sif` is the name VisIVO's EGL image for
+server-side 3D rendering, `backend-egl.sif`, is built on. The recorded
+run used `backend-conda-gpu.sif`; `backend-egl.sif` is needed only to
+render cubes on the node's GPU from the desktop. How to build both:
+[Running the backend on a SLURM cluster](https://visivo.readthedocs.io/en/latest/deployment/hpc-slurm.html).
+
+SKAVA needs nothing from the image itself. Steps 4 and 7 use it only as a
+Python with astropy, to record the node and to run the publisher.
 ```
-
-If `--fakeroot` is not allowed on the frontend, build in a short interactive
-GPU job (`srun -p gpu --gres=gpu:1 --pty bash`) or ask the system
-administrators for the build path they support.
 
 ## 3. Load the data
 
@@ -112,7 +115,7 @@ reference run uses the Apertif DR1 HI cube of field 200426041, 661 × 661 ×
 
 ```bash
 # on the laptop
-rsync -avP ~/Downloads/DemoData/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits \
+rsync -avP <path of the cube>/3D_Ape-DR1_200426041_AP_B021_HI_image_cube0.fits \
     $PUSER@$PLEIADI:/scratch/$PUSER/skava-e2e/data/
 ```
 
@@ -135,61 +138,48 @@ it as a step of the backend's own job records that job's node and limits:
 ```bash
 cd $WORK
 srun -p gpu --gres=gpu:1 --time=00:10:00 --chdir=$WORK \
-    bash skava/scripts/node_provenance.sh $WORK/backend-conda.sif $WORK/visivo $DATA/*.fits \
+    bash skava/scripts/node_provenance.sh $SIF $WORK/visivo $DATA/*.fits \
     > $WORK/node_provenance.txt
 less $WORK/node_provenance.txt
 ```
 
 ## 5. Start the backend on a compute node
 
-From the laptop, the VisIVO helper submits the job, waits for the backend,
-and opens the tunnel `localhost:18900` → compute node:
+```{admonition} On the VisIVO side
+:class: tip
+
+Start the backend in a SLURM job on a GPU compute node, from the image of
+step 2, with an SSH tunnel from the laptop's `localhost:18900` to it:
+[Running the backend on a SLURM cluster](https://visivo.readthedocs.io/en/latest/deployment/hpc-slurm.html).
+The values SKAVA needs:
+
+* **data root**: `$DATA` (`/scratch/$PUSER/skava-e2e/data`), the same
+  absolute path the publisher writes into the `file://` URLs in step 7;
+* **node code**: `$NODE` (`PLEIADI-GPU-OACT`), the code the node is
+  registered with in step 6;
+* **version**: the VisIVO commit noted in step 1, so the node's status
+  document names what ran;
+* **token**: the backend's token, which the scripted client sends to the
+  node in step 9. Keep it as `NODE_TOKEN`.
+
+The reference run asked for 8 CPUs, 64 GB and one GPU for 4 hours.
+```
+
+Check the backend through the tunnel:
 
 ```bash
 # on the laptop
-cd $VISIVO_REPO
-RWORK=/scratch/$PUSER/skava-e2e                            # $WORK on the cluster
-VCOMMIT=$(ssh $PUSER@$PLEIADI "git -C $RWORK/visivo rev-parse --short HEAD")
-bash scripts/visivo_slurm_tunnel.sh \
-    --frontend $PLEIADI --user $PUSER --repo-dir $RWORK/visivo \
-    --partition gpu --gres gpu:1 --cpus 8 --mem 64G --time 04:00:00 \
-    --port 18900 \
-    --data-root $RWORK/data \
-    --workspace $RWORK/backend \
-    --sif $RWORK/backend-conda.sif \
-    --node-code $NODE --version "$VCOMMIT"
-```
-
-`--workspace` holds what the backend writes (products, which it also
-serves as a data root, caches), the job's log and the token file.
-
-`--data-root` must be the same absolute path the publisher writes into the
-`file://` URLs (step 7 uses `$DATA`, the same directory). The helper prints
-the compute node, the job id and the backend token; keep the token:
-
-```bash
-export NODE_TOKEN=<the printed token>
+export NODE_TOKEN=<the token of the backend>
 curl -s http://localhost:18900/v1/ping                     # {"ok": true}
 curl -s http://localhost:18900/v1/node/status | python3 -m json.tool | head -40
 ```
 
 The status document must show `"node_code": "PLEIADI-GPU-OACT"`, the
 commit as `version`, the GPU declared, and the memory and CPUs of the job
-(not of the whole node).
-
-PLEIADI's SLURM does not enforce `--mem` with a control-group limit (cgroup
-v1, every level unlimited), so the backend takes the job's grant
-(`SLURM_MEM_PER_NODE`) as its limit; this needs VisIVO Visual Analytics
-`d9ccbd7` or later. A backend that reports the whole node's memory (about
-334 GB) is older.
-
-If the image was built from an older commit than the clone, there is no need
-to rebuild for a change in the Python code: add `--backend-src
-$RWORK/visivo/backend/app` to the helper, which binds the clone's code over
-the image's, and report the clone's commit as `--version`. Say so in the
-evidence: the image's commit and the overlay's are then both part of what ran
-(`git -C $RWORK/visivo diff --stat <image commit> HEAD -- backend/app` lists
-the difference).
+(not of the whole node): this is what the catalogue will rank the node on.
+PLEIADI's SLURM does not enforce `--mem` with a control-group limit, so the
+backend has to read the job's grant; a backend that reports the whole
+node's memory (about 334 GB) is too old for this run (see the VisIVO page).
 
 ## 6. Register the node in the catalogue
 
@@ -227,7 +217,7 @@ ssh -N -f -R 18080:localhost:18000 $PUSER@$PLEIADI
 ```bash
 # on the frontend: install the publisher for the image's Python (once)
 cd $WORK
-apptainer exec --env PYTHONUSERBASE=$PYTHONUSERBASE backend-conda.sif \
+apptainer exec --env PYTHONUSERBASE=$PYTHONUSERBASE $SIF \
     python -m pip install --user --no-cache-dir ./skava/tools/skava-publisher
 
 cat > $WORK/publisher.yaml <<EOF
@@ -248,7 +238,7 @@ state:
   db_path: $WORK/publisher-state.db
 EOF
 
-apptainer exec --env PYTHONUSERBASE=$PYTHONUSERBASE --bind $WORK backend-conda.sif \
+apptainer exec --env PYTHONUSERBASE=$PYTHONUSERBASE --bind $WORK $SIF \
     python -m skava_publisher -c $WORK/publisher.yaml publish --yes 2>&1 | tee $WORK/publish.log
 ```
 
@@ -295,19 +285,15 @@ and `.csv`, straight into the bundle. The first run of a dataset is cold
 spread. Repeat with each dataset you published, one `--obs-id` and one name
 each (the reference run used Apertif, HCG 44 and WALLABY).
 
-## 10. The desktop run (the picture)
+## 10. The desktop run
 
-In VisIVO Visual Analytics:
-
-1. Settings ▸ Remote Backends ▸ Add: URL `http://localhost:18900`, the node
-   token, SRC code `PLEIADI-GPU-OACT`.
-2. SKAVA tab: service `http://localhost:18000`, Search, the collection
-   `inaf-pleiadi`. The row shows *Served by* `PLEIADI-GPU-OACT` and the reason.
-3. *Open*: the cube opens from the node (status bar: the node's backend).
-4. *Compute next to data* ▸ *Moment map*: moment 0, Compute; the map opens
-   from the node's workspace.
-5. Capture the window at each step (`screencapture -o -l<window id>`, or the
-   app's own export) into `$EVIDENCE/`.
+The same chain can be driven from the VisIVO Visual Analytics desktop: point
+its SKAVA tab at `http://localhost:18000`, search the collection
+`inaf-pleiadi`, and open the dataset on the node registered as
+`PLEIADI-GPU-OACT` (backend `http://localhost:18900`, the node token). How
+is documented by VisIVO:
+[SKAVA discovery](https://visivo.readthedocs.io/en/latest/user-guide/skava-discovery.html).
+The record of this run is the scripted one of step 9.
 
 ## 11. Collect the evidence
 
@@ -331,7 +317,7 @@ of a real-node validation:
 | Which data (format, size, geometry, checksum) | `node_provenance.txt`, `datalink_*.json` (`content_length`) |
 | Which software (VisIVO commit, image hash, Apptainer, SKAVA commit) | `node_provenance.txt`, the `e7_*.json` metadata (`skava_commit`, `visivo_commit`), the node status `version` |
 | What the catalogue decided, and why | `datalink_*.json`, `telemetry.json` |
-| What was done on the node, how long it took | `e7_*.json` / `.csv`, `backend_log_excerpt.txt`, the screenshots |
+| What was done on the node, how long it took | `e7_*.json` / `.csv`, `backend_log_excerpt.txt` |
 | That nothing was downloaded | `e7_*.json` (the product path is on the node), `backend_log_excerpt.txt` |
 
 Add a `README.md` stating the setup (job, image and overlay commits, link,
@@ -341,9 +327,11 @@ data) and summarising the runs; the reference run's is in the repository.
 
 ```bash
 # on the laptop
-bash $VISIVO_REPO/scripts/visivo_slurm_tunnel.sh --stop   # closes the tunnel, cancels the job
 pkill -f "ssh -N -f -R 18080:localhost:18000"            # the reverse tunnel
 ```
+
+On the VisIVO side, close the backend's tunnel and cancel its SLURM job
+([Running the backend on a SLURM cluster](https://visivo.readthedocs.io/en/latest/deployment/hpc-slurm.html)).
 
 The node stays registered in the testbed catalogue; disable it in the
 admin UI (`http://localhost:18000/admin/nodes/`) if you want it out of the
@@ -357,22 +345,20 @@ rankings.
 
 * - Symptom
   - What to check
-* - The helper cannot parse the launcher's output
-  - The job did not start (partition, GPU quota, time limit). Its log is in
-    ``$WORK/backend/logs/`` on the frontend; ``squeue -u $USER`` shows why it waits.
+* - The backend job does not start, or its status document lacks the node
+    code, the GPU or the job's memory
+  - On the VisIVO side: see its troubleshooting in
+    [Running the backend on a SLURM cluster](https://visivo.readthedocs.io/en/latest/deployment/hpc-slurm.html).
 * - ``Read-only file system`` anywhere
   - Something still writes under ``$HOME``: check that ``APPTAINER_CACHEDIR``,
     ``APPTAINER_TMPDIR`` and ``PYTHONUSERBASE`` are exported in that shell,
-    and that the backend was started with ``--workspace``.
-* - ``/v1/node/status`` shows no node code or GPU
-  - The launcher on the frontend predates ``--node-code``: update the
-    VisIVO clone there.
+    and that the backend writes its workspace under ``$WORK``.
 * - Telemetry says the probe failed
   - The catalogue's container cannot reach ``host.docker.internal:18900``.
     Check ``docker exec testbed-skava-1 python -c "import urllib.request;
     print(urllib.request.urlopen('http://host.docker.internal:18900/v1/ping').read())"``.
     If it fails, open the tunnel on all interfaces (``ssh -g -L``) or let the
-    node report itself (node reports, see the configuration page).
+    node report itself ([Telemetry API](../api/telemetry.md#node-reports)).
 * - ``publish.log`` shows ``replica_unverified`` or ``replica_conflict``
   - The obs_id is already catalogued from another node with another
     checksum: it is another product under the same identifier. Give the
@@ -381,22 +367,14 @@ rankings.
   - Two files under the data root share an ``OBS_ID``; keep one product per
     ``OBS_ID`` (the publisher refuses to merge them).
 * - Open refused: outside the data roots
-  - ``--data-root`` must be the cluster path of ``$DATA`` exactly as the
-    publisher's ``file://`` URLs name it.
+  - The backend's data root must be the cluster path of ``$DATA`` exactly
+    as the publisher's ``file://`` URLs name it.
 * - ``content_length`` is a multiple of 1024, not the file's size
   - The publisher is an old installation: SKAVA clones before ``a7a909e``
     tracked a stale ``tools/skava-publisher/build/``, which pip installed
     in place of the source. Delete it, reinstall with ``--force-reinstall``,
     and publish again (the records are updated, not duplicated).
-* - The node reports the whole node's memory
-  - The backend predates VisIVO Visual Analytics ``d9ccbd7`` (no cgroup v1
-    or SLURM grant reading), or it was not started inside the job (no
-    ``SLURM_JOB_ID``). Pull the clone and use ``--backend-src`` (step 5).
-* - The helper prints the launcher's summary with ``${...}`` unexpanded
-  - The VisIVO clone on the frontend is at ``d9ccbd7`` exactly, whose
-    summary text did not parse: pull it. The backend itself is up; its token
-    is in ``$WORK/backend/token``.
 * - The moment map is slow
   - Check ``cupy devices`` in ``node_provenance.txt``; zero means the image
-    was built without ``APPTAINERENV_ENABLE_CUPY=1`` or the job has no GPU.
+    has no GPU kernels or the job has no GPU (VisIVO side).
 ```

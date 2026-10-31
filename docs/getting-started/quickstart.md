@@ -75,10 +75,9 @@ You get back:
   (UWS) and, for cubes, `visivo-moment` and `visivo-pv`
 * `capabilities` — quick boolean flags for clients
 
-The `service_descriptors` is what the VisIVO Visual Analytics desktop
-client looks at to decide whether to route compute next to the data.
-See [Backend routing](../client-integration/backend-routing.md) for
-details. VO clients (pyvo, TOPCAT) ask for the same answer as a
+The `service_descriptors` is what a client looks at to run compute
+next to the data. See [Clients](../clients/overview.md) for what each
+kind of client does with them. VO clients (pyvo, TOPCAT) ask for the same answer as a
 DataLink VOTable:
 
 ```bash
@@ -212,7 +211,7 @@ The full UI tour lives in [Admin UI / overview](../admin-ui/overview.md).
 
 * Set up the publisher CLI on the node where your data physically
   lives → [skava-publisher / overview](../publisher/overview.md).
-* Integrate the VisIVO Visual Analytics desktop client →
-  [client-integration / visivo-desktop](../client-integration/visivo-desktop.md).
+* Connect a client (pyvo, TOPCAT, the VisIVO Visual Analytics desktop) →
+  [Clients](../clients/overview.md).
 * Plan a production deployment with proper TLS, secrets and backups →
   [deployment / production](../deployment/production.md).

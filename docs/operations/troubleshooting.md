@@ -113,12 +113,12 @@ Header name mismatch. SKAVA expects ``X-Internal-Api-Key``. Older
 publisher releases sent ``X-Internal-Key``. Upgrade the publisher
 to ≥ 0.1.0.
 
-### Build of the VisIVO backend Apptainer image fails on ppc64le with `llvmlite`
+### Building the VisIVO backend image
 
-Known: the VisIVO backend's stack (``numba``) on ppc64le has
-version-juggling pain with LLVM. Build the conda-based variant
-(``backend-conda.def``), which uses pre-compiled wheels from
-conda-forge. The publisher image does not depend on ``numba``.
+The backend's container images, including the ppc64le and GPU variants,
+are built and documented by VisIVO:
+[Running the backend on a SLURM cluster](https://visivo.readthedocs.io/en/latest/deployment/hpc-slurm.html).
+The publisher image does not depend on them.
 
 (admin-ui-auth)=
 ## Admin UI auth
@@ -159,7 +159,7 @@ The production overrides set ``ADMIN_SESSION_COOKIE_SECURE=true``, so
 reach those stacks over HTTPS only.
 
 (routing-issues)=
-## Routing issues (desktop client)
+## Routing issues (clients)
 
 ```{list-table}
 :header-rows: 1
@@ -167,21 +167,24 @@ reach those stacks over HTTPS only.
 
 * - Symptom
   - Diagnosis
-* - Badge stays grey "Backend: Local" despite a registered backend
-  - URL mismatch. Compare the descriptor's ``endpoint`` (from
-    ``/datalink/{obs_id}``) with the Remote Backend's URL byte-for-
-    byte.
-* - "open_url requires http(s) URL"
-  - Routing fell back to download but the access URL is ``file://``.
-    The visivo_backend_url on the Node isn't matching, or no Remote
-    Backend is configured at all.
-* - Backend returns 401
-  - Token mismatch. The backend prints its token at startup; copy it
-    into Settings → Remote Backends.
-* - Backend refuses the path (outside ``VISIVO_DATA_ROOT`` /
-    ``VISIVO_DATA_ROOTS``)
-  - The file lives outside the configured jail. Adjust the root(s)
-    or move the file.
+* - The client does not use the node's backend and downloads instead
+  - The client matched none of the ``visivo-backend`` descriptors.
+    Compare the descriptor's ``endpoint`` and ``node_code`` (from
+    ``/datalink/{obs_id}``) with the client's own backend entry; one of
+    the two must be equal (see [Clients](../clients/overview.md#matching-keys)).
+* - The client cannot open a ``file://`` dataset at all
+  - No advertised backend is usable from the client, and a ``file://``
+    copy cannot be downloaded. Register the node's ``visivo_backend_url``
+    with the address the clients use.
+* - The node's backend answers 401
+  - The client sent no token, or the wrong one, for that backend. Node
+    tokens are not SKAVA's tokens; see
+    [VisIVO's SKAVA discovery page](https://visivo.readthedocs.io/en/latest/user-guide/skava-discovery.html).
+* - The node's backend refuses the path
+  - The published ``file://`` path lies outside the backend's data root.
+    The data root must contain every path the node's publisher writes
+    (``file_serve_url_pattern``); see
+    [VisIVO's SRC node page](https://visivo.readthedocs.io/en/latest/deployment/src-node.html).
 * - Routing always picks the same node although another is idle
   - The ranking policy is ``static``, or the nodes have no fresh
     telemetry, so the declared scores decide. Check
@@ -195,7 +198,7 @@ reach those stacks over HTTPS only.
     ``visivo_backend_url``, and ``SKAVA_VISIVO_BACKEND_TOKEN`` when it
     requires auth. ``POST /internal/telemetry/probe`` probes now. A
     node the catalogue cannot reach should report itself (see
-    [node reports](../deployment/configuration.md#node-reports-telemetry-pushed-by-the-node)).
+    [Telemetry API](../api/telemetry.md#node-reports)).
 ```
 
 (5xx)=

@@ -217,7 +217,7 @@ SKAVA's version.
 ## Out-of-process: the VisIVO backend
 
 The VisIVO backend (the `backend/` of
-[`VisIVOLab/VisIVO-next`](https://github.com/VisIVOLab/VisIVO-next),
+[`VisIVOLab/VisIVOVisualAnalytics`](https://github.com/VisIVOLab/VisIVOVisualAnalytics),
 VisIVO Visual Analytics) is the compute side of compute-next-to-data.
 SKAVA only knows its URL (stored on each Node row) and calls it over
 HTTP: `/v1/ping` and `/v1/node/status` for the prober,
@@ -227,10 +227,11 @@ code.
 
 ## Out-of-process: the VisIVO Visual Analytics desktop client
 
-Qt 6 + VTK 9 desktop app. Routes through SKAVA discovery for any
-dataset opened via the SKAVA tab, and signs in to the IAM when a
-catalogue answers with the `ivoa_bearer` challenge. See
-[client integration](../client-integration/visivo-desktop.md).
+The desktop searches SKAVA from its SKAVA tab, opens a dataset on the
+node SKAVA ranked, and signs in to the IAM when a catalogue answers with
+the `ivoa_bearer` challenge. What it reads from SKAVA is in
+[Clients](../clients/overview.md); the desktop itself is documented by
+[VisIVO](https://visivo.readthedocs.io/en/latest/user-guide/skava-discovery.html).
 
 ## Out-of-process: the testbed
 

@@ -188,6 +188,18 @@ VOTable (`utype="adhoc:service"`, `standardID = SODA#sync-1.0` and
 `ID` fixed to the replica's identifier, so a cutout from these tools
 runs on the node directly, without passing through SKAVA.
 
+## Known limits
+
+The node SODA URL is always derived from the node's VisIVO backend: the
+`node-soda-sync` and `node-soda-async` descriptors (and the `/soda/sync`
+redirect) point at the node's `visivo_backend_url` followed by `/soda`, and
+their fixed `ID` is the replica's `file://` access endpoint on that node.
+Redirecting to a SODA service a site already runs (for example the
+ViaLactea Knowledge Base's `vlkb-soda`) is intended but not implemented:
+it needs a SODA URL configured per node, and the replica's identifier in
+the form that service resolves (an ObsCore identifier or an IVOID) instead
+of a local path.
+
 ## Errors
 
 ```{list-table}

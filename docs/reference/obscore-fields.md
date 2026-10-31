@@ -200,13 +200,17 @@ which can have multiple rows per dataset.
 * - ``checksum``
   - VARCHAR(128)
   - —
-  - File SHA256 (lowercase hex). Populated by the publisher for
-    files up to ``checksum_max_bytes`` (50 GB by default).
+  - The file's SHA-256 as ``sha256:<lowercase hex>``. Populated by
+    the publisher for files up to ``checksum_max_bytes`` (50 GB by
+    default). Replica identity and the federated merge compare it as
+    an exact string, so any other producer must use the same
+    ``sha256:`` prefix.
 * - ``provenance_json``
   - JSON
   - —
-  - Free-form extra. Publisher writes ``{ sha256, rel_path,
-    publisher_label }`` here.
+  - Free-form extra. Publisher writes ``{ sha256, size_bytes,
+    rel_path, publisher_label }`` here; ``size_bytes`` becomes the
+    DataLink ``content_length``.
 ```
 
 ## Timestamps
@@ -301,7 +305,7 @@ Fields that go beyond classic ObsCore:
 * ``obs_title`` — human title
 * ``spatial_index_order`` / ``spatial_index_cell`` — equal-angle sky
   cell key (HEALPix/MOC-ready)
-* ``checksum`` — SHA256 of the source file
+* ``checksum`` — SHA-256 of the source file, as ``sha256:<hex>``
 
 Not stored: MOC footprints and ``s_region`` (the footprint is the
 ``s_fov`` scalar), and a dedicated polarisation column.

@@ -244,10 +244,9 @@ Emitted for every ranked replica whose Node has a non-empty
   - Human-readable text.
 ```
 
-The VisIVO Visual Analytics desktop client walks the descriptors and
-tries to match each against its registered backends, first by URL then
-by node code. See
-[Client integration / backend routing](../client-integration/backend-routing.md).
+A client that keeps its own list of compute backends recognises a node by
+the descriptor's ``endpoint`` or its ``node_code``; see
+[Clients](../clients/overview.md#matching-keys).
 
 ## Links table
 
