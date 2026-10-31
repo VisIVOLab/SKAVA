@@ -74,7 +74,7 @@ def test_a_local_copy_without_a_node_service_is_not_offered_as_a_link(client):
     rows = _rows(client)
     assert _copies(rows) == []
     faults = [r for r in rows if r["error_message"]]
-    assert len(faults) == 1 and faults[0]["error_message"].startswith("NotFoundFault")
+    assert len(faults) == 1 and faults[0]["error_message"].startswith("FatalFault")
     assert faults[0]["semantics"] == "#this"
 
 
@@ -92,7 +92,7 @@ def test_pyvo_reads_the_copies(client):
 def test_a_copy_neither_a_client_nor_the_node_reads_gets_no_link(client):
     _set(size_bytes=1000, endpoint="sftp://{node}.example.org/cube.fits", backend="http://backend:8000")
     rows = _rows(client)
-    assert _copies(rows) == [] and rows[0]["error_message"].startswith("NotFoundFault")
+    assert _copies(rows) == [] and rows[0]["error_message"].startswith("FatalFault")
 
 
 def test_a_stale_exact_size_gives_way_to_the_estimate(client):

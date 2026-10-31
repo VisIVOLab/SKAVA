@@ -17,7 +17,9 @@ table), a VOTable by default,
 `RESPONSEFORMAT` accepted only for VOTable types (anything else is a 400).
 Every row carries the `ID` it answers. An unknown ID gives one row with
 `semantics` `#this` and `NotFoundFault: <id>` in `error_message`; a dataset no
-node can serve now gives `TransientFault: ...`; the other IDs are answered
+node can serve now gives `TransientFault: ...`; a dataset whose copies no
+client can retrieve gives `FatalFault: ...` (DataLink 1.1, 3.4: the ID is
+known, the service cannot perform the action); the other IDs are answered
 normally. The results resource declares
 `standardID = ivo://ivoa.net/std/DataLink#links-1.1`. When several IDs share
 a response, each dataset's service-descriptor `RESOURCE` IDs are prefixed
@@ -302,7 +304,7 @@ JSON is the default. Request `RESPONSEFORMAT=application/x-votable+xml`
     `local_access_url`, never in `access_url`;
   - a copy no client and no node service can reach (`file://` on a node
     without a backend, `sftp://`, ...) gets no row; a dataset left without
-    a `#this` row gets one `NotFoundFault` row;
+    a `#this` row gets one `FatalFault` row;
 - one `#auxiliary` row per **VisIVO backend** co-located with a replica,
   best node first, so VO clients see where the dataset can be analysed in
   place: `access_url` is the backend's status document

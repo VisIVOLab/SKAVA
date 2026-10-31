@@ -225,7 +225,10 @@ def _datalink_rows(datalink: DataLinkResponse, auth_required: bool, prefix: str 
         copies += 1
 
     if copies == 0:
-        rows.append(_fault_row(oid, f"NotFoundFault: no copy of {oid} can be retrieved by a client: "
+        # A known dataset the service cannot hand over: FatalFault ("service
+        # cannot perform requested action"), not NotFoundFault, which DataLink
+        # 1.1 (3.4, Table 2) keeps for an unknown ID.
+        rows.append(_fault_row(oid, f"FatalFault: no copy of {oid} can be retrieved by a client: "
                                     "its copies are local to nodes that run no data service"))
 
     # One row per VisIVO compute backend co-located with a replica, best node

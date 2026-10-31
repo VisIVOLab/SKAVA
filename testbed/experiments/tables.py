@@ -79,12 +79,12 @@ def table_placement() -> None:
         "\\centering",
         "\\caption{Placement quality on the testbed (paper profile). For each cube, every node holding a replica was "
         "timed on the operations a session begins with (median of %d runs after a warm-up, seconds; for the "
-        "moment map also the 95th percentile): opening in "
+        "moment map also the 95th percentile by nearest rank, which with ten runs is the slowest run, a descriptive "
+        "figure and not an estimate of the tail): opening in "
         "place, the first channel slice, and a moment-0 map as a SODA job (the job's own clock on the node). "
         "The policy columns say what each policy did with that replica: \\textbf{chosen}, ranked lower, or set "
         "aside (\\emph{excl.}, with the reason the catalogue gave). A node both policies measured shows the "
-        "median of both cells. The best time per cube and operation is in bold; $\\dagger$ marks a node where a "
-        "run failed.}" % d["meta"]["repeats"],
+        "median of both cells. The best time per cube and operation is in bold@LEGEND@.}" % d["meta"]["repeats"],
         "\\label{tab:placement}",
         "\\small",
         "\\begin{tabular*}{\\linewidth}{@{\\extracolsep{\\fill}}llrrrr" + "l" * len(policies) + "}",
@@ -142,6 +142,10 @@ def table_placement() -> None:
         if ds != datasets[-1]:
             lines.append("\\addlinespace")
     lines += ["\\bottomrule", "\\end{tabular*}", "\\end{table*}", ""]
+    # The key names a mark only if a rendered row carries it.
+    body = "\n".join(lines[lines.index("\\midrule") + 1:])
+    legend = "; $\\dagger$ marks a node where a run failed" if "$^\\dagger$" in body else ""
+    lines = [line.replace("@LEGEND@", legend) for line in lines]
     save("e2_placement", "\n".join(lines))
 
     # Numbers for the text: per policy and cube, the chosen node's moment-0
@@ -285,6 +289,20 @@ def summary_failure() -> None:
 
 # ── E4 ──────────────────────────────────────────────────────────────────────
 
+def _bytes_legend(body: str) -> str:
+    """The caption's key to the marks, naming only those the rendered rows use."""
+    parts = []
+    if "$^\\dagger$" in body:
+        parts.append("$\\dagger$ marks an operation whose product could not be opened in place (the bytes are "
+                     "those of the operation alone)")
+    if any(cell.strip() == "--" for line in body.splitlines() for cell in line.rstrip(" \\\\").split("&")):
+        parts.append("a dash a counter that could not be read")
+    if not parts:
+        return ""
+    text = "; ".join(parts)
+    return " " + text[0].upper() + text[1:] + "."
+
+
 def table_bytes() -> None:
     d = load("e4_bytes")
     if not d:
@@ -299,9 +317,7 @@ def table_bytes() -> None:
         "\\centering",
         "\\caption{Bytes sent by the data node's link per operation (kernel counters, paper profile): the big "
         "node for the download and the SODA operations, the node the broker placed the job on for the finder. "
-        "The product's size in the node's workspace is in parentheses where one is made. $\\dagger$ marks an "
-        "operation whose product could not be opened in place (the bytes are those of the operation alone); a "
-        "dash a counter that could not be read.}",
+        "The product's size in the node's workspace is in parentheses where one is made.@LEGEND@}",
         "\\label{tab:bytes-measured}",
         "\\small",
         "\\begin{tabular*}{\\linewidth}{@{\\extracolsep{\\fill}}l" + "r" * len(ops) + "}",
@@ -325,6 +341,8 @@ def table_bytes() -> None:
             cells.append(cell)
         lines.append(f"{cube_label(ds, mine[next(iter(mine))]['file_bytes'])} & " + " & ".join(cells) + " \\\\")
     lines += ["\\bottomrule", "\\end{tabular*}", "\\end{table*}", ""]
+    body = "\n".join(lines[lines.index("\\midrule") + 1:])
+    lines = [line.replace("@LEGEND@", _bytes_legend(body)) for line in lines]
     save("e4_bytes", "\n".join(lines))
     for ds in datasets:
         mine = {r["operation"]: r for r in rows if r["dataset"] == ds}
