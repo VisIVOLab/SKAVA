@@ -3,7 +3,7 @@
 All notable changes to SKAVA. The repository follows
 [semantic versioning](https://semver.org).
 
-## Unreleased
+## 0.1.3 — 2026-10-31
 
 ### Added
 
@@ -17,6 +17,13 @@ All notable changes to SKAVA. The repository follows
 
 ### Fixed
 
+* **DataLink: the fault of a dataset no client can retrieve** — a known
+  dataset whose copies no client can retrieve (files local to nodes that run
+  no data service, ``sftp://`` copies) now answers with a ``FatalFault`` row,
+  as DataLink 1.1 (3.4) defines it: the service cannot perform the action.
+  It answered ``NotFoundFault``, which the Recommendation keeps for an unknown
+  identifier. An unknown identifier still gives ``NotFoundFault``, and a
+  dataset no node can serve at the moment ``TransientFault``.
 * **Publisher: installing from source installed old code** — the repository
   tracked a stale ``tools/skava-publisher/build/`` copy, which pip installed
   in place of the source (the release 0.1.2 tree included). A publisher
