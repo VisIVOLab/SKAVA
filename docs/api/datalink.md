@@ -323,6 +323,12 @@ The `soda-sync` link (SKAVA's redirecting endpoint) and the `/soda/execute`
 proxy appear in the JSON envelope only: in a VOTable a `#cutout` row means
 "this returns the cutout", which only the node's service does.
 
+The VOTable is served as `application/x-votable+xml;content=datalink`, the
+media type DataLink 1.1 gives a `{links}` response, and each service
+descriptor `RESOURCE` carries a `name` equal to its `ID`. STILTS
+datalinklint reports no errors on it; its three warnings are for the scalar
+`inputParams` declared with `arraysize="1"` on purpose.
+
 This is what Aladin / TOPCAT consume as a DataLink document; the JSON
 descriptor is what the VisIVO desktop reads via `service_descriptors`.
 

@@ -224,7 +224,7 @@ mv /opt/skava/publisher.sif /opt/skava/publisher-prev.sif
 
 ```bash
 apptainer run publisher.sif --version
-# skava-publisher, version 0.1.2
+# skava-publisher, version 0.1.3
 
 apptainer run publisher.sif --help
 ```
