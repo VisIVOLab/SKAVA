@@ -397,7 +397,7 @@ def _service_resource(desc, prefix: str = "") -> str:
                 if desc.standard_id else "")
     inputs = "\n      ".join(params)
     return f"""
-  <RESOURCE type="meta" ID="{_attr(prefix + desc.service_id)}" utype="adhoc:service">
+  <RESOURCE type="meta" ID="{_attr(prefix + desc.service_id)}" name="{_attr(prefix + desc.service_id)}" utype="adhoc:service">
     <DESCRIPTION>{escape(desc.description or "")}</DESCRIPTION>{standard}
     <PARAM name="accessURL" datatype="char" arraysize="*" value="{_attr(desc.access_url)}"/>
     <GROUP name="inputParams">
@@ -411,30 +411,44 @@ def _service_resource(desc, prefix: str = "") -> str:
 DATALINK_ACCESS_FORMAT = "application/x-votable+xml;content=datalink"
 
 
-def discovery_results_to_votable(results: list[DiscoveryResult]) -> str:
-    # The ObsCore columns SKAVA holds, by their standard names. access_url is
-    # the dataset's DataLink document (with access_format saying so), the
-    # ObsCore convention for datasets whose access needs a resolution step —
-    # here, which node and which replica.
-    meta_fields = [
-        ("obs_id", "char"), ("obs_collection", "char"), ("obs_title", "char"),
-        ("dataproduct_type", "char"), ("calib_level", "int"),
-        ("target_name", "char"), ("facility_name", "char"), ("instrument_name", "char"),
-        ("s_ra", "double"), ("s_dec", "double"), ("s_fov", "double"),
-        ("t_min", "double"), ("t_max", "double"), ("em_min", "double"), ("em_max", "double"),
-    ]
-    fields = meta_fields + [("access_url", "char"), ("access_format", "char")]
+def _obscore_field(column, label: str | None = None) -> str:
+    arraysize = ' arraysize="*"' if column.votable_type == "char" else ""
+    unit = f' unit="{_attr(column.unit)}"' if column.unit else ""
+    ucd = f' ucd="{_attr(column.ucd)}"' if column.ucd else ""
+    utype = f' utype="{_attr(column.utype)}"' if column.utype else ""
+    return (f'<FIELD name="{_attr(label or column.name)}" datatype="{column.votable_type}"'
+            f'{arraysize}{unit}{ucd}{utype}/>')
+
+
+def discovery_results_to_votable(results: list[DiscoveryResult], columns: list[tuple[str, str]] | None = None,
+                                 overflow: bool = False) -> str:
+    """A TAP result on ``ivoa.ObsCore``: ``columns`` as (column, output name)
+    in the order the query selected them (all of them for ``SELECT *``), each FIELD carrying the
+    ObsCore UCD, unit and utype that VOSI ``/tables`` declares. ``overflow``
+    marks a result cut at MAXREC (DALI: QUERY_STATUS OVERFLOW after the table).
+
+    access_url is the dataset's DataLink document (with access_format saying
+    so), the ObsCore convention for datasets whose access needs a resolution
+    step: here, which node and which replica."""
+    from app.vo.tap_schema import OBSCORE_COLUMNS  # noqa: PLC0415 (tap_schema is the registry)
+
+    by_name = {column.name: column for column in OBSCORE_COLUMNS}
+    selected = [(by_name[name], label) for name, label in (columns or [(c.name, c.name) for c in OBSCORE_COLUMNS])]
     base = settings.public_base_url.rstrip("/")
+
+    def value(metadata, name: str):
+        if name == "access_url":
+            return f"{base}/datalink?{urlencode({'ID': metadata.obs_id})}"
+        if name == "access_format":
+            return DATALINK_ACCESS_FORMAT
+        return getattr(metadata, name, None)
+
     rows = []
     for result in results:
-        metadata = result.metadata
-        cells = [_cell(getattr(metadata, name, None)) for name, _ in meta_fields]
-        cells.append(_cell(f"{base}/datalink?{urlencode({'ID': metadata.obs_id})}"))
-        cells.append(_cell(DATALINK_ACCESS_FORMAT))
-        rows.append("<TR>" + "".join(cells) + "</TR>")
-
-    field_xml = "\n".join(_field(name, datatype) for name, datatype in fields)
-    row_xml = "\n".join(rows)
+        rows.append("<TR>" + "".join(_cell(value(result.metadata, c.name)) for c, _ in selected) + "</TR>")
+    field_xml = "\n      ".join(_obscore_field(column, label) for column, label in selected)
+    row_xml = "\n          ".join(rows)
+    trailer = '\n    <INFO name="QUERY_STATUS" value="OVERFLOW"/>' if overflow else ""
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
   <RESOURCE type="results">
@@ -446,7 +460,19 @@ def discovery_results_to_votable(results: list[DiscoveryResult]) -> str:
           {row_xml}
         </TABLEDATA>
       </DATA>
-    </TABLE>
+    </TABLE>{trailer}
+  </RESOURCE>
+</VOTABLE>
+"""
+
+
+def tap_error_votable(message: str) -> str:
+    """A TAP error document (DALI 1.1, 4.4): a VOTable whose results resource
+    says QUERY_STATUS ERROR with the message."""
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+  <RESOURCE type="results">
+    <INFO name="QUERY_STATUS" value="ERROR">{escape(message)}</INFO>
   </RESOURCE>
 </VOTABLE>
 """

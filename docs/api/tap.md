@@ -22,7 +22,10 @@ over `ivoa.ObsCore`, with the VOSI `/tap/capabilities` and
     service's JSON summary (queryable columns, operators, limits).
 * - ``GET /tap/tables``
   - VOSI tableset describing ``ivoa.ObsCore`` (columns, datatypes,
-    UCDs, units).
+    UCDs, units, ObsCore utypes).
+* - ``GET /tap/availability``
+  - VOSI availability (XML): available when the catalogue database
+    answers.
 * - ``POST /tap/async``
   - Submits a query as a job (form-encoded ``QUERY``, ``LANG``,
     ``REQUEST``, ``MAXREC``, ``FORMAT``). The job runs at submission and
@@ -37,7 +40,10 @@ over `ivoa.ObsCore`, with the VOSI `/tap/capabilities` and
 `/tap/sync` and `/tap/async` follow the deployment's token rule (open
 unless static tokens or OIDC are configured, see
 [Authentication](auth.md)); `/tap/capabilities` and `/tap/tables` are
-always open. `submitted_by` is a non-reversible reference to the
+always open, and so is `/tap/availability`. When tokens are required, the
+TAP interface in `/tap/capabilities` declares the IVOA SSO
+`ivo://ivoa.net/sso#BearerToken` security method; without one it
+declares none (anonymous access). `submitted_by` is a non-reversible reference to the
 caller's token (`token:<sha256 prefix>`), never the token itself.
 
 `/tap/async` is not a UWS job list: there is no `PHASE`, no
@@ -58,7 +64,7 @@ work belongs to the nodes' SODA services (see [SODA](soda.md)).
   - Required. ADQL (URL- or form-encoded).
 * - ``LANG``
   - ``ADQL``
-  - Anything else is refused (400).
+  - ``ADQL``, ``ADQL-2.0`` or ``ADQL-2.1``; anything else is refused (400).
 * - ``REQUEST``
   - ``doQuery``
   - Anything else is refused (400).
@@ -71,16 +77,22 @@ work belongs to the nodes' SODA services (see [SODA](soda.md)).
     ``RESPONSEFORMAT`` wins when both are given.
 * - ``MAXREC``
   - 100
-  - Row cap, 1-1000 (a value above 1000 is refused). ``SELECT TOP N``
-    takes precedence and is clamped to 1000.
+  - Row cap, 0-1000 (a value above 1000 is refused). It caps a
+    ``SELECT TOP N`` too; without ``MAXREC`` a ``TOP`` is honoured up to
+    1000 rows. A result cut by the cap (not by its own ``TOP``) ends with
+    ``QUERY_STATUS`` ``OVERFLOW``; ``MAXREC=0`` returns the result's
+    columns and no rows.
 ```
 
 ## ADQL subset
 
 Supported:
 
-* `SELECT ... FROM ivoa.ObsCore` (or `ObsCore`). The select list is
-  not evaluated: every row carries the fixed column set below.
+* `SELECT ... FROM ivoa.ObsCore` (or `ObsCore`). The select list is `*`
+  (every column below) or column names, optionally qualified (`o.s_ra`,
+  with `FROM ivoa.ObsCore AS o`) and renamed (`s_ra AS ra`); the result has
+  those columns in that order. Expressions, functions, aggregates and
+  `DISTINCT` in the select list are refused.
 * `TOP N`.
 * `WHERE` with predicates joined by `AND` only. Each predicate is
   `column OP value` with `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`; string
@@ -140,10 +152,14 @@ WHERE  t_min <= 60000 AND t_max >= 59000
 
 ## VOTable response shape
 
-The columns are always `obs_id`, `obs_collection`, `obs_title`,
+`SELECT *` returns `obs_id`, `obs_collection`, `obs_title`,
 `dataproduct_type`, `calib_level`, `target_name`, `facility_name`,
 `instrument_name`, `s_ra`, `s_dec`, `s_fov`, `t_min`, `t_max`,
-`em_min`, `em_max`, `access_url`, `access_format`. `access_url` is the
+`em_min`, `em_max`, `access_url`, `access_format`, `access_estsize` and
+SKAVA's `spatial_index_cell`, `doi`, `pid`: the columns `/tap/tables`
+declares, in that order, each FIELD with the UCD, unit and ObsCore 1.1
+utype `/tap/tables` gives it (one registry in `app/vo/tap_schema.py`
+serves both). `access_url` is the
 dataset's DataLink document
 (`{base}/datalink?ID={obs_id}`, the DataLink `{links}` endpoint) and
 `access_format` is `application/x-votable+xml;content=datalink`, the
@@ -155,10 +171,11 @@ ObsCore convention for datasets whose access needs a resolution step.
   <RESOURCE type="results">
     <INFO name="QUERY_STATUS" value="OK"/>
     <TABLE name="ivoa.ObsCore">
-      <FIELD name="obs_id" datatype="char" arraysize="*"/>
+      <FIELD name="obs_id" datatype="char" arraysize="*" ucd="meta.id" utype="obscore:DataID.observationID"/>
       ...
-      <FIELD name="access_url" datatype="char" arraysize="*"/>
-      <FIELD name="access_format" datatype="char" arraysize="*"/>
+      <FIELD name="s_ra" datatype="double" unit="deg" ucd="pos.eq.ra" utype="obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1"/>
+      ...
+      <FIELD name="access_url" datatype="char" arraysize="*" ucd="meta.ref.url" utype="obscore:Access.Reference"/>
       <DATA>
         <TABLEDATA>
           <TR><TD>tb-cube-l</TD>...<TD>https://skava.inaf.it/datalink?ID=tb-cube-l</TD><TD>application/x-votable+xml;content=datalink</TD></TR>
@@ -192,9 +209,11 @@ Datasets with no eligible replica are left out of the results.
   - DB error / unexpected exception.
 ```
 
-Errors are returned as SKAVA's JSON error envelope
-(`{"error": {"code", "message", "details"}, "request_id"}`), not as a
-VOTable with `QUERY_STATUS=ERROR`. On `/tap/async` a query error does
+Errors of `/tap/sync` are returned as DALI asks: a VOTable whose results
+resource carries `<INFO name="QUERY_STATUS" value="ERROR">` with the
+message. A request that asked for JSON (`FORMAT=json`) gets SKAVA's JSON
+error envelope instead (`{"error": {"code", "message", "details"},
+"request_id"}`), and so does a refused token (401). On `/tap/async` a query error does
 not fail the request: the job is stored with `status: "failed"` and
 the message in `error_message`.
 

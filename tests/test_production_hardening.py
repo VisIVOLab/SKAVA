@@ -90,6 +90,12 @@ def test_tap_rejects_unsupported_where_clause(client):
         "SELECT * FROM ivoa.ObsCore WHERE bogus_column > 1",
         "SELECT * FROM ivoa.ObsCore WHERE 1 = INTERSECTS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 1, 2, 3))",
     ):
-        resp = client.get("/tap/sync", params={"QUERY": query})
+        # JSON asked for: SKAVA's error envelope.
+        resp = client.get("/tap/sync", params={"QUERY": query, "FORMAT": "json"})
         assert resp.status_code == 400, query
         assert resp.json()["error"]["code"] == "invalid_query"
+        # The default, VOTable: a DALI error document.
+        resp = client.get("/tap/sync", params={"QUERY": query})
+        assert resp.status_code == 400, query
+        assert resp.headers["content-type"].startswith("application/x-votable+xml")
+        assert 'name="QUERY_STATUS" value="ERROR"' in resp.text

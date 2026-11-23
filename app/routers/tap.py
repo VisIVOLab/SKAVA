@@ -3,18 +3,20 @@
 import re
 
 from fastapi import APIRouter, Depends, Form, Query, Request, Response
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
 from app.errors import InvalidQueryError
 from app.schemas.discovery import DiscoverySearchResponse
-from app.security.internal_api_key import require_access_token, token_reference
+from app.security.internal_api_key import auth_is_required, require_access_token, token_reference
 from app.services.tap_service import TapService
 from app.vo.adql import QUERYABLE_COLUMNS
-from app.vo.tap_schema import (CAPABILITIES_MEDIA_TYPE, TABLESET_MEDIA_TYPE, TAP_MAX_ROWS, obscore_tableset,
-                               tap_capabilities_xml)
-from app.vo.votable import VOTABLE_MEDIA_TYPE, discovery_results_to_votable
+from app.vo.tap_schema import (AVAILABILITY_MEDIA_TYPE, CAPABILITIES_MEDIA_TYPE, TABLESET_MEDIA_TYPE, TAP_MAX_ROWS,
+                               availability_xml, obscore_tableset, tap_capabilities_xml)
+from app.vo.votable import VOTABLE_MEDIA_TYPE, discovery_results_to_votable, tap_error_votable
 
 router = APIRouter(prefix="/tap", tags=["tap"])
 
@@ -99,7 +101,8 @@ def tap_capabilities(request: Request,
     that prefers ``application/json``."""
     if (fmt or "").lower() != "json" and not _prefers_json(request.headers.get("accept", "")):
         base = settings.public_base_url or str(request.base_url).rstrip("/")
-        return Response(content=tap_capabilities_xml(base), media_type=CAPABILITIES_MEDIA_TYPE)
+        return Response(content=tap_capabilities_xml(base, auth_required=auth_is_required()),
+                        media_type=CAPABILITIES_MEDIA_TYPE)
     return {
         "standard_id": "ivo://ivoa.net/std/TAP",
         "profile": "TAP sync ObsCore compatibility profile",
@@ -127,56 +130,105 @@ def tap_tables() -> Response:
     return Response(content=obscore_tableset(), media_type=TABLESET_MEDIA_TYPE)
 
 
-def _render_tap_response(result: DiscoverySearchResponse, fmt: str | None) -> DiscoverySearchResponse | Response:
+_VOTABLE_FORMATS = {"votable", "votable/td", "application/x-votable+xml", "text/xml", "application/xml", "xml"}
+_JSON_FORMATS = {"json", "application/json"}
+# LANG values a TAP 1.1 client may send for this service's language.
+_LANGS = {"ADQL", "ADQL-2.0", "ADQL-2.1"}
+
+
+def _requested_format(fmt: str | None) -> str:
     # TAP 1.1 RESPONSEFORMAT values as VO clients send them: "votable",
     # "votable/td", or a MIME type with parameters
     # ("application/x-votable+xml;serialization=tabledata"). SKAVA always
     # writes TABLEDATA, so every VOTable variant gets the same document.
-    requested = (fmt or "votable").lower().split(";")[0].strip()
-    if requested in {"json", "application/json"}:
-        return result
-    if requested in {"votable", "votable/td", "application/x-votable+xml", "text/xml",
-                     "application/xml", "xml"}:
-        return Response(content=discovery_results_to_votable(result.results), media_type=VOTABLE_MEDIA_TYPE)
-    raise InvalidQueryError("Unsupported RESPONSEFORMAT; use votable or application/json")
+    return (fmt or "votable").lower().split(";")[0].strip()
+
+
+def _maxrec(value: str | None) -> int | None:
+    if value is None or not value.strip():
+        return None
+    try:
+        maxrec = int(value)
+    except ValueError as exc:
+        raise InvalidQueryError("MAXREC must be an integer") from exc
+    if not 0 <= maxrec <= TAP_MAX_ROWS:
+        raise InvalidQueryError(f"MAXREC must be between 0 and {TAP_MAX_ROWS}")
+    return maxrec
+
+
+def _sync(db: Session, request: str | None, lang: str | None, query: str | None, maxrec: str | None,
+          fmt: str | None) -> DiscoverySearchResponse | Response:
+    """One sync query. Errors are answered as DALI wants them: a VOTable with
+    QUERY_STATUS ERROR (status 400), unless the client asked for JSON, which
+    gets SKAVA's JSON error envelope."""
+    requested = _requested_format(fmt)
+    try:
+        if (request or "doQuery").lower() != "doquery":
+            raise InvalidQueryError("REQUEST must be doQuery")
+        if (lang or "ADQL").upper() not in _LANGS:
+            raise InvalidQueryError("LANG must be ADQL")
+        if not query or not query.strip():
+            raise InvalidQueryError("QUERY is required")
+        if requested not in _VOTABLE_FORMATS | _JSON_FORMATS:
+            raise InvalidQueryError("Unsupported RESPONSEFORMAT; use votable or application/json")
+        limit = _maxrec(maxrec)
+        if limit == 0:
+            # MAXREC=0: the metadata of the result and no rows (DALI 1.1, 4.4).
+            result = TapService(db).run(query=query, maxrec=1)
+            result.response.results = []
+            result.response.returned = 0
+            result.overflow = True
+        else:
+            result = TapService(db).run(query=query, maxrec=limit)
+    except InvalidQueryError as exc:
+        if requested in _JSON_FORMATS:
+            raise
+        return Response(content=tap_error_votable(exc.message), status_code=exc.status_code,
+                        media_type=VOTABLE_MEDIA_TYPE)
+    if requested in _JSON_FORMATS:
+        return result.response
+    return Response(content=discovery_results_to_votable(result.response.results, columns=result.columns,
+                                                         overflow=result.overflow),
+                    media_type=VOTABLE_MEDIA_TYPE)
 
 
 @router.get("/sync", response_model=None)
 def tap_sync_get(
-    request: str = Query(default="doQuery", alias="REQUEST"),
-    lang: str = Query(default="ADQL", alias="LANG"),
-    query: str = Query(alias="QUERY"),
-    maxrec: int | None = Query(default=None, ge=1, le=1000, alias="MAXREC"),
+    request: str | None = Query(default=None, alias="REQUEST"),
+    lang: str | None = Query(default=None, alias="LANG"),
+    query: str | None = Query(default=None, alias="QUERY"),
+    maxrec: str | None = Query(default=None, alias="MAXREC"),
     fmt: str | None = Query(default=None, alias="FORMAT"),
     responseformat: str | None = Query(default=None, alias="RESPONSEFORMAT"),
     token: str | None = Depends(require_access_token),
     db: Session = Depends(get_db),
 ) -> DiscoverySearchResponse | Response:
-    if request.lower() != "doquery":
-        raise InvalidQueryError("REQUEST must be doQuery")
-    if lang.upper() != "ADQL":
-        raise InvalidQueryError("LANG must be ADQL")
-    result = TapService(db).sync_query(query=query, maxrec=maxrec)
-    return _render_tap_response(result, responseformat or fmt)
+    return _sync(db, request, lang, query, maxrec, responseformat or fmt)
 
 
 @router.post("/sync", response_model=None)
 def tap_sync_post(
-    request: str = Form(default="doQuery", alias="REQUEST"),
-    lang: str = Form(default="ADQL", alias="LANG"),
-    query: str = Form(alias="QUERY"),
-    maxrec: int | None = Form(default=None, ge=1, le=1000, alias="MAXREC"),
+    request: str | None = Form(default=None, alias="REQUEST"),
+    lang: str | None = Form(default=None, alias="LANG"),
+    query: str | None = Form(default=None, alias="QUERY"),
+    maxrec: str | None = Form(default=None, alias="MAXREC"),
     fmt: str | None = Form(default=None, alias="FORMAT"),
     responseformat: str | None = Form(default=None, alias="RESPONSEFORMAT"),
     token: str | None = Depends(require_access_token),
     db: Session = Depends(get_db),
 ) -> DiscoverySearchResponse | Response:
-    if request.lower() != "doquery":
-        raise InvalidQueryError("REQUEST must be doQuery")
-    if lang.upper() != "ADQL":
-        raise InvalidQueryError("LANG must be ADQL")
-    result = TapService(db).sync_query(query=query, maxrec=maxrec)
-    return _render_tap_response(result, responseformat or fmt)
+    return _sync(db, request, lang, query, maxrec, responseformat or fmt)
+
+
+@router.get("/availability")
+def tap_availability(db: Session = Depends(get_db)) -> Response:
+    """VOSI availability: the service is available when its catalogue answers."""
+    try:
+        db.execute(text("SELECT 1"))
+        body = availability_xml(True)
+    except SQLAlchemyError:
+        body = availability_xml(False, "the catalogue database does not answer")
+    return Response(content=body, media_type=AVAILABILITY_MEDIA_TYPE)
 
 
 @router.post("/async")

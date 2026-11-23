@@ -3,6 +3,38 @@
 All notable changes to SKAVA. The repository follows
 [semantic versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+* **TAP checked with STILTS taplint** (81 errors and 24 warnings before,
+  25 errors and no warnings after; the 25 are the two gaps below):
+  * every result FIELD carries the UCD, unit and ObsCore 1.1 utype that
+    `/tap/tables` declares, from one column registry, and `SELECT *`
+    returns exactly the declared columns (`access_estsize`,
+    `spatial_index_cell`, `doi` and `pid` added, `access_url` declared);
+  * the select list is honoured: column names in order, qualified or
+    renamed (`AS`); expressions and functions are refused;
+  * MAXREC caps a `TOP` too, and a result cut by MAXREC (or the default
+    or hard limit) ends with `QUERY_STATUS` `OVERFLOW`;
+    `MAXREC=0` returns the columns and no rows;
+  * errors are DALI VOTables with `QUERY_STATUS` `ERROR` (JSON when JSON
+    was asked for);
+  * `LANG` accepts `ADQL-2.0` and `ADQL-2.1`;
+  * VOSI `/tap/availability`, declared in the capabilities; the TAP
+    interface declares the SSO `BearerToken` security method when tokens
+    are required.
+* **DataLink** responses use the media type
+  `application/x-votable+xml;content=datalink`, and every service
+  descriptor RESOURCE has a `name` (STILTS datalinklint: no errors; three
+  warnings remain for the deliberate `arraysize="1"` scalar parameters).
+
+### Known gaps (taplint)
+
+* `TAP_SCHEMA` is not queryable (the tables are described by VOSI
+  `/tap/tables` only).
+* `/tap/async` is not a UWS job list.
+
 ## 0.1.3 — 2026-10-31
 
 ### Added
