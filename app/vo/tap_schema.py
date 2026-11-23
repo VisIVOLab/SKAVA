@@ -15,53 +15,91 @@ VO clients.
 """
 from __future__ import annotations
 
-from xml.sax.saxutils import escape
-
 from html import escape
+from typing import NamedTuple
 
 TABLESET_MEDIA_TYPE = "application/xml"
 
-# (name, TAP datatype, ucd, unit, description)
-_OBSCORE_COLUMNS: list[tuple[str, str, str, str, str]] = [
-    ("obs_id", "VARCHAR", "meta.id;meta.main", "", "Dataset identifier"),
-    ("obs_collection", "VARCHAR", "meta.id", "", "Collection / survey name"),
-    ("obs_title", "VARCHAR", "meta.title", "", "Human-readable dataset title"),
-    ("dataproduct_type", "VARCHAR", "meta.id", "", "Data product type (image, cube, …)"),
-    ("calib_level", "INTEGER", "meta.code;obs.calib", "", "Calibration level (0-3)"),
-    ("target_name", "VARCHAR", "meta.id;src", "", "Astronomical target name"),
-    ("facility_name", "VARCHAR", "meta.id;instr.tel", "", "Facility / telescope name"),
-    ("instrument_name", "VARCHAR", "meta.id;instr", "", "Instrument name"),
-    ("s_ra", "DOUBLE", "pos.eq.ra", "deg", "Central right ascension (ICRS)"),
-    ("s_dec", "DOUBLE", "pos.eq.dec", "deg", "Central declination (ICRS)"),
-    ("s_fov", "DOUBLE", "phys.angSize;instr.fov", "deg", "Field-of-view angular diameter"),
-    ("t_min", "DOUBLE", "time.start;obs.exposure", "d", "Observation start (MJD)"),
-    ("t_max", "DOUBLE", "time.end;obs.exposure", "d", "Observation end (MJD)"),
-    ("em_min", "DOUBLE", "em.wl;stat.min", "m", "Minimum wavelength"),
-    ("em_max", "DOUBLE", "em.wl;stat.max", "m", "Maximum wavelength"),
-    ("access_format", "VARCHAR", "meta.code.mime", "", "Access data format (MIME)"),
-    ("access_estsize", "BIGINT", "phys.size;meta.file", "kbyte", "Estimated access size"),
-    ("spatial_index_cell", "VARCHAR", "meta.id", "", "Lightweight HEALPix/MOC-ready cell key"),
-    ("doi", "VARCHAR", "meta.ref.doi", "", "Digital Object Identifier"),
-    ("pid", "VARCHAR", "meta.ref", "", "Persistent identifier"),
+class ObsCoreColumn(NamedTuple):
+    """One column of ``ivoa.ObsCore`` as SKAVA serves it: the same record
+    describes the column in VOSI ``/tables`` and in every query result, so the
+    two cannot disagree (taplint compares them)."""
+    name: str
+    tap_type: str        # VODataService TAPType
+    votable_type: str    # VOTable FIELD datatype
+    ucd: str
+    unit: str
+    utype: str           # ObsCore 1.1 utype, empty for SKAVA's own columns
+    description: str
+
+
+# In result order: what ``SELECT *`` returns. UCDs, units and utypes are those
+# of ObsCore 1.1 (Table 3) for the standard columns; the last four are SKAVA's.
+OBSCORE_COLUMNS: list[ObsCoreColumn] = [
+    ObsCoreColumn("obs_id", "VARCHAR", "char", "meta.id", "", "obscore:DataID.observationID",
+                  "Dataset identifier"),
+    ObsCoreColumn("obs_collection", "VARCHAR", "char", "meta.id", "", "obscore:DataID.Collection",
+                  "Collection / survey name"),
+    ObsCoreColumn("obs_title", "VARCHAR", "char", "meta.title;obs", "", "obscore:DataID.Title",
+                  "Human-readable dataset title"),
+    ObsCoreColumn("dataproduct_type", "VARCHAR", "char", "meta.code.class", "",
+                  "obscore:ObsDataset.dataProductType", "Data product type (image, cube, ...)"),
+    ObsCoreColumn("calib_level", "INTEGER", "int", "meta.code;obs.calib", "", "obscore:ObsDataset.calibLevel",
+                  "Calibration level (0-4)"),
+    ObsCoreColumn("target_name", "VARCHAR", "char", "meta.id;src", "", "obscore:Target.name",
+                  "Astronomical target name"),
+    ObsCoreColumn("facility_name", "VARCHAR", "char", "meta.id;instr.tel", "",
+                  "obscore:Provenance.ObsConfig.Facility.name", "Facility / telescope name"),
+    ObsCoreColumn("instrument_name", "VARCHAR", "char", "meta.id;instr", "",
+                  "obscore:Provenance.ObsConfig.Instrument.name", "Instrument name"),
+    ObsCoreColumn("s_ra", "DOUBLE", "double", "pos.eq.ra", "deg",
+                  "obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1",
+                  "Central right ascension (ICRS)"),
+    ObsCoreColumn("s_dec", "DOUBLE", "double", "pos.eq.dec", "deg",
+                  "obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2",
+                  "Central declination (ICRS)"),
+    ObsCoreColumn("s_fov", "DOUBLE", "double", "phys.angSize;instr.fov", "deg",
+                  "obscore:Char.SpatialAxis.Coverage.Bounds.Extent.diameter", "Field-of-view angular diameter"),
+    ObsCoreColumn("t_min", "DOUBLE", "double", "time.start;obs.exposure", "d",
+                  "obscore:Char.TimeAxis.Coverage.Bounds.Limits.StartTime", "Observation start (MJD)"),
+    ObsCoreColumn("t_max", "DOUBLE", "double", "time.end;obs.exposure", "d",
+                  "obscore:Char.TimeAxis.Coverage.Bounds.Limits.StopTime", "Observation end (MJD)"),
+    ObsCoreColumn("em_min", "DOUBLE", "double", "em.wl;stat.min", "m",
+                  "obscore:Char.SpectralAxis.Coverage.Bounds.Limits.LoLimit", "Minimum wavelength (vacuum)"),
+    ObsCoreColumn("em_max", "DOUBLE", "double", "em.wl;stat.max", "m",
+                  "obscore:Char.SpectralAxis.Coverage.Bounds.Limits.HiLimit", "Maximum wavelength (vacuum)"),
+    ObsCoreColumn("access_url", "VARCHAR", "char", "meta.ref.url", "", "obscore:Access.Reference",
+                  "The dataset's DataLink document, which names the copy and the services to use"),
+    ObsCoreColumn("access_format", "VARCHAR", "char", "meta.code.mime", "", "obscore:Access.Format",
+                  "Format of access_url (a DataLink document)"),
+    ObsCoreColumn("access_estsize", "BIGINT", "long", "phys.size;meta.file", "kbyte", "obscore:Access.Size",
+                  "Estimated size of the dataset"),
+    ObsCoreColumn("spatial_index_cell", "VARCHAR", "char", "meta.id", "", "",
+                  "SKAVA sky-cell key (equal-angle bins)"),
+    ObsCoreColumn("doi", "VARCHAR", "char", "meta.ref.doi", "", "", "Digital Object Identifier"),
+    ObsCoreColumn("pid", "VARCHAR", "char", "meta.ref", "", "", "Persistent identifier"),
 ]
 
+OBSCORE_COLUMN_NAMES = [column.name for column in OBSCORE_COLUMNS]
 
-def _column_xml(name: str, datatype: str, ucd: str, unit: str, desc: str) -> str:
-    unit_xml = f"\n        <unit>{escape(unit)}</unit>" if unit else ""
-    ucd_xml = f"\n        <ucd>{escape(ucd)}</ucd>" if ucd else ""
+
+def _column_xml(column: ObsCoreColumn) -> str:
+    unit_xml = f"\n        <unit>{escape(column.unit)}</unit>" if column.unit else ""
+    ucd_xml = f"\n        <ucd>{escape(column.ucd)}</ucd>" if column.ucd else ""
+    utype_xml = f"\n        <utype>{escape(column.utype)}</utype>" if column.utype else ""
     return (
         "      <column>\n"
-        f"        <name>{escape(name)}</name>\n"
-        f"        <description>{escape(desc)}</description>"
-        f"{unit_xml}{ucd_xml}\n"
-        f'        <dataType xsi:type="vod:TAPType">{escape(datatype)}</dataType>\n'
+        f"        <name>{escape(column.name)}</name>\n"
+        f"        <description>{escape(column.description)}</description>"
+        f"{unit_xml}{ucd_xml}{utype_xml}\n"
+        f'        <dataType xsi:type="vod:TAPType">{escape(column.tap_type)}</dataType>\n'
         "      </column>"
     )
 
 
 def obscore_tableset() -> str:
     """Return the VOSI tableset XML describing ``ivoa.ObsCore``."""
-    columns_xml = "\n".join(_column_xml(*col) for col in _OBSCORE_COLUMNS)
+    columns_xml = "\n".join(_column_xml(col) for col in OBSCORE_COLUMNS)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <vosi:tableset
     xmlns:vosi="http://www.ivoa.net/xml/VOSITables/v1.0"
@@ -81,17 +119,21 @@ def obscore_tableset() -> str:
 
 
 CAPABILITIES_MEDIA_TYPE = "application/xml"
-# The row limits the sync query applies (TapService._parse_limit and the
+# The row limits the sync query applies (TapService._limits and the
 # routes' MAXREC bound): what the capabilities document advertises.
 TAP_DEFAULT_ROWS = 100
 TAP_MAX_ROWS = 1000
 
 
-def tap_capabilities_xml(base_url: str) -> str:
+def tap_capabilities_xml(base_url: str, auth_required: bool = False) -> str:
     """The VOSI capabilities document of the TAP service: what a VO client
     (pyvo's ``TAPService.capabilities``, TOPCAT) reads at ``/tap/capabilities``
     to learn the service's standard, its interface and its query language."""
     base = escape(base_url.rstrip("/"))
+    # VOResource: an interface with no securityMethod is used anonymously; one
+    # that needs a token says so with the SSO standard it accepts (SSO 2.0).
+    security = ('\n      <securityMethod standardID="ivo://ivoa.net/sso#BearerToken"/>'
+                if auth_required else "")
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <vosi:capabilities
     xmlns:vosi="http://www.ivoa.net/xml/VOSICapabilities/v1.0"
@@ -100,7 +142,7 @@ def tap_capabilities_xml(base_url: str) -> str:
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <capability standardID="ivo://ivoa.net/std/TAP" xsi:type="tr:TableAccess">
     <interface xsi:type="vs:ParamHTTP" role="std" version="1.1">
-      <accessURL use="base">{base}/tap</accessURL>
+      <accessURL use="base">{base}/tap</accessURL>{security}
     </interface>
     <language>
       <name>ADQL</name>
@@ -130,5 +172,22 @@ def tap_capabilities_xml(base_url: str) -> str:
       <accessURL use="full">{base}/tap/tables</accessURL>
     </interface>
   </capability>
+  <capability standardID="ivo://ivoa.net/std/VOSI#availability">
+    <interface xsi:type="vs:ParamHTTP" role="std">
+      <accessURL use="full">{base}/tap/availability</accessURL>
+    </interface>
+  </capability>
 </vosi:capabilities>
 """
+
+
+AVAILABILITY_MEDIA_TYPE = "application/xml"
+
+
+def availability_xml(available: bool, note: str | None = None) -> str:
+    """The VOSI availability document of the TAP service."""
+    note_xml = f"\n  <vosi:note>{escape(note)}</vosi:note>" if note else ""
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<vosi:availability xmlns:vosi="http://www.ivoa.net/xml/VOSIAvailability/v1.0">\n'
+            f"  <vosi:available>{'true' if available else 'false'}</vosi:available>{note_xml}\n"
+            "</vosi:availability>\n")

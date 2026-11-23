@@ -126,6 +126,8 @@ def test_access_and_votable_advertise_cutout_when_executable(client):
     for row in cutout + proc:
         service = root.find(f".//v:RESOURCE[@ID='{row['service_def']}']", ns)
         assert service is not None and service.get("utype") == "adhoc:service"
+        # Every descriptor has its own name (datalinklint W-SDND otherwise).
+        assert service.get("name") == row["service_def"]
         params = {p.get("name"): p.get("value") for p in service.findall("v:PARAM", ns)}
         assert params["accessURL"].startswith("http://node-backend:8000/soda/")
         inputs = {p.get("name"): p.get("value") for p in service.findall("v:GROUP/v:PARAM", ns)}

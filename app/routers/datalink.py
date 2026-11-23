@@ -8,7 +8,7 @@ from app.errors import DatasetNotFoundError, InvalidQueryError, NoAvailableNodes
 from app.schemas.datalink import DataLinkResponse
 from app.security.internal_api_key import auth_is_required, require_access_token
 from app.services.datalink_service import DataLinkService
-from app.vo.votable import VOTABLE_MEDIA_TYPE, datalink_links_votable, datalink_to_votable
+from app.vo.votable import DATALINK_ACCESS_FORMAT, datalink_links_votable, datalink_to_votable
 
 router = APIRouter(prefix="/datalink", tags=["datalink"])
 
@@ -36,7 +36,7 @@ def _links(ids: list[str], responseformat: str | None, db: Session) -> Response:
             entries.append((requested, f"TransientFault: {exc}"))
     return Response(content=datalink_links_votable(entries, auth_required=auth_is_required(),
                                                    overflow=len(ids) > MAX_LINKS_IDS),
-                    media_type=VOTABLE_MEDIA_TYPE)
+                    media_type=DATALINK_ACCESS_FORMAT)
 
 
 @router.get("", response_model=None)
@@ -77,5 +77,5 @@ def datalink(
     requested_format = (responseformat or format_value or "json").lower()
     if requested_format in {"votable", "application/x-votable+xml", "application/xml", "xml"}:
         return Response(content=datalink_to_votable(result, auth_required=auth_is_required()),
-                        media_type=VOTABLE_MEDIA_TYPE)
+                        media_type=DATALINK_ACCESS_FORMAT)
     return result
