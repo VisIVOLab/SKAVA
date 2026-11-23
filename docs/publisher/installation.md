@@ -53,7 +53,7 @@ Verify:
 
 ```bash
 skava-publisher --version
-# skava-publisher, version 0.1.2
+# skava-publisher, version 0.1.3
 ```
 
 ### Dependencies

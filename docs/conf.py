@@ -7,15 +7,20 @@ root. Local preview with ``make -C docs html`` after installing
 from __future__ import annotations
 
 import os
+import re
 import sys
+from pathlib import Path
 from datetime import date
 
 # ── Project metadata ────────────────────────────────────────────────────────
 project   = "SKAVA"
 author    = "INAF / SKAVA Team"
 copyright = f"{date.today().year}, {author}"
-version   = "0.1"
-release   = "0.1.0"
+# The release is read from pyproject.toml so the docs never lag behind it.
+_PYPROJECT = Path(__file__).resolve().parent.parent / "pyproject.toml"
+_match = re.search(r'^version\s*=\s*"([^"]+)"', _PYPROJECT.read_text(), re.M)
+release   = _match.group(1) if _match else "unknown"
+version   = ".".join(release.split(".")[:2])
 
 # ── Path setup ──────────────────────────────────────────────────────────────
 # Add the repo root to sys.path so ``autodoc`` / ``automodule`` directives
